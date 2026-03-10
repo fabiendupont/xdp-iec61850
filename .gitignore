@@ -1,0 +1,29 @@
+# Build directories
+builddir*/
+build/
+
+# Object files
+*.o
+*.a
+*.so
+*.so.*
+*.bpf.o
+
+# Editor/IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+compile_commands.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Subprojects (fetched by meson)
+subprojects/ebpf-graph-lib/
+subprojects/xdp-graph-lib/
+
+# TLA+ state exploration (can be 100s of GB)
+verification/tlaplus/states/

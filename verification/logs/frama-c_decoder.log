@@ -1,0 +1,155 @@
+[kernel] Parsing verification/frama-c/ber_decoder_harness.c (with preprocessing)
+[kernel] Parsing src/asn1/goose_ber.c (with preprocessing)
+/home/fdupont/Code/github.com/smgglrs/xdp-iec61850/src/asn1/goose_ber.c:10:9: warning: ‘_POSIX_C_SOURCE’ redefined
+   10 | #define _POSIX_C_SOURCE 199309L  /* For clock_gettime */
+      |         ^~~~~~~~~~~~~~~
+In file included from <command-line>:
+/tmp/__fc_machdep92f14d.dir/__fc_builtin_macros.h:601:9: note: this is the location of the previous definition
+  601 | #define _POSIX_C_SOURCE 200809L
+      |         ^~~~~~~~~~~~~~~
+cc1: note: unrecognized command-line option ‘-Wno-unknown-warning-option’ may have been intended to silence earlier diagnostics
+/tmp/ppannot3e2d08.c:595:9: warning: ‘_POSIX_C_SOURCE’ redefined
+  595 | #define _POSIX_C_SOURCE 199309L
+      |         ^~~~~~~~~~~~~~~
+/tmp/ppannot3e2d08.c:594:9: note: this is the location of the previous definition
+  594 | #define _POSIX_C_SOURCE 200809L
+      |         ^~~~~~~~~~~~~~~
+cc1: note: unrecognized command-line option ‘-Wno-unknown-warning-option’ may have been intended to silence earlier diagnostics
+[kernel] Parsing src/asn1/goose_ber_decode.c (with preprocessing)
+[kernel] Parsing src/containers/fixed_string.c (with preprocessing)
+[eva:precision-settings] 
+  Option -eva-precision 5 detected, automatic configuration of the analysis:
+    option -eva-min-loop-unroll set to 0 (default value).
+    option -eva-auto-loop-unroll set to 128.
+    option -eva-widening-delay set to 3 (default value).
+    option -eva-partition-history set to 0 (default value).
+    option -eva-slevel set to 100.
+    option -eva-ilevel set to 48.
+    option -eva-plevel set to 150.
+    option -eva-subdivide-non-linear set to 100.
+    option -eva-remove-redundant-alarms set to true (default value).
+    option -eva-domains set to 'cvalue,equality,gauges,octagon,symbolic-locations'.
+    option -eva-split-return set to 'auto'.
+    option -eva-equality-through-calls set to 'formals' (default value).
+    option -eva-octagon-through-calls set to false (default value).
+[eva:split-return] 
+  Splitting return states on:
+    \return(ber_encode_tag) == 0 (auto)
+    \return(ber_encode_length) == 0 (auto)
+    \return(ber_encode_boolean) == 0 (auto)
+    \return(ber_encode_int32) == 0 (auto)
+    \return(ber_encode_uint32) == 0 (auto)
+    \return(ber_encode_visiblestring) == 0 (auto)
+    \return(ber_encode_utctime) == 0 (auto)
+    \return(goose_encode_alldata) == 0 (auto)
+    \return(ber_decode_tag) == 0 (auto)
+    \return(ber_decode_length) == 0 (auto)
+    \return(ber_decode_boolean) == 0 (auto)
+    \return(ber_decode_int32) == 0 (auto)
+    \return(ber_decode_uint32) == 0 (auto)
+    \return(ber_decode_visiblestring) == 0 (auto)
+    \return(ber_decode_utctime) == 0 (auto)
+    \return(ber_decode_octetstring) == 0 (auto)
+    \return(goose_decode_apdu) == 0 (auto)
+    \return(goose_decode_alldata) == 0 (auto)
+    \return(goose_decode_security) == 0 (auto)
+    \return(memcmp) == 0 (auto)
+    \return(memcpy) == 0 (auto)
+    \return(memmove) == 0 (auto)
+    \return(memset) == 0 (auto)
+    \return(strncpy) == 0 (auto)
+    \return(clock_gettime) == 0 (auto)
+    \return(ber_encode_octetstring) == 0 (auto)
+[eva] Analyzing a complete application starting at main
+[eva:initial-state] Values of globals at initialization
+  
+[eva:partition] verification/frama-c/ber_decoder_harness.c:117: 
+  Trace partitioning superposing up to 100 states
+[eva:partition] verification/frama-c/ber_decoder_harness.c:117: 
+  starting to merge loop iterations
+[eva:loop-unroll:auto] src/asn1/goose_ber_decode.c:59: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber_decode.c:143: 
+  Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber_decode.c:185: 
+  Automatic loop unrolling.
+[eva] ====== VALUES COMPUTED ======
+[eva:final-states] Values at end of function ber_decode_length:
+  offset ∈ {1; 2; 3}
+  length_result ∈ {42; 200; 256}
+  result ∈ {0}
+  length ∈ {1}
+  length ∈ {1; 2}
+  length ∈ {4}
+[eva:final-states] Values at end of function ber_decode_tag:
+  offset ∈ {1}
+  tag_result ∈ {128}
+  result ∈ {-2; 0}
+  tag ∈ {135; 136}
+  tag ∈ {133}
+  tag ∈ {134}
+[eva:final-states] Values at end of function ber_decode_boolean:
+  offset ∈ {1; 3}
+  bool_result ∈ {0; 1}
+  result ∈ {-3; 0}
+  ret ∈ {0}
+  tag ∈ {135; 136}
+  length ∈ {1} or UNINITIALIZED
+[eva:final-states] Values at end of function ber_decode_int32:
+  offset ∈ {3; 4}
+  int32_result ∈ {-12345; 0; 12345}
+  result ∈ {0}
+  ret ∈ {0}
+  tag ∈ {133}
+  length ∈ {1; 2}
+[eva:final-states] Values at end of function ber_decode_uint32:
+  offset ∈ {6}
+  uint32_result ∈ {305419896}
+  result ∈ {0}
+  ret ∈ {0}
+  tag ∈ {134}
+  length ∈ {4}
+[eva:final-states] Values at end of function verify_ber_decode_boolean:
+  offset ∈ {1; 3}
+  bool_result ∈ {0; 1}
+[eva:final-states] Values at end of function verify_ber_decode_int32:
+  offset ∈ {3; 4}
+  int32_result ∈ {-12345; 0; 12345}
+[eva:final-states] Values at end of function verify_ber_decode_length:
+  offset ∈ {1; 2; 3}
+  length_result ∈ {42; 200; 256}
+[eva:final-states] Values at end of function verify_ber_decode_tag:
+  offset ∈ {1}
+  tag_result ∈ {128}
+[eva:final-states] Values at end of function verify_ber_decode_uint32:
+  offset ∈ {6}
+  uint32_result ∈ {305419896}
+[eva:final-states] Values at end of function main:
+  buffer[0] ∈ {136}
+        [1] ∈ {1}
+        [2] ∈ {255}
+        [3] ∈ {52}
+        [4] ∈ {86}
+        [5] ∈ {120}
+        [6..99] ∈ {0}
+        [100..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {1}
+  tag_result ∈ {128}
+  length_result ∈ {256}
+  bool_result ∈ {0}
+  int32_result ∈ {0}
+  uint32_result ∈ {305419896}
+  ret ∈ {-2}
+[eva:summary] ====== ANALYSIS SUMMARY ======
+  ----------------------------------------------------------------------------
+  11 functions analyzed (out of 47): 23% coverage.
+  In these functions, 204 statements reached (out of 244): 84% coverage.
+  ----------------------------------------------------------------------------
+  No errors or warnings raised during the analysis.
+  ----------------------------------------------------------------------------
+  0 alarms generated by the analysis.
+  ----------------------------------------------------------------------------
+  Evaluation of the logical properties reached by the analysis:
+    Assertions       30 valid     0 unknown     0 invalid     30 total
+    Preconditions    55 valid     0 unknown     0 invalid     55 total
+  100% of the logical properties reached have been proven.
+  ----------------------------------------------------------------------------

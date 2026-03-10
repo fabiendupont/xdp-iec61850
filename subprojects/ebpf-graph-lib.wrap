@@ -1,0 +1,7 @@
+[wrap-git]
+url = git@github.com:fabiendupont/ebpf-graph-lib.git
+revision = main
+depth = 1
+
+[provide]
+dependency_names = ebpf-graph-lib

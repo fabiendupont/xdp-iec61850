@@ -1,0 +1,411 @@
+[kernel] Parsing verification/frama-c/goose_ber_harness.c (with preprocessing)
+[kernel] Parsing src/asn1/goose_ber.c (with preprocessing)
+/home/fdupont/Code/github.com/smgglrs/xdp-iec61850/src/asn1/goose_ber.c:10:9: warning: ‘_POSIX_C_SOURCE’ redefined
+   10 | #define _POSIX_C_SOURCE 199309L  /* For clock_gettime */
+      |         ^~~~~~~~~~~~~~~
+In file included from <command-line>:
+/tmp/__fc_machdep2e4b4d.dir/__fc_builtin_macros.h:601:9: note: this is the location of the previous definition
+  601 | #define _POSIX_C_SOURCE 200809L
+      |         ^~~~~~~~~~~~~~~
+cc1: note: unrecognized command-line option ‘-Wno-unknown-warning-option’ may have been intended to silence earlier diagnostics
+/tmp/ppannot2a8379.c:595:9: warning: ‘_POSIX_C_SOURCE’ redefined
+  595 | #define _POSIX_C_SOURCE 199309L
+      |         ^~~~~~~~~~~~~~~
+/tmp/ppannot2a8379.c:594:9: note: this is the location of the previous definition
+  594 | #define _POSIX_C_SOURCE 200809L
+      |         ^~~~~~~~~~~~~~~
+cc1: note: unrecognized command-line option ‘-Wno-unknown-warning-option’ may have been intended to silence earlier diagnostics
+[kernel] Parsing src/asn1/goose_ber_decode.c (with preprocessing)
+[kernel] Parsing src/containers/fixed_string.c (with preprocessing)
+[eva:precision-settings] 
+  Option -eva-precision 5 detected, automatic configuration of the analysis:
+    option -eva-min-loop-unroll set to 0 (default value).
+    option -eva-auto-loop-unroll set to 128.
+    option -eva-widening-delay set to 3 (default value).
+    option -eva-partition-history set to 0 (default value).
+    option -eva-slevel set to 100.
+    option -eva-ilevel set to 48.
+    option -eva-plevel set to 150.
+    option -eva-subdivide-non-linear set to 100.
+    option -eva-remove-redundant-alarms set to true (default value).
+    option -eva-domains set to 'cvalue,equality,gauges,octagon,symbolic-locations'.
+    option -eva-split-return set to 'auto'.
+    option -eva-equality-through-calls set to 'formals' (default value).
+    option -eva-octagon-through-calls set to false (default value).
+[eva:split-return] 
+  Splitting return states on:
+    \return(ber_encode_tag) == 0 (auto)
+    \return(ber_encode_length) == 0 (auto)
+    \return(ber_encode_boolean) == 0 (auto)
+    \return(ber_encode_int32) == 0 (auto)
+    \return(ber_encode_uint32) == 0 (auto)
+    \return(ber_encode_visiblestring) == 0 (auto)
+    \return(ber_encode_utctime) == 0 (auto)
+    \return(goose_encode_alldata) == 0 (auto)
+    \return(ber_decode_tag) == 0 (auto)
+    \return(ber_decode_length) == 0 (auto)
+    \return(ber_decode_boolean) == 0 (auto)
+    \return(ber_decode_int32) == 0 (auto)
+    \return(ber_decode_uint32) == 0 (auto)
+    \return(ber_decode_visiblestring) == 0 (auto)
+    \return(ber_decode_utctime) == 0 (auto)
+    \return(ber_decode_octetstring) == 0 (auto)
+    \return(goose_decode_apdu) == 0 (auto)
+    \return(goose_decode_alldata) == 0 (auto)
+    \return(goose_decode_security) == 0 (auto)
+    \return(memcmp) == 0 (auto)
+    \return(memcpy) == 0 (auto)
+    \return(memmove) == 0 (auto)
+    \return(memset) == 0 (auto)
+    \return(strncpy) == 0 (auto)
+    \return(clock_gettime) == 0 (auto)
+    \return(ber_encode_octetstring) == 0 (auto)
+[eva] Analyzing a complete application starting at main
+[eva:initial-state] Values of globals at initialization
+  
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:136: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:169: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:203: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:225: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:266: Automatic loop unrolling.
+[eva:acsl:unsupported] FRAMAC_SHARE/libc/string.h:147: 
+  cannot evaluate ACSL term, unsupported ACSL construct: logic function memset
+[eva:loop-unroll:auto] src/asn1/goose_ber_decode.c:225: 
+  Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber_decode.c:185: 
+  Automatic loop unrolling.
+[eva] ====== VALUES COMPUTED ======
+[eva:final-states] Values at end of function ber_decode_length:
+  result ∈ {0}
+  length ∈ {1}
+  length ∈ {1; 2}
+  length ∈ {0; 1}
+  length ∈ {8}
+  length ∈ {0}
+  offset ∈ {2; 4; 7; 11; 14; 16; 26; 29; 32; 35; 38; 41; 44}
+  length ∈ {42}
+[eva:final-states] Values at end of function ber_decode_tag:
+  result ∈ {0}
+  tag ∈ {135; 137}
+  tag ∈ {129; 133; 134; 136; 138}
+  tag ∈ {128; 130; 131}
+  tag ∈ {132}
+  tag ∈ {171}
+  offset ∈ {1; 3; 6; 10; 13; 15; 25; 28; 31; 34; 37; 40; 43}
+  tag ∈ {97; 255}
+[eva:final-states] Values at end of function ber_decode_boolean:
+  decoded.gocbRef[0] ∈ {103}
+         {.gocbRef[1..128]; .[bits 1032 to 1055]} ∈ {0}
+         .timeAllowedtoLive ∈ {1000}
+         .datSet[0] ∈ {100}
+         {.datSet[1..128]; .goID[0..128]} ∈ {0}
+         .has_goID ∈ {1}
+         {.timestamp; .time_quality; .[bits 3160 to 3199]; .[bits 3272 to 3295]} ∈
+         {0}
+         .stNum ∈ {1}
+         {.sqNum; .test; .[bits 3368 to 3391]} ∈ {0}
+         .confRev ∈ {1}
+         {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+         {0}
+  result ∈ {0}
+  ret ∈ {0}
+  tag ∈ {135; 137}
+  length ∈ {1}
+  offset ∈ {33; 39}
+[eva:final-states] Values at end of function ber_decode_uint32:
+  decoded.gocbRef[0] ∈ {103}
+         {.gocbRef[1..128]; .[bits 1032 to 1055]} ∈ {0}
+         .timeAllowedtoLive ∈ {1000}
+         .datSet[0] ∈ {0; 100}
+         {.datSet[1..128]; .goID[0..128]} ∈ {0}
+         .has_goID ∈ {0; 1}
+         {.timestamp; .time_quality; .[bits 3160 to 3199]; .[bits 3272 to 3295]} ∈
+         {0}
+         .stNum ∈ {0; 1}
+         {.sqNum; .test; .[bits 3368 to 3391]} ∈ {0}
+         .confRev ∈ {1}
+         {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+         {0}
+  result ∈ {0}
+  ret ∈ {0}
+  tag ∈ {129; 133; 134; 136; 138}
+  length ∈ {1; 2}
+  offset ∈ {9; 27; 30; 36; 42}
+[eva:final-states] Values at end of function ber_decode_utctime:
+  decoded.gocbRef[0] ∈ {103}
+         {.gocbRef[1..128]; .[bits 1032 to 1055]} ∈ {0}
+         .timeAllowedtoLive ∈ {1000}
+         .datSet[0] ∈ {100}
+         {.datSet[1..128]; .goID[0..128]} ∈ {0}
+         .has_goID ∈ {1}
+         {.timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+         {0}
+         .confRev ∈ {1}
+         {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+         {0}
+  result ∈ {0}
+  ret ∈ {0}
+  tag ∈ {132}
+  length ∈ {8}
+  seconds ∈ {0}
+  fraction ∈ {0}
+  offset ∈ {24}
+[eva:final-states] Values at end of function ber_decode_visiblestring:
+  decoded.gocbRef[0] ∈ {103}
+         {.gocbRef[1..128]; .[bits 1032 to 1055]} ∈ {0}
+         .timeAllowedtoLive ∈ {1000; 5000}
+         .datSet[0] ∈ {0; 100}
+         {.datSet[1..128]; .goID[0..128]; .has_goID; .timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+         {0}
+         .confRev ∈ {1}
+         {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+         {0}
+  result ∈ {0}
+  ret ∈ {0}
+  tag ∈ {128; 130; 131}
+  length ∈ {0; 1}
+  offset ∈ {5; 12; 14}
+[eva:final-states] Values at end of function ber_encode_length:
+  buf[0] ∈ {50; 128; 129; 132; 133; 135}
+     [1] ∈ {1; 2; 5; 8; 200} or UNINITIALIZED
+     [2] ∈ {3; 42; 103; 255} or UNINITIALIZED
+     [3] ∈ {99; 232} or UNINITIALIZED
+     [4] ∈ {98} or UNINITIALIZED
+     [5] ∈ {48} or UNINITIALIZED
+     [6] ∈ {49} or UNINITIALIZED
+     [7..1517] ∈ UNINITIALIZED
+  offset ∈ {1; 2}
+  result ∈ {0}
+[eva:final-states] Values at end of function ber_encode_tag:
+  buf[0] ∈ {97; 128; 132; 133; 135}
+     [1] ∈ {1; 2; 5; 8; 200} or UNINITIALIZED
+     [2] ∈ {3; 42; 101; 103; 255} or UNINITIALIZED
+     [3] ∈ {83; 99; 232} or UNINITIALIZED
+     [4] ∈ {98; 241} or UNINITIALIZED
+     [5] ∈ {0; 48} or UNINITIALIZED
+     [6] ∈ {0; 49} or UNINITIALIZED
+     [7..9] ∈ {0} or UNINITIALIZED
+     [10..1517] ∈ UNINITIALIZED
+  offset ∈ {0; 1}
+  result ∈ {-2; 0}
+[eva:final-states] Values at end of function ber_encode_boolean:
+  buf[0] ∈ {135}
+     [1] ∈ {1}
+     [2] ∈ {255}
+     [3..1517] ∈ UNINITIALIZED
+  offset ∈ {3}
+  result ∈ {0}
+  ret ∈ {0}
+[eva:final-states] Values at end of function ber_encode_int32:
+  buf[0] ∈ {133}
+     [1] ∈ {1}
+     [2] ∈ {42}
+     [3..1517] ∈ UNINITIALIZED
+  offset ∈ {3}
+  result ∈ {0}
+  ret ∈ {0}
+  int_bytes[0..2] ∈ {0}
+           [3] ∈ {42}
+  num_bytes ∈ {1}
+  i ∈ {4}
+[eva:final-states] Values at end of function ber_encode_uint32:
+  buf[0] ∈ {133}
+     [1] ∈ {2}
+     [2] ∈ {3}
+     [3] ∈ {232}
+     [4..1517] ∈ UNINITIALIZED
+  offset ∈ {4}
+  result ∈ {0}
+  ret ∈ {0}
+  int_bytes[0..2] ∈ {0}
+           [3] ∈ {3}
+           [4] ∈ {232}
+  num_bytes ∈ {2}
+  i ∈ {5}
+[eva:final-states] Values at end of function ber_encode_utctime:
+  buf[0] ∈ {132}
+     [1] ∈ {8}
+     [2] ∈ {101}
+     [3] ∈ {83}
+     [4] ∈ {241}
+     [5..9] ∈ {0}
+     [10..1517] ∈ UNINITIALIZED
+  offset ∈ {10}
+  result ∈ {0}
+  ret ∈ {0}
+  seconds ∈ {1700000000}
+  fraction ∈ {0}
+[eva:final-states] Values at end of function goose_decode_alldata:
+  result ∈ {0}
+  ret ∈ {0}
+  tag ∈ {171}
+  length ∈ {0}
+  alldata_end ∈ {44}
+  offset ∈ {44}
+  data_count ∈ {0}
+[eva:final-states] Values at end of function goose_decode_security:
+  result ∈ {0}
+[eva:final-states] Values at end of function goose_apdu_init:
+  decoded.gocbRef[0] ∈ {0; 103}
+         {.gocbRef[1..128]; .[bits 1032 to 1055]} ∈ {0}
+         .timeAllowedtoLive ∈ {1000; 5000}
+         .datSet[0] ∈ {0; 100}
+         {.datSet[1..128]; .goID[0..128]} ∈ {0}
+         .has_goID ∈ {0; 1}
+         {.timestamp; .time_quality; .[bits 3160 to 3199]; .[bits 3272 to 3295]} ∈
+         {0}
+         .stNum ∈ {0; 1}
+         {.sqNum; .test; .[bits 3368 to 3391]} ∈ {0}
+         .confRev ∈ {1}
+         {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+         {0}
+  trunc{.gocbRef[0..128]; .[bits 1032 to 1055]} ∈ {0} or UNINITIALIZED
+       .timeAllowedtoLive ∈ {5000} or UNINITIALIZED
+       {.datSet[0..128]; .goID[0..128]; .has_goID; .timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+       {0} or UNINITIALIZED
+       .confRev ∈ {1} or UNINITIALIZED
+       {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+       {0} or UNINITIALIZED
+  bad_decoded{.gocbRef[0..128]; .[bits 1032 to 1055]} ∈ {0} or UNINITIALIZED
+             .timeAllowedtoLive ∈ {5000} or UNINITIALIZED
+             {.datSet[0..128]; .goID[0..128]; .has_goID; .timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+             {0} or UNINITIALIZED
+             .confRev ∈ {1} or UNINITIALIZED
+             {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+             {0} or UNINITIALIZED
+[eva:final-states] Values at end of function goose_decode_apdu:
+  decoded.gocbRef[0] ∈ {103}
+         {.gocbRef[1..128]; .[bits 1032 to 1055]} ∈ {0}
+         .timeAllowedtoLive ∈ {1000}
+         .datSet[0] ∈ {100}
+         {.datSet[1..128]; .goID[0..128]} ∈ {0}
+         .has_goID ∈ {1}
+         {.timestamp; .time_quality; .[bits 3160 to 3199]; .[bits 3272 to 3295]} ∈
+         {0}
+         .stNum ∈ {1}
+         {.sqNum; .test; .[bits 3368 to 3391]} ∈ {0}
+         .confRev ∈ {1}
+         {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+         {0}
+  trunc{.gocbRef[0..128]; .[bits 1032 to 1055]} ∈ {0} or UNINITIALIZED
+       .timeAllowedtoLive ∈ {5000} or UNINITIALIZED
+       {.datSet[0..128]; .goID[0..128]; .has_goID; .timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+       {0} or UNINITIALIZED
+       .confRev ∈ {1} or UNINITIALIZED
+       {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+       {0} or UNINITIALIZED
+  bad_decoded{.gocbRef[0..128]; .[bits 1032 to 1055]} ∈ {0} or UNINITIALIZED
+             .timeAllowedtoLive ∈ {5000} or UNINITIALIZED
+             {.datSet[0..128]; .goID[0..128]; .has_goID; .timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+             {0} or UNINITIALIZED
+             .confRev ∈ {1} or UNINITIALIZED
+             {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+             {0} or UNINITIALIZED
+  result ∈ {-3; 0}
+  offset ∈ {1; 2; 44}
+  ret ∈ {0}
+  tag ∈ {97; 255}
+  length ∈ {42} or UNINITIALIZED
+[eva:final-states] Values at end of function ber_encode_visiblestring:
+  buf[0] ∈ {128; 132}
+     [1] ∈ {5; 8}
+     [2] ∈ {101; 103}
+     [3] ∈ {83; 99}
+     [4] ∈ {98; 241}
+     [5] ∈ {0; 48}
+     [6] ∈ {0; 49}
+     [7..9] ∈ {0} or UNINITIALIZED
+     [10..1517] ∈ UNINITIALIZED
+  offset ∈ {0; 7}
+  result ∈ {-1; 0}
+  ret ∈ {0} or UNINITIALIZED
+  len ∈ {5; 16}
+  i ∈ {5} or UNINITIALIZED
+[eva:final-states] Values at end of function main:
+  buf[0] ∈ {132}
+     [1] ∈ {8}
+     [2] ∈ {101}
+     [3] ∈ {83}
+     [4] ∈ {241}
+     [5..9] ∈ {0}
+     [10..1517] ∈ UNINITIALIZED
+  offset ∈ {0}
+  ret ∈ {-3}
+  goose_frame[0] ∈ {97}
+             [1] ∈ {42}
+             [2] ∈ {128}
+             [3] ∈ {1}
+             [4] ∈ {103}
+             [5] ∈ {129}
+             [6] ∈ {2}
+             [7] ∈ {3}
+             [8] ∈ {232}
+             [9] ∈ {130}
+             [10] ∈ {1}
+             [11] ∈ {100}
+             [12] ∈ {131}
+             [13] ∈ {0}
+             [14] ∈ {132}
+             [15] ∈ {8}
+             [16..23] ∈ {0}
+             [24] ∈ {133}
+             [25..26] ∈ {1}
+             [27] ∈ {134}
+             [28] ∈ {1}
+             [29] ∈ {0}
+             [30] ∈ {135}
+             [31] ∈ {1}
+             [32] ∈ {0}
+             [33] ∈ {136}
+             [34..35] ∈ {1}
+             [36] ∈ {137}
+             [37] ∈ {1}
+             [38] ∈ {0}
+             [39] ∈ {138}
+             [40] ∈ {1}
+             [41] ∈ {0}
+             [42] ∈ {171}
+             [43] ∈ {0}
+  decoded.gocbRef[0] ∈ {103}
+         {.gocbRef[1..128]; .[bits 1032 to 1055]} ∈ {0}
+         .timeAllowedtoLive ∈ {1000}
+         .datSet[0] ∈ {100}
+         {.datSet[1..128]; .goID[0..128]} ∈ {0}
+         .has_goID ∈ {1}
+         {.timestamp; .time_quality; .[bits 3160 to 3199]; .[bits 3272 to 3295]} ∈
+         {0}
+         .stNum ∈ {1}
+         {.sqNum; .test; .[bits 3368 to 3391]} ∈ {0}
+         .confRev ∈ {1}
+         {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+         {0}
+  trunc{.gocbRef[0..128]; .[bits 1032 to 1055]} ∈ {0}
+       .timeAllowedtoLive ∈ {5000}
+       {.datSet[0..128]; .goID[0..128]; .has_goID; .timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+       {0}
+       .confRev ∈ {1}
+       {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+       {0}
+  bad[0..3] ∈ {255}
+  bad_decoded{.gocbRef[0..128]; .[bits 1032 to 1055]} ∈ {0}
+             .timeAllowedtoLive ∈ {5000}
+             {.datSet[0..128]; .goID[0..128]; .has_goID; .timestamp; .time_quality; .stNum; .sqNum; .test; .[bits 3160 to 3199]; .[bits 3272 to 3295]; .[bits 3368 to 3391]} ∈
+             {0}
+             .confRev ∈ {1}
+             {.ndsCom; .numDatSetEntries; .allData[0..63]; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 3432 to 3455]; .[bits 3488 to 3519]; .[bits 15816 to 15839]; .[bits 16032 to 16063]} ∈
+             {0}
+  __retres ∈ {0}
+[eva:summary] ====== ANALYSIS SUMMARY ======
+  ----------------------------------------------------------------------------
+  18 functions analyzed (out of 42): 43% coverage.
+  In these functions, 372 statements reached (out of 649): 57% coverage.
+  ----------------------------------------------------------------------------
+  No errors or warnings raised during the analysis.
+  ----------------------------------------------------------------------------
+  0 alarms generated by the analysis.
+  ----------------------------------------------------------------------------
+  Evaluation of the logical properties reached by the analysis:
+    Assertions       21 valid     0 unknown     0 invalid     21 total
+    Preconditions   107 valid     0 unknown     0 invalid    107 total
+  100% of the logical properties reached have been proven.
+  ----------------------------------------------------------------------------

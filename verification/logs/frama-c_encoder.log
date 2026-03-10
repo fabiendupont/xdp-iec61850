@@ -1,0 +1,156 @@
+[kernel] Parsing verification/frama-c/ber_encoder_harness.c (with preprocessing)
+[kernel] Parsing src/asn1/goose_ber.c (with preprocessing)
+[kernel] Parsing src/containers/fixed_string.c (with preprocessing)
+[eva:precision-settings] 
+  Option -eva-precision 2 detected, automatic configuration of the analysis:
+    option -eva-min-loop-unroll set to 0 (default value).
+    option -eva-auto-loop-unroll set to 32.
+    option -eva-widening-delay set to 2.
+    option -eva-partition-history set to 0 (default value).
+    option -eva-slevel set to 20.
+    option -eva-ilevel set to 16.
+    option -eva-plevel set to 40.
+    option -eva-subdivide-non-linear set to 40.
+    option -eva-remove-redundant-alarms set to true (default value).
+    option -eva-domains set to 'cvalue,equality,symbolic-locations'.
+    option -eva-split-return set to '' (default value).
+    option -eva-equality-through-calls set to 'none'.
+    option -eva-octagon-through-calls set to false (default value).
+[eva] Analyzing a complete application starting at main
+[eva:initial-state] Values of globals at initialization
+  
+[eva:partition] verification/frama-c/ber_encoder_harness.c:113: 
+  starting to merge loop iterations
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:136: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:169: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:146: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:203: Automatic loop unrolling.
+[eva:loop-unroll:auto] src/asn1/goose_ber.c:225: Automatic loop unrolling.
+[eva:alarm] verification/frama-c/ber_encoder_harness.c:180: Warning: 
+  function verify_ber_encode_tag: precondition *offset < buf_size got status invalid.
+[scope:rm_asserts] removing 1 assertion(s)
+[eva] ====== VALUES COMPUTED ======
+[eva:final-states] Values at end of function ber_encode_length:
+  buffer[0] ∈ {42; 129; 133; 134; 135}
+        [1] ∈ {0; 1; 2; 4; 200}
+        [2] ∈ {0; 48; 207; 255}
+        [3] ∈ {0; 57; 199}
+        [4..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {1; 2}
+  result ∈ {0}
+[eva:final-states] Values at end of function ber_encode_tag:
+  buffer[0] ∈ {128; 133; 134; 135}
+        [1] ∈ {0; 1; 2; 4; 200}
+        [2] ∈ {0; 18; 48; 207; 255}
+        [3] ∈ {0; 52; 57; 199}
+        [4] ∈ {0; 86}
+        [5] ∈ {0; 120}
+        [6..19] ∈ {0}
+        [20..254] ∈ {0} or UNINITIALIZED
+        [255] ∈ {0; 128} or UNINITIALIZED
+  offset ∈ {1; 256}
+  result ∈ {0}
+[eva:final-states] Values at end of function ber_encode_boolean:
+  buffer[0] ∈ {135}
+        [1] ∈ {1}
+        [2] ∈ {0; 255}
+        [3..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {3}
+  result ∈ {0}
+  ret ∈ {0}
+[eva:final-states] Values at end of function ber_encode_int32:
+  buffer[0] ∈ {133}
+        [1] ∈ {1; 2}
+        [2] ∈ {0; 48; 207}
+        [3] ∈ {57; 199}
+        [4..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {3; 4}
+  result ∈ {0}
+  ret ∈ {0}
+  int_bytes[0..1] ∈ {0; 255}
+           [2] ∈ {0; 48; 207}
+           [3] ∈ {0; 57; 199}
+  num_bytes ∈ {1; 2}
+  i ∈ {4}
+[eva:final-states] Values at end of function ber_encode_uint32:
+  buffer[0] ∈ {134}
+        [1] ∈ {4}
+        [2] ∈ {18}
+        [3] ∈ {52}
+        [4] ∈ {86}
+        [5] ∈ {120}
+        [6..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {6}
+  result ∈ {0}
+  ret ∈ {0}
+  int_bytes[0] ∈ {0}
+           [1] ∈ {18}
+           [2] ∈ {52}
+           [3] ∈ {86}
+           [4] ∈ {120}
+  num_bytes ∈ {4}
+  i ∈ {5}
+[eva:final-states] Values at end of function verify_ber_encode_boolean:
+  buffer[0] ∈ {135}
+        [1] ∈ {1}
+        [2] ∈ {0; 255}
+        [3..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {3}
+[eva:final-states] Values at end of function verify_ber_encode_int32:
+  buffer[0] ∈ {133}
+        [1] ∈ {1; 2}
+        [2] ∈ {0; 48; 207}
+        [3] ∈ {57; 199}
+        [4..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {3; 4}
+[eva:final-states] Values at end of function verify_ber_encode_length:
+  buffer[0] ∈ {42; 129}
+        [1] ∈ {0; 200}
+        [2..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {1; 2}
+[eva:final-states] Values at end of function verify_ber_encode_tag:
+  ret ∈ {0}
+  buffer[0] ∈ {128; 134}
+        [1] ∈ {0; 4}
+        [2] ∈ {0; 18}
+        [3] ∈ {0; 52}
+        [4] ∈ {0; 86}
+        [5] ∈ {0; 120}
+        [6..19] ∈ {0}
+        [20..254] ∈ {0} or UNINITIALIZED
+        [255] ∈ {0; 128} or UNINITIALIZED
+  offset ∈ {1; 256}
+  tag_result ∈ {128}
+[eva:final-states] Values at end of function verify_ber_encode_uint32:
+  buffer[0] ∈ {134}
+        [1] ∈ {4}
+        [2] ∈ {18}
+        [3] ∈ {52}
+        [4] ∈ {86}
+        [5] ∈ {120}
+        [6..19] ∈ {0}
+        [20..255] ∈ {0} or UNINITIALIZED
+  offset ∈ {6}
+[eva:final-states] Values at end of function main:
+  NON TERMINATING FUNCTION
+[eva:summary] ====== ANALYSIS SUMMARY ======
+  ----------------------------------------------------------------------------
+  11 functions analyzed (out of 35): 31% coverage.
+  In these functions, 177 statements reached (out of 224): 79% coverage.
+  ----------------------------------------------------------------------------
+  No errors or warnings raised during the analysis.
+  ----------------------------------------------------------------------------
+  0 alarms generated by the analysis.
+  ----------------------------------------------------------------------------
+  Evaluation of the logical properties reached by the analysis:
+    Assertions       24 valid     0 unknown     0 invalid     24 total
+    Preconditions    79 valid     0 unknown     1 invalid     80 total
+  99% of the logical properties reached have been proven.
+  ----------------------------------------------------------------------------

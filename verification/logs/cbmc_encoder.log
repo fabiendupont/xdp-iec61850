@@ -1,0 +1,1119 @@
+CBMC version 6.1.1 (cbmc-6.1.1) 64-bit x86_64 linux
+Type-checking ber_encoder_harness
+Type-checking fixed_string
+Type-checking goose_ber
+Generating GOTO Program
+Adding CPROVER library (x86_64)
+Removal of function pointers and virtual functions
+Generic Property Instrumentation
+Starting Bounded Model Checking
+Passing problem to propositional reduction
+converting SSA
+Running propositional reduction
+SAT checker: instance is UNSATISFIABLE
+
+** Results:
+src/asn1/goose_ber.c function ber_encode_boolean
+[ber_encode_boolean.pointer_dereference.1] line 88 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.2] line 88 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.3] line 88 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.4] line 88 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.5] line 88 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.6] line 88 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.7] line 102 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.8] line 102 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.9] line 102 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.10] line 102 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.11] line 102 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.12] line 102 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.13] line 102 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_boolean.pointer_dereference.14] line 102 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_boolean.pointer_dereference.15] line 102 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_boolean.pointer_dereference.16] line 102 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_boolean.pointer_dereference.17] line 102 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_boolean.pointer_dereference.18] line 102 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_boolean.pointer_dereference.19] line 103 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.20] line 103 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.21] line 103 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.22] line 103 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.23] line 103 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_boolean.pointer_dereference.24] line 103 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function ber_encode_int32
+[ber_encode_int32.array_bounds.1] line 137 array 'int_bytes' upper bound in int_bytes[(signed long int)i]: SUCCESS
+[ber_encode_int32.array_bounds.2] line 137 array 'int_bytes' upper bound in int_bytes[(signed long int)(i + (unsigned long int)1u)]: SUCCESS
+[ber_encode_int32.array_bounds.3] line 147 array 'int_bytes' upper bound in int_bytes[(signed long int)i]: SUCCESS
+[ber_encode_int32.array_bounds.4] line 147 array 'int_bytes' upper bound in int_bytes[(signed long int)(i + (unsigned long int)1u)]: SUCCESS
+[ber_encode_int32.pointer_dereference.1] line 155 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.2] line 155 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.3] line 155 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.4] line 155 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.5] line 155 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.6] line 155 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_int32.unwind.2] line 169 unwinding assertion loop 2: SUCCESS
+[ber_encode_int32.array_bounds.5] line 170 array 'int_bytes' upper bound in int_bytes[(signed long int)i]: SUCCESS
+[ber_encode_int32.pointer_dereference.7] line 170 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.8] line 170 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.9] line 170 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.10] line 170 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.11] line 170 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.12] line 170 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.13] line 170 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_int32.pointer_dereference.14] line 170 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_int32.pointer_dereference.15] line 170 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_int32.pointer_dereference.16] line 170 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_int32.pointer_dereference.17] line 170 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_int32.pointer_dereference.18] line 170 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_int32.pointer_dereference.19] line 171 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.20] line 171 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.21] line 171 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.22] line 171 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.23] line 171 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_int32.pointer_dereference.24] line 171 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function ber_encode_length
+[ber_encode_length.pointer_dereference.1] line 45 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.2] line 45 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.3] line 45 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.4] line 45 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.5] line 45 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.6] line 45 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.7] line 48 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.8] line 48 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.9] line 48 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.10] line 48 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.11] line 48 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.12] line 48 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.13] line 48 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.14] line 48 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.15] line 48 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.16] line 48 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.17] line 48 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.18] line 48 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.19] line 49 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.20] line 49 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.21] line 49 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.22] line 49 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.23] line 49 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.24] line 49 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.25] line 54 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.26] line 54 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.27] line 54 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.28] line 54 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.29] line 54 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.30] line 54 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.31] line 57 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.32] line 57 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.33] line 57 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.34] line 57 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.35] line 57 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.36] line 57 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.37] line 57 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.38] line 57 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.39] line 57 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.40] line 57 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.41] line 57 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.42] line 57 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.43] line 58 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.44] line 58 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.45] line 58 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.46] line 58 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.47] line 58 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.48] line 58 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.49] line 58 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.50] line 58 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.51] line 58 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.52] line 58 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.53] line 58 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.54] line 58 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.55] line 59 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.56] line 59 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.57] line 59 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.58] line 59 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.59] line 59 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.60] line 59 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.61] line 64 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.62] line 64 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.63] line 64 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.64] line 64 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.65] line 64 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.66] line 64 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.67] line 67 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.68] line 67 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.69] line 67 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.70] line 67 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.71] line 67 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.72] line 67 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.73] line 67 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.74] line 67 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.75] line 67 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.76] line 67 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.77] line 67 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.78] line 67 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_length.pointer_dereference.79] line 68 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.80] line 68 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.81] line 68 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.82] line 68 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.83] line 68 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.84] line 68 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.85] line 68 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.86] line 68 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.87] line 68 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.88] line 68 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.89] line 68 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.90] line 68 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_length.pointer_dereference.91] line 69 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.92] line 69 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.93] line 69 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.94] line 69 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.95] line 69 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.96] line 69 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.97] line 69 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_length.pointer_dereference.98] line 69 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_length.pointer_dereference.99] line 69 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_length.pointer_dereference.100] line 69 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_length.pointer_dereference.101] line 69 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_length.pointer_dereference.102] line 69 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_length.pointer_dereference.103] line 70 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.104] line 70 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.105] line 70 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.106] line 70 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.107] line 70 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_length.pointer_dereference.108] line 70 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function ber_encode_octetstring
+[ber_encode_octetstring.pointer_dereference.1] line 808 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.2] line 808 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.3] line 808 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.4] line 808 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.5] line 808 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.6] line 808 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.7] line 823 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.8] line 823 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.9] line 823 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.10] line 823 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.11] line 823 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.12] line 823 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.13] line 827 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.14] line 827 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.15] line 827 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.16] line 827 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.17] line 827 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.18] line 827 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.19] line 827 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.20] line 827 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.21] line 827 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.22] line 827 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.23] line 827 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.24] line 827 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.25] line 827 dereference failure: pointer NULL in data[(signed long int)i]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.26] line 827 dereference failure: pointer invalid in data[(signed long int)i]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.27] line 827 dereference failure: deallocated dynamic object in data[(signed long int)i]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.28] line 827 dereference failure: dead object in data[(signed long int)i]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.29] line 827 dereference failure: pointer outside object bounds in data[(signed long int)i]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.30] line 827 dereference failure: invalid integer address in data[(signed long int)i]: SUCCESS
+[ber_encode_octetstring.pointer_dereference.31] line 828 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.32] line 828 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.33] line 828 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.34] line 828 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.35] line 828 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_octetstring.pointer_dereference.36] line 828 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function ber_encode_tag
+[ber_encode_tag.pointer_dereference.1] line 26 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.2] line 26 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.3] line 26 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.4] line 26 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.5] line 26 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.6] line 26 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.7] line 29 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.8] line 29 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.9] line 29 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.10] line 29 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.11] line 29 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.12] line 29 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.13] line 29 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_tag.pointer_dereference.14] line 29 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_tag.pointer_dereference.15] line 29 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_tag.pointer_dereference.16] line 29 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_tag.pointer_dereference.17] line 29 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_tag.pointer_dereference.18] line 29 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_tag.pointer_dereference.19] line 30 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.20] line 30 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.21] line 30 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.22] line 30 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.23] line 30 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_tag.pointer_dereference.24] line 30 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function ber_encode_uint32
+[ber_encode_uint32.array_bounds.1] line 204 array 'int_bytes' upper bound in int_bytes[(signed long int)i]: SUCCESS
+[ber_encode_uint32.array_bounds.2] line 204 array 'int_bytes' upper bound in int_bytes[(signed long int)(i + (unsigned long int)1u)]: SUCCESS
+[ber_encode_uint32.pointer_dereference.1] line 211 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.2] line 211 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.3] line 211 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.4] line 211 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.5] line 211 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.6] line 211 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_uint32.unwind.1] line 225 unwinding assertion loop 1: SUCCESS
+[ber_encode_uint32.array_bounds.3] line 226 array 'int_bytes' upper bound in int_bytes[(signed long int)i]: SUCCESS
+[ber_encode_uint32.pointer_dereference.7] line 226 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.8] line 226 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.9] line 226 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.10] line 226 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.11] line 226 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.12] line 226 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.13] line 226 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_uint32.pointer_dereference.14] line 226 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_uint32.pointer_dereference.15] line 226 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_uint32.pointer_dereference.16] line 226 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_uint32.pointer_dereference.17] line 226 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_uint32.pointer_dereference.18] line 226 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_uint32.pointer_dereference.19] line 227 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.20] line 227 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.21] line 227 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.22] line 227 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.23] line 227 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_uint32.pointer_dereference.24] line 227 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function ber_encode_utctime
+[ber_encode_utctime.pointer_dereference.1] line 288 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.2] line 288 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.3] line 288 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.4] line 288 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.5] line 288 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.6] line 288 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.7] line 313 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.8] line 313 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.9] line 313 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.10] line 313 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.11] line 313 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.12] line 313 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.13] line 313 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_utctime.pointer_dereference.14] line 313 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_utctime.pointer_dereference.15] line 313 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_utctime.pointer_dereference.16] line 313 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_utctime.pointer_dereference.17] line 313 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_utctime.pointer_dereference.18] line 313 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_utctime.pointer_dereference.19] line 314 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.20] line 314 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.21] line 314 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.22] line 314 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.23] line 314 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.24] line 314 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.25] line 314 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.26] line 314 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.27] line 314 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.28] line 314 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.29] line 314 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.30] line 314 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)1u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.31] line 315 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.32] line 315 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.33] line 315 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.34] line 315 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.35] line 315 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.36] line 315 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.37] line 315 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.38] line 315 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.39] line 315 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.40] line 315 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.41] line 315 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.42] line 315 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)2u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.43] line 316 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.44] line 316 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.45] line 316 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.46] line 316 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.47] line 316 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.48] line 316 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.49] line 316 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)3u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.50] line 316 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)3u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.51] line 316 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)3u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.52] line 316 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)3u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.53] line 316 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)3u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.54] line 316 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)3u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.55] line 319 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.56] line 319 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.57] line 319 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.58] line 319 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.59] line 319 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.60] line 319 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.61] line 319 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)4u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.62] line 319 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)4u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.63] line 319 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)4u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.64] line 319 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)4u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.65] line 319 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)4u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.66] line 319 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)4u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.67] line 320 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.68] line 320 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.69] line 320 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.70] line 320 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.71] line 320 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.72] line 320 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.73] line 320 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)5u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.74] line 320 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)5u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.75] line 320 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)5u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.76] line 320 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)5u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.77] line 320 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)5u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.78] line 320 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)5u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.79] line 321 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.80] line 321 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.81] line 321 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.82] line 321 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.83] line 321 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.84] line 321 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.85] line 321 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)6u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.86] line 321 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)6u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.87] line 321 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)6u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.88] line 321 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)6u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.89] line 321 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)6u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.90] line 321 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)6u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.91] line 324 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.92] line 324 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.93] line 324 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.94] line 324 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.95] line 324 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.96] line 324 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.97] line 324 dereference failure: pointer NULL in buf[(signed long int)(*offset + (unsigned long int)7u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.98] line 324 dereference failure: pointer invalid in buf[(signed long int)(*offset + (unsigned long int)7u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.99] line 324 dereference failure: deallocated dynamic object in buf[(signed long int)(*offset + (unsigned long int)7u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.100] line 324 dereference failure: dead object in buf[(signed long int)(*offset + (unsigned long int)7u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.101] line 324 dereference failure: pointer outside object bounds in buf[(signed long int)(*offset + (unsigned long int)7u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.102] line 324 dereference failure: invalid integer address in buf[(signed long int)(*offset + (unsigned long int)7u)]: SUCCESS
+[ber_encode_utctime.pointer_dereference.103] line 326 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.104] line 326 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.105] line 326 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.106] line 326 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.107] line 326 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_utctime.pointer_dereference.108] line 326 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function ber_encode_visiblestring
+[ber_encode_visiblestring.pointer_dereference.1] line 251 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.2] line 251 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.3] line 251 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.4] line 251 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.5] line 251 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.6] line 251 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.7] line 266 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.8] line 266 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.9] line 266 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.10] line 266 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.11] line 266 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.12] line 266 dereference failure: invalid integer address in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.13] line 266 dereference failure: pointer NULL in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.14] line 266 dereference failure: pointer invalid in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.15] line 266 dereference failure: deallocated dynamic object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.16] line 266 dereference failure: dead object in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.17] line 266 dereference failure: pointer outside object bounds in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.18] line 266 dereference failure: invalid integer address in buf[(signed long int)*offset]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.19] line 266 dereference failure: pointer NULL in str[(signed long int)i]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.20] line 266 dereference failure: pointer invalid in str[(signed long int)i]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.21] line 266 dereference failure: deallocated dynamic object in str[(signed long int)i]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.22] line 266 dereference failure: dead object in str[(signed long int)i]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.23] line 266 dereference failure: pointer outside object bounds in str[(signed long int)i]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.24] line 266 dereference failure: invalid integer address in str[(signed long int)i]: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.25] line 267 dereference failure: pointer NULL in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.26] line 267 dereference failure: pointer invalid in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.27] line 267 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.28] line 267 dereference failure: dead object in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.29] line 267 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[ber_encode_visiblestring.pointer_dereference.30] line 267 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function goose_add_bitstring
+[goose_add_bitstring.pointer_dereference.1] line 760 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.2] line 760 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.3] line 760 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.4] line 760 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.5] line 760 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.6] line 760 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.array_bounds.1] line 763 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_bitstring.pointer_dereference.7] line 763 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.8] line 763 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.9] line 763 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.10] line 763 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.11] line 763 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.12] line 763 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.13] line 763 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.14] line 763 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.15] line 763 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.16] line 763 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.17] line 763 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.18] line 763 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.array_bounds.2] line 764 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_bitstring.pointer_dereference.19] line 764 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.20] line 764 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.21] line 764 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.22] line 764 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.23] line 764 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.24] line 764 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.25] line 764 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.26] line 764 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.27] line 764 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.28] line 764 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.29] line 764 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.30] line 764 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.array_bounds.3] line 765 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_bitstring.pointer_dereference.31] line 765 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.32] line 765 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.33] line 765 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.34] line 765 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.35] line 765 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.36] line 765 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_bitstring.pointer_dereference.37] line 765 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.38] line 765 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.39] line 765 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.40] line 765 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.41] line 765 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.42] line 765 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.43] line 766 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.44] line 766 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.45] line 766 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.46] line 766 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.47] line 766 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_bitstring.pointer_dereference.48] line 766 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+
+src/asn1/goose_ber.c function goose_add_boolean
+[goose_add_boolean.pointer_dereference.1] line 688 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.2] line 688 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.3] line 688 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.4] line 688 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.5] line 688 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.6] line 688 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.array_bounds.1] line 691 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_boolean.pointer_dereference.7] line 691 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.8] line 691 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.9] line 691 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.10] line 691 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.11] line 691 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.12] line 691 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.13] line 691 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.14] line 691 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.15] line 691 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.16] line 691 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.17] line 691 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.18] line 691 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.array_bounds.2] line 692 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_boolean.pointer_dereference.19] line 692 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.20] line 692 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.21] line 692 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.22] line 692 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.23] line 692 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.24] line 692 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_boolean.pointer_dereference.25] line 692 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.26] line 692 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.27] line 692 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.28] line 692 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.29] line 692 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.30] line 692 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.31] line 693 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.32] line 693 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.33] line 693 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.34] line 693 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.35] line 693 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_boolean.pointer_dereference.36] line 693 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+
+src/asn1/goose_ber.c function goose_add_float32
+[goose_add_float32.pointer_dereference.1] line 742 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.2] line 742 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.3] line 742 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.4] line 742 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.5] line 742 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.6] line 742 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.array_bounds.1] line 745 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_float32.pointer_dereference.7] line 745 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.8] line 745 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.9] line 745 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.10] line 745 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.11] line 745 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.12] line 745 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.13] line 745 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.14] line 745 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.15] line 745 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.16] line 745 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.17] line 745 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.18] line 745 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.array_bounds.2] line 746 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_float32.pointer_dereference.19] line 746 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.20] line 746 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.21] line 746 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.22] line 746 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.23] line 746 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.24] line 746 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_float32.pointer_dereference.25] line 746 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.26] line 746 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.27] line 746 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.28] line 746 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.29] line 746 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.30] line 746 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.31] line 747 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.32] line 747 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.33] line 747 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.34] line 747 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.35] line 747 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_float32.pointer_dereference.36] line 747 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+
+src/asn1/goose_ber.c function goose_add_int32
+[goose_add_int32.pointer_dereference.1] line 706 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.2] line 706 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.3] line 706 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.4] line 706 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.5] line 706 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.6] line 706 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.array_bounds.1] line 709 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_int32.pointer_dereference.7] line 709 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.8] line 709 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.9] line 709 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.10] line 709 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.11] line 709 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.12] line 709 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.13] line 709 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.14] line 709 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.15] line 709 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.16] line 709 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.17] line 709 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.18] line 709 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.array_bounds.2] line 710 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_int32.pointer_dereference.19] line 710 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.20] line 710 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.21] line 710 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.22] line 710 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.23] line 710 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.24] line 710 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_int32.pointer_dereference.25] line 710 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.26] line 710 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.27] line 710 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.28] line 710 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.29] line 710 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.30] line 710 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.31] line 711 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.32] line 711 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.33] line 711 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.34] line 711 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.35] line 711 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_int32.pointer_dereference.36] line 711 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+
+src/asn1/goose_ber.c function goose_add_octetstring
+[goose_add_octetstring.pointer_dereference.1] line 779 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.2] line 779 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.3] line 779 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.4] line 779 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.5] line 779 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.6] line 779 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.array_bounds.1] line 782 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_octetstring.pointer_dereference.7] line 782 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.8] line 782 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.9] line 782 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.10] line 782 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.11] line 782 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.12] line 782 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.13] line 782 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.14] line 782 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.15] line 782 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.16] line 782 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.17] line 782 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.18] line 782 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.array_bounds.2] line 783 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_octetstring.pointer_dereference.19] line 783 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.20] line 783 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.21] line 783 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.22] line 783 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.23] line 783 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.24] line 783 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.25] line 783 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.26] line 783 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.27] line 783 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.28] line 783 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.29] line 783 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.30] line 783 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.array_bounds.3] line 784 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_octetstring.pointer_dereference.31] line 784 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.32] line 784 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.33] line 784 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.34] line 784 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.35] line 784 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.36] line 784 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_octetstring.pointer_dereference.37] line 784 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.38] line 784 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.39] line 784 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.40] line 784 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.41] line 784 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.42] line 784 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.43] line 785 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.44] line 785 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.45] line 785 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.46] line 785 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.47] line 785 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_octetstring.pointer_dereference.48] line 785 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+
+src/asn1/goose_ber.c function goose_add_uint32
+[goose_add_uint32.pointer_dereference.1] line 724 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.2] line 724 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.3] line 724 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.4] line 724 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.5] line 724 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.6] line 724 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.array_bounds.1] line 727 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_uint32.pointer_dereference.7] line 727 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.8] line 727 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.9] line 727 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.10] line 727 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.11] line 727 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.12] line 727 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.13] line 727 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.14] line 727 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.15] line 727 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.16] line 727 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.17] line 727 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.18] line 727 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.array_bounds.2] line 728 array.allData dynamic object upper bound in apdu->allData[(signed long int)apdu->numDatSetEntries]: SUCCESS
+[goose_add_uint32.pointer_dereference.19] line 728 dereference failure: pointer NULL in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.20] line 728 dereference failure: pointer invalid in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.21] line 728 dereference failure: deallocated dynamic object in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.22] line 728 dereference failure: dead object in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.23] line 728 dereference failure: pointer outside object bounds in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.24] line 728 dereference failure: invalid integer address in apdu->allData: SUCCESS
+[goose_add_uint32.pointer_dereference.25] line 728 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.26] line 728 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.27] line 728 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.28] line 728 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.29] line 728 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.30] line 728 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.31] line 729 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.32] line 729 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.33] line 729 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.34] line 729 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.35] line 729 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_add_uint32.pointer_dereference.36] line 729 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+
+src/asn1/goose_ber.c function goose_apdu_init
+[goose_apdu_init.pointer_dereference.1] line 610 dereference failure: pointer NULL in apdu->timeAllowedtoLive: SUCCESS
+[goose_apdu_init.pointer_dereference.2] line 610 dereference failure: pointer invalid in apdu->timeAllowedtoLive: SUCCESS
+[goose_apdu_init.pointer_dereference.3] line 610 dereference failure: deallocated dynamic object in apdu->timeAllowedtoLive: SUCCESS
+[goose_apdu_init.pointer_dereference.4] line 610 dereference failure: dead object in apdu->timeAllowedtoLive: SUCCESS
+[goose_apdu_init.pointer_dereference.5] line 610 dereference failure: pointer outside object bounds in apdu->timeAllowedtoLive: SUCCESS
+[goose_apdu_init.pointer_dereference.6] line 610 dereference failure: invalid integer address in apdu->timeAllowedtoLive: SUCCESS
+[goose_apdu_init.pointer_dereference.7] line 611 dereference failure: pointer NULL in apdu->time_quality: SUCCESS
+[goose_apdu_init.pointer_dereference.8] line 611 dereference failure: pointer invalid in apdu->time_quality: SUCCESS
+[goose_apdu_init.pointer_dereference.9] line 611 dereference failure: deallocated dynamic object in apdu->time_quality: SUCCESS
+[goose_apdu_init.pointer_dereference.10] line 611 dereference failure: dead object in apdu->time_quality: SUCCESS
+[goose_apdu_init.pointer_dereference.11] line 611 dereference failure: pointer outside object bounds in apdu->time_quality: SUCCESS
+[goose_apdu_init.pointer_dereference.12] line 611 dereference failure: invalid integer address in apdu->time_quality: SUCCESS
+[goose_apdu_init.pointer_dereference.13] line 612 dereference failure: pointer NULL in apdu->confRev: SUCCESS
+[goose_apdu_init.pointer_dereference.14] line 612 dereference failure: pointer invalid in apdu->confRev: SUCCESS
+[goose_apdu_init.pointer_dereference.15] line 612 dereference failure: deallocated dynamic object in apdu->confRev: SUCCESS
+[goose_apdu_init.pointer_dereference.16] line 612 dereference failure: dead object in apdu->confRev: SUCCESS
+[goose_apdu_init.pointer_dereference.17] line 612 dereference failure: pointer outside object bounds in apdu->confRev: SUCCESS
+[goose_apdu_init.pointer_dereference.18] line 612 dereference failure: invalid integer address in apdu->confRev: SUCCESS
+[goose_apdu_init.pointer_dereference.19] line 613 dereference failure: pointer NULL in apdu->test: SUCCESS
+[goose_apdu_init.pointer_dereference.20] line 613 dereference failure: pointer invalid in apdu->test: SUCCESS
+[goose_apdu_init.pointer_dereference.21] line 613 dereference failure: deallocated dynamic object in apdu->test: SUCCESS
+[goose_apdu_init.pointer_dereference.22] line 613 dereference failure: dead object in apdu->test: SUCCESS
+[goose_apdu_init.pointer_dereference.23] line 613 dereference failure: pointer outside object bounds in apdu->test: SUCCESS
+[goose_apdu_init.pointer_dereference.24] line 613 dereference failure: invalid integer address in apdu->test: SUCCESS
+[goose_apdu_init.pointer_dereference.25] line 614 dereference failure: pointer NULL in apdu->ndsCom: SUCCESS
+[goose_apdu_init.pointer_dereference.26] line 614 dereference failure: pointer invalid in apdu->ndsCom: SUCCESS
+[goose_apdu_init.pointer_dereference.27] line 614 dereference failure: deallocated dynamic object in apdu->ndsCom: SUCCESS
+[goose_apdu_init.pointer_dereference.28] line 614 dereference failure: dead object in apdu->ndsCom: SUCCESS
+[goose_apdu_init.pointer_dereference.29] line 614 dereference failure: pointer outside object bounds in apdu->ndsCom: SUCCESS
+[goose_apdu_init.pointer_dereference.30] line 614 dereference failure: invalid integer address in apdu->ndsCom: SUCCESS
+
+src/asn1/goose_ber.c function goose_encode_alldata
+[goose_encode_alldata.pointer_dereference.1] line 365 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.2] line 365 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.3] line 365 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.4] line 365 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.5] line 365 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.6] line 365 dereference failure: invalid integer address in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.7] line 368 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.8] line 368 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.9] line 368 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.10] line 368 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.11] line 368 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.12] line 368 dereference failure: invalid integer address in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.13] line 373 dereference failure: pointer NULL in (data + (signed long int)i)->type: SUCCESS
+[goose_encode_alldata.pointer_dereference.14] line 373 dereference failure: pointer invalid in (data + (signed long int)i)->type: SUCCESS
+[goose_encode_alldata.pointer_dereference.15] line 373 dereference failure: deallocated dynamic object in (data + (signed long int)i)->type: SUCCESS
+[goose_encode_alldata.pointer_dereference.16] line 373 dereference failure: dead object in (data + (signed long int)i)->type: SUCCESS
+[goose_encode_alldata.pointer_dereference.17] line 373 dereference failure: pointer outside object bounds in (data + (signed long int)i)->type: SUCCESS
+[goose_encode_alldata.pointer_dereference.18] line 373 dereference failure: invalid integer address in (data + (signed long int)i)->type: SUCCESS
+[goose_encode_alldata.pointer_dereference.19] line 377 dereference failure: pointer NULL in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.20] line 377 dereference failure: pointer invalid in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.21] line 377 dereference failure: deallocated dynamic object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.22] line 377 dereference failure: dead object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.23] line 377 dereference failure: pointer outside object bounds in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.24] line 377 dereference failure: invalid integer address in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.25] line 383 dereference failure: pointer NULL in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.26] line 383 dereference failure: pointer invalid in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.27] line 383 dereference failure: deallocated dynamic object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.28] line 383 dereference failure: dead object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.29] line 383 dereference failure: pointer outside object bounds in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.30] line 383 dereference failure: invalid integer address in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.31] line 389 dereference failure: pointer NULL in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.32] line 389 dereference failure: pointer invalid in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.33] line 389 dereference failure: deallocated dynamic object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.34] line 389 dereference failure: dead object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.35] line 389 dereference failure: pointer outside object bounds in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.36] line 389 dereference failure: invalid integer address in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.37] line 413 dereference failure: pointer NULL in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.38] line 413 dereference failure: pointer invalid in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.39] line 413 dereference failure: deallocated dynamic object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.40] line 413 dereference failure: dead object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.41] line 413 dereference failure: pointer outside object bounds in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.42] line 413 dereference failure: invalid integer address in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.43] line 420 dereference failure: pointer NULL in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.44] line 420 dereference failure: pointer invalid in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.45] line 420 dereference failure: deallocated dynamic object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.46] line 420 dereference failure: dead object in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.47] line 420 dereference failure: pointer outside object bounds in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.48] line 420 dereference failure: invalid integer address in (data + (signed long int)i)->value: SUCCESS
+[goose_encode_alldata.pointer_dereference.49] line 437 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.50] line 437 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.51] line 437 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.52] line 437 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.53] line 437 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.54] line 437 dereference failure: invalid integer address in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.55] line 450 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.56] line 450 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.57] line 450 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.58] line 450 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.59] line 450 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_alldata.pointer_dereference.60] line 450 dereference failure: invalid integer address in *offset: SUCCESS
+
+src/asn1/goose_ber.c function goose_encode_apdu
+[goose_encode_apdu.pointer_dereference.1] line 493 dereference failure: pointer NULL in apdu->timeAllowedtoLive: SUCCESS
+[goose_encode_apdu.pointer_dereference.2] line 493 dereference failure: pointer invalid in apdu->timeAllowedtoLive: SUCCESS
+[goose_encode_apdu.pointer_dereference.3] line 493 dereference failure: deallocated dynamic object in apdu->timeAllowedtoLive: SUCCESS
+[goose_encode_apdu.pointer_dereference.4] line 493 dereference failure: dead object in apdu->timeAllowedtoLive: SUCCESS
+[goose_encode_apdu.pointer_dereference.5] line 493 dereference failure: pointer outside object bounds in apdu->timeAllowedtoLive: SUCCESS
+[goose_encode_apdu.pointer_dereference.6] line 493 dereference failure: invalid integer address in apdu->timeAllowedtoLive: SUCCESS
+[goose_encode_apdu.pointer_dereference.7] line 504 dereference failure: pointer NULL in apdu->has_goID: SUCCESS
+[goose_encode_apdu.pointer_dereference.8] line 504 dereference failure: pointer invalid in apdu->has_goID: SUCCESS
+[goose_encode_apdu.pointer_dereference.9] line 504 dereference failure: deallocated dynamic object in apdu->has_goID: SUCCESS
+[goose_encode_apdu.pointer_dereference.10] line 504 dereference failure: dead object in apdu->has_goID: SUCCESS
+[goose_encode_apdu.pointer_dereference.11] line 504 dereference failure: pointer outside object bounds in apdu->has_goID: SUCCESS
+[goose_encode_apdu.pointer_dereference.12] line 504 dereference failure: invalid integer address in apdu->has_goID: SUCCESS
+[goose_encode_apdu.pointer_dereference.13] line 519 dereference failure: pointer NULL in apdu->timestamp: SUCCESS
+[goose_encode_apdu.pointer_dereference.14] line 519 dereference failure: pointer invalid in apdu->timestamp: SUCCESS
+[goose_encode_apdu.pointer_dereference.15] line 519 dereference failure: deallocated dynamic object in apdu->timestamp: SUCCESS
+[goose_encode_apdu.pointer_dereference.16] line 519 dereference failure: dead object in apdu->timestamp: SUCCESS
+[goose_encode_apdu.pointer_dereference.17] line 519 dereference failure: pointer outside object bounds in apdu->timestamp: SUCCESS
+[goose_encode_apdu.pointer_dereference.18] line 519 dereference failure: invalid integer address in apdu->timestamp: SUCCESS
+[goose_encode_apdu.pointer_dereference.19] line 519 dereference failure: pointer NULL in apdu->time_quality: SUCCESS
+[goose_encode_apdu.pointer_dereference.20] line 519 dereference failure: pointer invalid in apdu->time_quality: SUCCESS
+[goose_encode_apdu.pointer_dereference.21] line 519 dereference failure: deallocated dynamic object in apdu->time_quality: SUCCESS
+[goose_encode_apdu.pointer_dereference.22] line 519 dereference failure: dead object in apdu->time_quality: SUCCESS
+[goose_encode_apdu.pointer_dereference.23] line 519 dereference failure: pointer outside object bounds in apdu->time_quality: SUCCESS
+[goose_encode_apdu.pointer_dereference.24] line 519 dereference failure: invalid integer address in apdu->time_quality: SUCCESS
+[goose_encode_apdu.pointer_dereference.25] line 525 dereference failure: pointer NULL in apdu->stNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.26] line 525 dereference failure: pointer invalid in apdu->stNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.27] line 525 dereference failure: deallocated dynamic object in apdu->stNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.28] line 525 dereference failure: dead object in apdu->stNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.29] line 525 dereference failure: pointer outside object bounds in apdu->stNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.30] line 525 dereference failure: invalid integer address in apdu->stNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.31] line 531 dereference failure: pointer NULL in apdu->sqNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.32] line 531 dereference failure: pointer invalid in apdu->sqNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.33] line 531 dereference failure: deallocated dynamic object in apdu->sqNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.34] line 531 dereference failure: dead object in apdu->sqNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.35] line 531 dereference failure: pointer outside object bounds in apdu->sqNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.36] line 531 dereference failure: invalid integer address in apdu->sqNum: SUCCESS
+[goose_encode_apdu.pointer_dereference.37] line 537 dereference failure: pointer NULL in apdu->test: SUCCESS
+[goose_encode_apdu.pointer_dereference.38] line 537 dereference failure: pointer invalid in apdu->test: SUCCESS
+[goose_encode_apdu.pointer_dereference.39] line 537 dereference failure: deallocated dynamic object in apdu->test: SUCCESS
+[goose_encode_apdu.pointer_dereference.40] line 537 dereference failure: dead object in apdu->test: SUCCESS
+[goose_encode_apdu.pointer_dereference.41] line 537 dereference failure: pointer outside object bounds in apdu->test: SUCCESS
+[goose_encode_apdu.pointer_dereference.42] line 537 dereference failure: invalid integer address in apdu->test: SUCCESS
+[goose_encode_apdu.pointer_dereference.43] line 543 dereference failure: pointer NULL in apdu->confRev: SUCCESS
+[goose_encode_apdu.pointer_dereference.44] line 543 dereference failure: pointer invalid in apdu->confRev: SUCCESS
+[goose_encode_apdu.pointer_dereference.45] line 543 dereference failure: deallocated dynamic object in apdu->confRev: SUCCESS
+[goose_encode_apdu.pointer_dereference.46] line 543 dereference failure: dead object in apdu->confRev: SUCCESS
+[goose_encode_apdu.pointer_dereference.47] line 543 dereference failure: pointer outside object bounds in apdu->confRev: SUCCESS
+[goose_encode_apdu.pointer_dereference.48] line 543 dereference failure: invalid integer address in apdu->confRev: SUCCESS
+[goose_encode_apdu.pointer_dereference.49] line 549 dereference failure: pointer NULL in apdu->ndsCom: SUCCESS
+[goose_encode_apdu.pointer_dereference.50] line 549 dereference failure: pointer invalid in apdu->ndsCom: SUCCESS
+[goose_encode_apdu.pointer_dereference.51] line 549 dereference failure: deallocated dynamic object in apdu->ndsCom: SUCCESS
+[goose_encode_apdu.pointer_dereference.52] line 549 dereference failure: dead object in apdu->ndsCom: SUCCESS
+[goose_encode_apdu.pointer_dereference.53] line 549 dereference failure: pointer outside object bounds in apdu->ndsCom: SUCCESS
+[goose_encode_apdu.pointer_dereference.54] line 549 dereference failure: invalid integer address in apdu->ndsCom: SUCCESS
+[goose_encode_apdu.pointer_dereference.55] line 556 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.56] line 556 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.57] line 556 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.58] line 556 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.59] line 556 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.60] line 556 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.61] line 562 dereference failure: pointer NULL in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.62] line 562 dereference failure: pointer invalid in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.63] line 562 dereference failure: deallocated dynamic object in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.64] line 562 dereference failure: dead object in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.65] line 562 dereference failure: pointer outside object bounds in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.66] line 562 dereference failure: invalid integer address in apdu->numDatSetEntries: SUCCESS
+[goose_encode_apdu.pointer_dereference.67] line 581 dereference failure: pointer NULL in *encoded_len: SUCCESS
+[goose_encode_apdu.pointer_dereference.68] line 581 dereference failure: pointer invalid in *encoded_len: SUCCESS
+[goose_encode_apdu.pointer_dereference.69] line 581 dereference failure: deallocated dynamic object in *encoded_len: SUCCESS
+[goose_encode_apdu.pointer_dereference.70] line 581 dereference failure: dead object in *encoded_len: SUCCESS
+[goose_encode_apdu.pointer_dereference.71] line 581 dereference failure: pointer outside object bounds in *encoded_len: SUCCESS
+[goose_encode_apdu.pointer_dereference.72] line 581 dereference failure: invalid integer address in *encoded_len: SUCCESS
+
+src/asn1/goose_ber.c function goose_encode_security
+[goose_encode_security.pointer_dereference.1] line 849 dereference failure: pointer NULL in apdu->secure: SUCCESS
+[goose_encode_security.pointer_dereference.2] line 849 dereference failure: pointer invalid in apdu->secure: SUCCESS
+[goose_encode_security.pointer_dereference.3] line 849 dereference failure: deallocated dynamic object in apdu->secure: SUCCESS
+[goose_encode_security.pointer_dereference.4] line 849 dereference failure: dead object in apdu->secure: SUCCESS
+[goose_encode_security.pointer_dereference.5] line 849 dereference failure: pointer outside object bounds in apdu->secure: SUCCESS
+[goose_encode_security.pointer_dereference.6] line 849 dereference failure: invalid integer address in apdu->secure: SUCCESS
+[goose_encode_security.pointer_dereference.7] line 861 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.8] line 861 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.9] line 861 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.10] line 861 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.11] line 861 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.12] line 861 dereference failure: invalid integer address in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.13] line 864 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.14] line 864 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.15] line 864 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.16] line 864 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.17] line 864 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.18] line 864 dereference failure: invalid integer address in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.19] line 869 dereference failure: pointer NULL in apdu->signature_algo: SUCCESS
+[goose_encode_security.pointer_dereference.20] line 869 dereference failure: pointer invalid in apdu->signature_algo: SUCCESS
+[goose_encode_security.pointer_dereference.21] line 869 dereference failure: deallocated dynamic object in apdu->signature_algo: SUCCESS
+[goose_encode_security.pointer_dereference.22] line 869 dereference failure: dead object in apdu->signature_algo: SUCCESS
+[goose_encode_security.pointer_dereference.23] line 869 dereference failure: pointer outside object bounds in apdu->signature_algo: SUCCESS
+[goose_encode_security.pointer_dereference.24] line 869 dereference failure: invalid integer address in apdu->signature_algo: SUCCESS
+[goose_encode_security.pointer_dereference.25] line 888 dereference failure: pointer NULL in apdu->security_timestamp: SUCCESS
+[goose_encode_security.pointer_dereference.26] line 888 dereference failure: pointer invalid in apdu->security_timestamp: SUCCESS
+[goose_encode_security.pointer_dereference.27] line 888 dereference failure: deallocated dynamic object in apdu->security_timestamp: SUCCESS
+[goose_encode_security.pointer_dereference.28] line 888 dereference failure: dead object in apdu->security_timestamp: SUCCESS
+[goose_encode_security.pointer_dereference.29] line 888 dereference failure: pointer outside object bounds in apdu->security_timestamp: SUCCESS
+[goose_encode_security.pointer_dereference.30] line 888 dereference failure: invalid integer address in apdu->security_timestamp: SUCCESS
+[goose_encode_security.pointer_dereference.31] line 898 dereference failure: pointer NULL in apdu->signature_len: SUCCESS
+[goose_encode_security.pointer_dereference.32] line 898 dereference failure: pointer invalid in apdu->signature_len: SUCCESS
+[goose_encode_security.pointer_dereference.33] line 898 dereference failure: deallocated dynamic object in apdu->signature_len: SUCCESS
+[goose_encode_security.pointer_dereference.34] line 898 dereference failure: dead object in apdu->signature_len: SUCCESS
+[goose_encode_security.pointer_dereference.35] line 898 dereference failure: pointer outside object bounds in apdu->signature_len: SUCCESS
+[goose_encode_security.pointer_dereference.36] line 898 dereference failure: invalid integer address in apdu->signature_len: SUCCESS
+[goose_encode_security.pointer_dereference.37] line 905 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.38] line 905 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.39] line 905 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.40] line 905 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.41] line 905 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.42] line 905 dereference failure: invalid integer address in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.43] line 909 dereference failure: pointer NULL in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.44] line 909 dereference failure: pointer invalid in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.45] line 909 dereference failure: deallocated dynamic object in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.46] line 909 dereference failure: dead object in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.47] line 909 dereference failure: pointer outside object bounds in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.48] line 909 dereference failure: invalid integer address in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.49] line 910 dereference failure: pointer NULL in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.50] line 910 dereference failure: pointer invalid in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.51] line 910 dereference failure: deallocated dynamic object in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.52] line 910 dereference failure: dead object in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.53] line 910 dereference failure: pointer outside object bounds in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.54] line 910 dereference failure: invalid integer address in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.55] line 915 dereference failure: pointer NULL in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.56] line 915 dereference failure: pointer invalid in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.57] line 915 dereference failure: deallocated dynamic object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.58] line 915 dereference failure: dead object in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.59] line 915 dereference failure: pointer outside object bounds in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.60] line 915 dereference failure: invalid integer address in *offset: SUCCESS
+[goose_encode_security.pointer_dereference.61] line 917 dereference failure: pointer NULL in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.62] line 917 dereference failure: pointer invalid in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.63] line 917 dereference failure: deallocated dynamic object in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.64] line 917 dereference failure: dead object in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.65] line 917 dereference failure: pointer outside object bounds in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.66] line 917 dereference failure: invalid integer address in buf[(signed long int)security_length_pos]: SUCCESS
+[goose_encode_security.pointer_dereference.67] line 918 dereference failure: pointer NULL in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.68] line 918 dereference failure: pointer invalid in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.69] line 918 dereference failure: deallocated dynamic object in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.70] line 918 dereference failure: dead object in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.71] line 918 dereference failure: pointer outside object bounds in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.72] line 918 dereference failure: invalid integer address in buf[(signed long int)(security_length_pos + (unsigned long int)1u)]: SUCCESS
+[goose_encode_security.pointer_dereference.73] line 919 dereference failure: pointer NULL in buf[(signed long int)(security_length_pos + (unsigned long int)2u)]: SUCCESS
+[goose_encode_security.pointer_dereference.74] line 919 dereference failure: pointer invalid in buf[(signed long int)(security_length_pos + (unsigned long int)2u)]: SUCCESS
+[goose_encode_security.pointer_dereference.75] line 919 dereference failure: deallocated dynamic object in buf[(signed long int)(security_length_pos + (unsigned long int)2u)]: SUCCESS
+[goose_encode_security.pointer_dereference.76] line 919 dereference failure: dead object in buf[(signed long int)(security_length_pos + (unsigned long int)2u)]: SUCCESS
+[goose_encode_security.pointer_dereference.77] line 919 dereference failure: pointer outside object bounds in buf[(signed long int)(security_length_pos + (unsigned long int)2u)]: SUCCESS
+[goose_encode_security.pointer_dereference.78] line 919 dereference failure: invalid integer address in buf[(signed long int)(security_length_pos + (unsigned long int)2u)]: SUCCESS
+
+src/asn1/goose_ber.c function goose_set_datset
+[goose_set_datset.array_bounds.1] line 652 array.datSet dynamic object upper bound in apdu->datSet[(signed long int)(129u - 1u)]: SUCCESS
+[goose_set_datset.pointer_dereference.1] line 652 dereference failure: pointer NULL in apdu->datSet: SUCCESS
+[goose_set_datset.pointer_dereference.2] line 652 dereference failure: pointer invalid in apdu->datSet: SUCCESS
+[goose_set_datset.pointer_dereference.3] line 652 dereference failure: deallocated dynamic object in apdu->datSet: SUCCESS
+[goose_set_datset.pointer_dereference.4] line 652 dereference failure: dead object in apdu->datSet: SUCCESS
+[goose_set_datset.pointer_dereference.5] line 652 dereference failure: pointer outside object bounds in apdu->datSet: SUCCESS
+[goose_set_datset.pointer_dereference.6] line 652 dereference failure: invalid integer address in apdu->datSet: SUCCESS
+
+src/asn1/goose_ber.c function goose_set_gocbref
+[goose_set_gocbref.array_bounds.1] line 631 array.gocbRef dynamic object upper bound in apdu->gocbRef[(signed long int)(129u - 1u)]: SUCCESS
+[goose_set_gocbref.pointer_dereference.1] line 631 dereference failure: pointer NULL in apdu->gocbRef: SUCCESS
+[goose_set_gocbref.pointer_dereference.2] line 631 dereference failure: pointer invalid in apdu->gocbRef: SUCCESS
+[goose_set_gocbref.pointer_dereference.3] line 631 dereference failure: deallocated dynamic object in apdu->gocbRef: SUCCESS
+[goose_set_gocbref.pointer_dereference.4] line 631 dereference failure: dead object in apdu->gocbRef: SUCCESS
+[goose_set_gocbref.pointer_dereference.5] line 631 dereference failure: pointer outside object bounds in apdu->gocbRef: SUCCESS
+[goose_set_gocbref.pointer_dereference.6] line 631 dereference failure: invalid integer address in apdu->gocbRef: SUCCESS
+
+src/asn1/goose_ber.c function goose_set_goid
+[goose_set_goid.array_bounds.1] line 673 array.goID dynamic object upper bound in apdu->goID[(signed long int)(129u - 1u)]: SUCCESS
+[goose_set_goid.pointer_dereference.1] line 673 dereference failure: pointer NULL in apdu->goID: SUCCESS
+[goose_set_goid.pointer_dereference.2] line 673 dereference failure: pointer invalid in apdu->goID: SUCCESS
+[goose_set_goid.pointer_dereference.3] line 673 dereference failure: deallocated dynamic object in apdu->goID: SUCCESS
+[goose_set_goid.pointer_dereference.4] line 673 dereference failure: dead object in apdu->goID: SUCCESS
+[goose_set_goid.pointer_dereference.5] line 673 dereference failure: pointer outside object bounds in apdu->goID: SUCCESS
+[goose_set_goid.pointer_dereference.6] line 673 dereference failure: invalid integer address in apdu->goID: SUCCESS
+[goose_set_goid.pointer_dereference.7] line 674 dereference failure: pointer NULL in apdu->has_goID: SUCCESS
+[goose_set_goid.pointer_dereference.8] line 674 dereference failure: pointer invalid in apdu->has_goID: SUCCESS
+[goose_set_goid.pointer_dereference.9] line 674 dereference failure: deallocated dynamic object in apdu->has_goID: SUCCESS
+[goose_set_goid.pointer_dereference.10] line 674 dereference failure: dead object in apdu->has_goID: SUCCESS
+[goose_set_goid.pointer_dereference.11] line 674 dereference failure: pointer outside object bounds in apdu->has_goID: SUCCESS
+[goose_set_goid.pointer_dereference.12] line 674 dereference failure: invalid integer address in apdu->has_goID: SUCCESS
+
+src/asn1/goose_ber.c function goose_set_security
+[goose_set_security.pointer_dereference.1] line 949 dereference failure: pointer NULL in apdu->secure: SUCCESS
+[goose_set_security.pointer_dereference.2] line 949 dereference failure: pointer invalid in apdu->secure: SUCCESS
+[goose_set_security.pointer_dereference.3] line 949 dereference failure: deallocated dynamic object in apdu->secure: SUCCESS
+[goose_set_security.pointer_dereference.4] line 949 dereference failure: dead object in apdu->secure: SUCCESS
+[goose_set_security.pointer_dereference.5] line 949 dereference failure: pointer outside object bounds in apdu->secure: SUCCESS
+[goose_set_security.pointer_dereference.6] line 949 dereference failure: invalid integer address in apdu->secure: SUCCESS
+[goose_set_security.pointer_dereference.7] line 950 dereference failure: pointer NULL in apdu->signature_algo: SUCCESS
+[goose_set_security.pointer_dereference.8] line 950 dereference failure: pointer invalid in apdu->signature_algo: SUCCESS
+[goose_set_security.pointer_dereference.9] line 950 dereference failure: deallocated dynamic object in apdu->signature_algo: SUCCESS
+[goose_set_security.pointer_dereference.10] line 950 dereference failure: dead object in apdu->signature_algo: SUCCESS
+[goose_set_security.pointer_dereference.11] line 950 dereference failure: pointer outside object bounds in apdu->signature_algo: SUCCESS
+[goose_set_security.pointer_dereference.12] line 950 dereference failure: invalid integer address in apdu->signature_algo: SUCCESS
+[goose_set_security.array_bounds.1] line 954 array.key_id dynamic object upper bound in apdu->key_id[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.13] line 954 dereference failure: pointer NULL in apdu->key_id: SUCCESS
+[goose_set_security.pointer_dereference.14] line 954 dereference failure: pointer invalid in apdu->key_id: SUCCESS
+[goose_set_security.pointer_dereference.15] line 954 dereference failure: deallocated dynamic object in apdu->key_id: SUCCESS
+[goose_set_security.pointer_dereference.16] line 954 dereference failure: dead object in apdu->key_id: SUCCESS
+[goose_set_security.pointer_dereference.17] line 954 dereference failure: pointer outside object bounds in apdu->key_id: SUCCESS
+[goose_set_security.pointer_dereference.18] line 954 dereference failure: invalid integer address in apdu->key_id: SUCCESS
+[goose_set_security.pointer_dereference.19] line 954 dereference failure: pointer NULL in key_id[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.20] line 954 dereference failure: pointer invalid in key_id[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.21] line 954 dereference failure: deallocated dynamic object in key_id[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.22] line 954 dereference failure: dead object in key_id[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.23] line 954 dereference failure: pointer outside object bounds in key_id[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.24] line 954 dereference failure: invalid integer address in key_id[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.25] line 959 dereference failure: pointer NULL in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.26] line 959 dereference failure: pointer invalid in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.27] line 959 dereference failure: deallocated dynamic object in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.28] line 959 dereference failure: dead object in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.29] line 959 dereference failure: pointer outside object bounds in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.30] line 959 dereference failure: invalid integer address in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.31] line 962 dereference failure: pointer NULL in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.32] line 962 dereference failure: pointer invalid in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.33] line 962 dereference failure: deallocated dynamic object in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.34] line 962 dereference failure: dead object in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.35] line 962 dereference failure: pointer outside object bounds in apdu->security_timestamp: SUCCESS
+[goose_set_security.pointer_dereference.36] line 962 dereference failure: invalid integer address in apdu->security_timestamp: SUCCESS
+[goose_set_security.array_bounds.2] line 967 array.signature dynamic object upper bound in apdu->signature[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.37] line 967 dereference failure: pointer NULL in apdu->signature: SUCCESS
+[goose_set_security.pointer_dereference.38] line 967 dereference failure: pointer invalid in apdu->signature: SUCCESS
+[goose_set_security.pointer_dereference.39] line 967 dereference failure: deallocated dynamic object in apdu->signature: SUCCESS
+[goose_set_security.pointer_dereference.40] line 967 dereference failure: dead object in apdu->signature: SUCCESS
+[goose_set_security.pointer_dereference.41] line 967 dereference failure: pointer outside object bounds in apdu->signature: SUCCESS
+[goose_set_security.pointer_dereference.42] line 967 dereference failure: invalid integer address in apdu->signature: SUCCESS
+[goose_set_security.pointer_dereference.43] line 967 dereference failure: pointer NULL in signature[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.44] line 967 dereference failure: pointer invalid in signature[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.45] line 967 dereference failure: deallocated dynamic object in signature[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.46] line 967 dereference failure: dead object in signature[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.47] line 967 dereference failure: pointer outside object bounds in signature[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.48] line 967 dereference failure: invalid integer address in signature[(signed long int)i]: SUCCESS
+[goose_set_security.pointer_dereference.49] line 969 dereference failure: pointer NULL in apdu->signature_len: SUCCESS
+[goose_set_security.pointer_dereference.50] line 969 dereference failure: pointer invalid in apdu->signature_len: SUCCESS
+[goose_set_security.pointer_dereference.51] line 969 dereference failure: deallocated dynamic object in apdu->signature_len: SUCCESS
+[goose_set_security.pointer_dereference.52] line 969 dereference failure: dead object in apdu->signature_len: SUCCESS
+[goose_set_security.pointer_dereference.53] line 969 dereference failure: pointer outside object bounds in apdu->signature_len: SUCCESS
+[goose_set_security.pointer_dereference.54] line 969 dereference failure: invalid integer address in apdu->signature_len: SUCCESS
+
+src/containers/fixed_string.c function iec61850_fixed_string_assign_n_raw
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.1] line 67 dereference failure: pointer NULL in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.2] line 67 dereference failure: pointer invalid in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.3] line 67 dereference failure: deallocated dynamic object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.4] line 67 dereference failure: dead object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.5] line 67 dereference failure: pointer outside object bounds in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.6] line 67 dereference failure: invalid integer address in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.7] line 68 dereference failure: pointer NULL in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.8] line 68 dereference failure: pointer invalid in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.9] line 68 dereference failure: deallocated dynamic object in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.10] line 68 dereference failure: dead object in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.11] line 68 dereference failure: pointer outside object bounds in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.12] line 68 dereference failure: invalid integer address in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.13] line 78 dereference failure: pointer NULL in data[(signed long int)copy_len]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.14] line 78 dereference failure: pointer invalid in data[(signed long int)copy_len]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.15] line 78 dereference failure: deallocated dynamic object in data[(signed long int)copy_len]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.16] line 78 dereference failure: dead object in data[(signed long int)copy_len]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.17] line 78 dereference failure: pointer outside object bounds in data[(signed long int)copy_len]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.18] line 78 dereference failure: invalid integer address in data[(signed long int)copy_len]: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.19] line 79 dereference failure: pointer NULL in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.20] line 79 dereference failure: pointer invalid in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.21] line 79 dereference failure: deallocated dynamic object in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.22] line 79 dereference failure: dead object in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.23] line 79 dereference failure: pointer outside object bounds in *len: SUCCESS
+[iec61850_fixed_string_assign_n_raw.pointer_dereference.24] line 79 dereference failure: invalid integer address in *len: SUCCESS
+
+src/containers/fixed_string.c function iec61850_fixed_string_assign_raw
+[iec61850_fixed_string_assign_raw.pointer_dereference.1] line 36 dereference failure: pointer NULL in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.2] line 36 dereference failure: pointer invalid in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.3] line 36 dereference failure: deallocated dynamic object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.4] line 36 dereference failure: dead object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.5] line 36 dereference failure: pointer outside object bounds in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.6] line 36 dereference failure: invalid integer address in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.7] line 37 dereference failure: pointer NULL in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.8] line 37 dereference failure: pointer invalid in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.9] line 37 dereference failure: deallocated dynamic object in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.10] line 37 dereference failure: dead object in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.11] line 37 dereference failure: pointer outside object bounds in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.12] line 37 dereference failure: invalid integer address in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.13] line 47 dereference failure: pointer NULL in data[(signed long int)slen]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.14] line 47 dereference failure: pointer invalid in data[(signed long int)slen]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.15] line 47 dereference failure: deallocated dynamic object in data[(signed long int)slen]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.16] line 47 dereference failure: dead object in data[(signed long int)slen]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.17] line 47 dereference failure: pointer outside object bounds in data[(signed long int)slen]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.18] line 47 dereference failure: invalid integer address in data[(signed long int)slen]: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.19] line 48 dereference failure: pointer NULL in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.20] line 48 dereference failure: pointer invalid in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.21] line 48 dereference failure: deallocated dynamic object in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.22] line 48 dereference failure: dead object in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.23] line 48 dereference failure: pointer outside object bounds in *len: SUCCESS
+[iec61850_fixed_string_assign_raw.pointer_dereference.24] line 48 dereference failure: invalid integer address in *len: SUCCESS
+
+src/containers/fixed_string.c function iec61850_fixed_string_clear_raw
+[iec61850_fixed_string_clear_raw.pointer_dereference.1] line 92 dereference failure: pointer NULL in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.2] line 92 dereference failure: pointer invalid in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.3] line 92 dereference failure: deallocated dynamic object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.4] line 92 dereference failure: dead object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.5] line 92 dereference failure: pointer outside object bounds in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.6] line 92 dereference failure: invalid integer address in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.7] line 93 dereference failure: pointer NULL in *len: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.8] line 93 dereference failure: pointer invalid in *len: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.9] line 93 dereference failure: deallocated dynamic object in *len: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.10] line 93 dereference failure: dead object in *len: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.11] line 93 dereference failure: pointer outside object bounds in *len: SUCCESS
+[iec61850_fixed_string_clear_raw.pointer_dereference.12] line 93 dereference failure: invalid integer address in *len: SUCCESS
+
+src/containers/fixed_string.c function iec61850_fixed_string_init_raw
+[iec61850_fixed_string_init_raw.pointer_dereference.1] line 20 dereference failure: pointer NULL in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.2] line 20 dereference failure: pointer invalid in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.3] line 20 dereference failure: deallocated dynamic object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.4] line 20 dereference failure: dead object in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.5] line 20 dereference failure: pointer outside object bounds in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.6] line 20 dereference failure: invalid integer address in data[(signed long int)0]: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.7] line 21 dereference failure: pointer NULL in *len: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.8] line 21 dereference failure: pointer invalid in *len: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.9] line 21 dereference failure: deallocated dynamic object in *len: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.10] line 21 dereference failure: dead object in *len: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.11] line 21 dereference failure: pointer outside object bounds in *len: SUCCESS
+[iec61850_fixed_string_init_raw.pointer_dereference.12] line 21 dereference failure: invalid integer address in *len: SUCCESS
+
+verification/cbmc/ber_encoder_harness.c function main
+[main.assertion.1] line 37 assertion ret == GOOSE_BER_OK || ret == GOOSE_BER_ERR_INVALID_ARG || ret == GOOSE_BER_ERR_BUFFER_FULL: SUCCESS
+[main.assertion.2] line 40 assertion off <= buf_size: SUCCESS
+[main.assertion.3] line 41 assertion off == offset + 1: SUCCESS
+[main.assertion.4] line 50 assertion ret == GOOSE_BER_OK || ret == GOOSE_BER_ERR_INVALID_ARG || ret == GOOSE_BER_ERR_BUFFER_FULL || ret == GOOSE_BER_ERR_ENCODING: SUCCESS
+[main.assertion.5] line 54 assertion off <= buf_size: SUCCESS
+[main.assertion.6] line 62 assertion ret == GOOSE_BER_OK || ret == GOOSE_BER_ERR_INVALID_ARG || ret == GOOSE_BER_ERR_BUFFER_FULL: SUCCESS
+[main.assertion.7] line 65 assertion off <= buf_size: SUCCESS
+[main.assertion.8] line 73 assertion ret == GOOSE_BER_OK || ret == GOOSE_BER_ERR_INVALID_ARG || ret == GOOSE_BER_ERR_BUFFER_FULL: SUCCESS
+[main.assertion.9] line 76 assertion off <= buf_size: SUCCESS
+[main.assertion.10] line 84 assertion ret == GOOSE_BER_OK || ret == GOOSE_BER_ERR_INVALID_ARG || ret == GOOSE_BER_ERR_BUFFER_FULL: SUCCESS
+[main.assertion.11] line 87 assertion off <= buf_size: SUCCESS
+
+** 0 of 1048 failed (1 iterations)
+VERIFICATION SUCCESSFUL

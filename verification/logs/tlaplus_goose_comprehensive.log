@@ -1,0 +1,47 @@
+TLC2 Version 2.20 of Day Month 20?? (rev: 30ec586)
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 45 and seed 7131510814713720164 with 32 workers on 32 cores with 30688MB heap and 64MB offheap memory [pid: 1936121] (Linux 6.18.13-200.fc43.x86_64 amd64, Red Hat, Inc. 25.0.2 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /home/fdupont/Code/github.com/smgglrs/xdp-iec61850/verification/tlaplus/GOOSEProtocol.tla
+Parsing file /tmp/tlc-4205944522012633370/Integers.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /tmp/tlc-4205944522012633370/Sequences.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/tlc-4205944522012633370/FiniteSets.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/tlc-4205944522012633370/TLC.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /tmp/tlc-4205944522012633370/_TLCTrace.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/_TLCTrace.tla)
+Parsing file /tmp/tlc-4205944522012633370/Naturals.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-4205944522012633370/TLCExt.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/TLCExt.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module TLCExt
+Semantic processing of module _TLCTrace
+Semantic processing of module GOOSEProtocol
+Linting of module TLCExt
+Linting of module _TLCTrace
+Linting of module GOOSEProtocol
+Starting... (2026-03-06 18:10:42)
+Implied-temporal checking--satisfiability problem has 2 branches.
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-03-06 18:10:42.
+Checking 2 branches of temporal properties for the current state space with 353404 total distinct states at (2026-03-06 18:10:45)
+Finished checking temporal properties in 01s at 2026-03-06 18:10:46
+Progress(36) at 2026-03-06 18:10:46: 1,325,615 states generated (1,325,615 s/min), 176,702 distinct states found (176,702 ds/min), 29,819 states left on queue.
+Progress(63) at 2026-03-06 18:11:46: 31,430,567 states generated (30,104,952 s/min), 2,938,065 distinct states found (2,761,363 ds/min), 206,677 states left on queue.
+Checking 2 branches of temporal properties for the current state space with 10145304 total distinct states at (2026-03-06 18:12:46)
+Finished checking temporal properties in 45s at 2026-03-06 18:13:31
+Progress(74) at 2026-03-06 18:13:31: 57,809,897 states generated (26,379,330 s/min), 5,072,652 distinct states found (2,134,587 ds/min), 207,042 states left on queue.
+Progress(86) at 2026-03-06 18:14:31: 86,439,498 states generated (28,629,601 s/min), 7,230,354 distinct states found (2,157,702 ds/min), 88,751 states left on queue.
+Progress(92) at 2026-03-06 18:14:37: 89,578,805 states generated, 7,355,619 distinct states found, 0 states left on queue.
+Checking 2 branches of temporal properties for the complete state space with 14711238 total distinct states at (2026-03-06 18:14:37)
+Finished checking temporal properties in 01min 05s at 2026-03-06 18:15:43
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 3.3E-5
+  based on the actual fingerprints:  val = 9.0E-9
+89578805 states generated, 7355619 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 92.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 18 and the 95th percentile is 4).
+Finished in 05min 01s at (2026-03-06 18:15:43)

@@ -1,0 +1,277 @@
+[kernel] Parsing verification/frama-c/sv_ber_harness.c (with preprocessing)
+[kernel] Parsing src/asn1/sv_ber.c (with preprocessing)
+/home/fdupont/Code/github.com/smgglrs/xdp-iec61850/src/asn1/sv_ber.c:10:9: warning: ‘_POSIX_C_SOURCE’ redefined
+   10 | #define _POSIX_C_SOURCE 199309L  /* For clock_gettime */
+      |         ^~~~~~~~~~~~~~~
+In file included from <command-line>:
+/tmp/__fc_machdepe78812.dir/__fc_builtin_macros.h:601:9: note: this is the location of the previous definition
+  601 | #define _POSIX_C_SOURCE 200809L
+      |         ^~~~~~~~~~~~~~~
+cc1: note: unrecognized command-line option ‘-Wno-unknown-warning-option’ may have been intended to silence earlier diagnostics
+/tmp/ppannotecd8b1.c:595:9: warning: ‘_POSIX_C_SOURCE’ redefined
+  595 | #define _POSIX_C_SOURCE 199309L
+      |         ^~~~~~~~~~~~~~~
+/tmp/ppannotecd8b1.c:594:9: note: this is the location of the previous definition
+  594 | #define _POSIX_C_SOURCE 200809L
+      |         ^~~~~~~~~~~~~~~
+cc1: note: unrecognized command-line option ‘-Wno-unknown-warning-option’ may have been intended to silence earlier diagnostics
+[kernel] Parsing src/containers/fixed_string.c (with preprocessing)
+[eva:precision-settings] 
+  Option -eva-precision 5 detected, automatic configuration of the analysis:
+    option -eva-min-loop-unroll set to 0 (default value).
+    option -eva-auto-loop-unroll set to 128.
+    option -eva-widening-delay set to 3 (default value).
+    option -eva-partition-history set to 0 (default value).
+    option -eva-slevel set to 100.
+    option -eva-ilevel set to 48.
+    option -eva-plevel set to 150.
+    option -eva-subdivide-non-linear set to 100.
+    option -eva-remove-redundant-alarms set to true (default value).
+    option -eva-domains set to 'cvalue,equality,gauges,octagon,symbolic-locations'.
+    option -eva-split-return set to 'auto'.
+    option -eva-equality-through-calls set to 'formals' (default value).
+    option -eva-octagon-through-calls set to false (default value).
+[eva:split-return] 
+  Splitting return states on:
+    \return(sv_encode_security) == 0 (auto)
+    \return(ber_encode_tag) == 0 (auto)
+    \return(ber_encode_length) == 0 (auto)
+    \return(ber_encode_int32) == 0 (auto)
+    \return(ber_encode_uint32) == 0 (auto)
+    \return(ber_encode_visiblestring) == 0 (auto)
+    \return(ber_encode_utctime) == 0 (auto)
+    \return(memcmp) == 0 (auto)
+    \return(memcpy) == 0 (auto)
+    \return(memmove) == 0 (auto)
+    \return(memset) == 0 (auto)
+    \return(clock_gettime) == 0 (auto)
+    \return(ber_decode_tag) == 0 (auto)
+    \return(ber_decode_length) == 0 (auto)
+    \return(ber_decode_uint32) == 0 (auto)
+    \return(ber_decode_int32) == 0 (auto)
+    \return(ber_decode_visiblestring) == 0 (auto)
+    \return(ber_decode_utctime) == 0 (auto)
+    \return(ber_decode_octetstring) == 0 (auto)
+    \return(encode_sample) == 0 (auto)
+    \return(encode_samples) == 0 (auto)
+    \return(encode_asdu) == 0 (auto)
+    \return(decode_samples) == 0 (auto)
+    \return(decode_security) == 0 (auto)
+    \return(decode_asdu) == 0 (auto)
+[eva] Analyzing a complete application starting at main
+[eva:initial-state] Values of globals at initialization
+  
+[eva:acsl:unsupported] FRAMAC_SHARE/libc/string.h:114: 
+  cannot evaluate ACSL term, unsupported ACSL construct: logic function memcmp
+[eva:acsl:unsupported] FRAMAC_SHARE/libc/string.h:147: 
+  cannot evaluate ACSL term, unsupported ACSL construct: logic function memset
+[kernel:annot:missing-spec] src/asn1/sv_ber.c:620: Warning: 
+  Neither code nor specification for function ber_decode_tag,
+   generating default assigns. See -generated-spec-* options for more info
+[eva] using specification for function ber_decode_tag
+[kernel:annot:missing-spec] src/asn1/sv_ber.c:629: Warning: 
+  Neither code nor specification for function ber_decode_length,
+   generating default assigns. See -generated-spec-* options for more info
+[eva] using specification for function ber_decode_length
+[kernel:annot:missing-spec] src/asn1/sv_ber.c:640: Warning: 
+  Neither code nor specification for function ber_decode_uint32,
+   generating default assigns. See -generated-spec-* options for more info
+[eva] using specification for function ber_decode_uint32
+[eva:loop-unroll:auto] src/asn1/sv_ber.c:664: Automatic loop unrolling.
+[kernel:annot:missing-spec] src/asn1/sv_ber.c:523: Warning: 
+  Neither code nor specification for function ber_decode_visiblestring,
+   generating default assigns. See -generated-spec-* options for more info
+[eva] using specification for function ber_decode_visiblestring
+[kernel:annot:missing-spec] src/asn1/sv_ber.c:404: Warning: 
+  Neither code nor specification for function ber_decode_int32,
+   generating default assigns. See -generated-spec-* options for more info
+[eva] using specification for function ber_decode_int32
+[eva:partition] src/asn1/sv_ber.c:424: 
+  Trace partitioning superposing up to 100 states
+[eva:partition] src/asn1/sv_ber.c:446: 
+  Trace partitioning superposing up to 300 states
+[eva] src/asn1/sv_ber.c:446: cannot properly split on \result == 0
+[eva] src/asn1/sv_ber.c:602: cannot properly split on \result == 0
+[eva] ====== VALUES COMPUTED ======
+[eva:final-states] Values at end of function decode_samples:
+  decoded.noASDU ∈ [1..255]
+         .[bits 8 to 63] ∈ {0}
+         .asdu[0]{.svID[0..128]; .datSet[0..128]; .has_datSet; .smpCnt; .confRev; .refrTm; .has_refrTm; .smpSynch; .smpRate; .has_smpRate; .samples[0..63]; .[bits 2072 to 2079]; .[bits 2096 to 2111]; .[bits 2144 to 2175]; .[bits 2248 to 2271]; .[bits 2328 to 2335]} ∈
+         [--..--]
+         .asdu[0].num_samples ∈ [0..64]
+         .asdu[0]{.smpMod; .has_smpMod; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len} ∈
+         [--..--]
+  ret ∈ [--..--] or UNINITIALIZED
+  tag ∈ [--..--]
+  length ∈ [--..--]
+  offset ∈ [--..--]
+  __retres ∈ [--..--]
+[eva:final-states] Values at end of function sv_add_sample:
+  asdu.svID[0] ∈ {83}
+      .svID[1] ∈ {86}
+      .svID[2] ∈ {49}
+      .svID[3..128] ∈ {0}
+      .datSet[0] ∈ {68}
+      .datSet[1] ∈ {83}
+      .datSet[2] ∈ {49}
+      .datSet[3..128] ∈ {0}
+      .has_datSet ∈ {1}
+      .[bits 2072 to 2079] ∈ {0}
+      .smpCnt ∈ {42}
+      .[bits 2096 to 2111] ∈ {0}
+      .confRev ∈ {1}
+      {.refrTm; .has_refrTm; .[bits 2144 to 2175]; .[bits 2248 to 2271]} ∈
+      {0}
+      .smpSynch ∈ {SV_SMPSYNCH_GLOBAL}
+      {.smpRate; .has_smpRate; .[bits 2328 to 2335]} ∈ {0}
+      .samples[0].value ∈ {1000}
+      .samples[0]{.quality; .[bits 40 to 63]} ∈ {0}
+      .samples[1].value ∈ {-500; 0}
+      .samples{[1]{.quality; .[bits 40 to 63]}; [2..63]} ∈ {0}
+      .num_samples ∈ {1; 2}
+      {.smpMod; .has_smpMod; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len} ∈
+      {0}
+  __retres ∈ {0}
+[eva:final-states] Values at end of function sv_asdu_init:
+  decoded.noASDU ∈ [1..255]
+         {.asdu[0]{.svID[0..128]; .datSet[0..128]; .has_datSet; .smpCnt; .[bits 2072 to 2079]; .[bits 2096 to 2111]}; .[bits 8 to 63]} ∈
+         {0}
+         .asdu[0].confRev ∈ {1}
+         .asdu[0]{.refrTm; .has_refrTm; .smpSynch; .[bits 2144 to 2175]; .[bits 2248 to 2271]} ∈
+         {0}
+         .asdu[0].smpRate ∈ {80}
+         .asdu[0]{.has_smpRate; .samples[0..63]; .num_samples; .smpMod; .has_smpMod; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 2328 to 2335]} ∈
+         {0}
+[eva:final-states] Values at end of function decode_asdu:
+  decoded.noASDU ∈ [1..255]
+         .[bits 8 to 63] ∈ {0}
+         .asdu[0] ∈ [--..--]
+  ret ∈ [--..--] or UNINITIALIZED
+  tag ∈ {0}
+  length ∈ [--..--]
+  u32_value ∈ [--..--]
+  offset ∈ [--..--]
+  __retres ∈ [--..--]
+[eva:final-states] Values at end of function sv_apdu_init:
+  decoded.noASDU ∈ {1}
+         {.asdu[0]{.svID[0..128]; .datSet[0..128]; .has_datSet; .smpCnt; .[bits 2072 to 2079]; .[bits 2096 to 2111]}; .[bits 8 to 63]} ∈
+         {0}
+         .asdu[0].confRev ∈ {1}
+         .asdu[0]{.refrTm; .has_refrTm; .smpSynch; .[bits 2144 to 2175]; .[bits 2248 to 2271]} ∈
+         {0}
+         .asdu[0].smpRate ∈ {80}
+         .asdu[0]{.has_smpRate; .samples[0..63]; .num_samples; .smpMod; .has_smpMod; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 2328 to 2335]} ∈
+         {0}
+[eva:final-states] Values at end of function sv_decode_apdu:
+  decoded.noASDU ∈ [--..--]
+         .[bits 8 to 63] ∈ {0}
+         .asdu[0] ∈ [--..--]
+  ret ∈ [--..--] or UNINITIALIZED
+  offset ∈ [--..--]
+  tag ∈ [--..--]
+  length ∈ [--..--]
+  apdu_end ∈ [--..--] or UNINITIALIZED
+  noASDU_u32 ∈ [--..--] or UNINITIALIZED
+  seqasdu_end ∈ [--..--] or UNINITIALIZED
+  __retres ∈ [--..--]
+[eva:final-states] Values at end of function sv_set_datset:
+  asdu.svID[0] ∈ {83}
+      .svID[1] ∈ {86}
+      .svID[2] ∈ {49}
+      .svID[3..128] ∈ {0}
+      .datSet[0] ∈ {68}
+      .datSet[1] ∈ {83}
+      .datSet[2] ∈ {49}
+      .datSet[3..128] ∈ {0}
+      .has_datSet ∈ {1}
+      {.smpCnt; .confRev; .refrTm; .has_refrTm; .smpSynch; .smpRate; .has_smpRate; .samples[0..63]; .num_samples; .smpMod; .has_smpMod; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 2072 to 2079]; .[bits 2096 to 2111]; .[bits 2144 to 2175]; .[bits 2248 to 2271]; .[bits 2328 to 2335]} ∈
+      {0}
+  len ∈ {3}
+  __retres ∈ {0}
+[eva:final-states] Values at end of function sv_set_svid:
+  asdu.svID[0] ∈ {83}
+      .svID[1] ∈ {86}
+      .svID[2] ∈ {49}
+      {.svID[3..128]; .datSet[0..128]; .has_datSet; .smpCnt; .confRev; .refrTm; .has_refrTm; .smpSynch; .smpRate; .has_smpRate; .samples[0..63]; .num_samples; .smpMod; .has_smpMod; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len; .[bits 2072 to 2079]; .[bits 2096 to 2111]; .[bits 2144 to 2175]; .[bits 2248 to 2271]; .[bits 2328 to 2335]} ∈
+      {0}
+  len ∈ {3}
+  __retres ∈ {0}
+[eva:final-states] Values at end of function main:
+  ret ∈ {-2}
+  asdu.svID[0] ∈ {83}
+      .svID[1] ∈ {86}
+      .svID[2] ∈ {49}
+      .svID[3..128] ∈ {0}
+      .datSet[0] ∈ {68}
+      .datSet[1] ∈ {83}
+      .datSet[2] ∈ {49}
+      .datSet[3..128] ∈ {0}
+      .has_datSet ∈ {1}
+      .[bits 2072 to 2079] ∈ {0}
+      .smpCnt ∈ {42}
+      .[bits 2096 to 2111] ∈ {0}
+      .confRev ∈ {1}
+      {.refrTm; .has_refrTm; .[bits 2144 to 2175]; .[bits 2248 to 2271]} ∈
+      {0}
+      .smpSynch ∈ {SV_SMPSYNCH_GLOBAL}
+      {.smpRate; .has_smpRate; .[bits 2328 to 2335]} ∈ {0}
+      .samples[0].value ∈ {1000}
+      .samples[0]{.quality; .[bits 40 to 63]} ∈ {0}
+      .samples[1].value ∈ {-500}
+      .samples{[1]{.quality; .[bits 40 to 63]}; [2..63]} ∈ {0}
+      .num_samples ∈ {2}
+      {.smpMod; .has_smpMod; .secure; .signature_algo; .key_id[0..19]; .security_timestamp; .signature[0..511]; .signature_len} ∈
+      {0}
+  apdu ∈ {0}
+  __constr_expr_0 ∈ {0}
+  __constr_expr_1 ∈ {0}
+  valid_frame[0] ∈ {98}
+             [1] ∈ {29}
+             [2] ∈ {128}
+             [3..4] ∈ {1}
+             [5] ∈ {161}
+             [6] ∈ {24}
+             [7] ∈ {48}
+             [8] ∈ {22}
+             [9] ∈ {128}
+             [10] ∈ {1}
+             [11] ∈ {83}
+             [12] ∈ {130}
+             [13] ∈ {1}
+             [14] ∈ {0}
+             [15] ∈ {131}
+             [16..17] ∈ {1}
+             [18] ∈ {133}
+             [19] ∈ {1}
+             [20] ∈ {2}
+             [21] ∈ {167}
+             [22] ∈ {8}
+             [23..24] ∈ {2}
+             [25] ∈ {3}
+             [26] ∈ {232}
+             [27] ∈ {3}
+             [28] ∈ {2}
+             [29..30] ∈ {0}
+  decoded.noASDU ∈ [--..--]
+         .[bits 8 to 63] ∈ {0}
+         .asdu[0] ∈ [--..--]
+  trunc_decoded ∈ {0}
+  bad_data[0..3] ∈ {255}
+  bad_decoded ∈ {0}
+  __retres ∈ {0}
+[eva:summary] ====== ANALYSIS SUMMARY ======
+  ----------------------------------------------------------------------------
+  9 functions analyzed (out of 23): 39% coverage.
+  In these functions, 333 statements reached (out of 423): 79% coverage.
+  ----------------------------------------------------------------------------
+  Some errors and warnings have been raised during the analysis:
+    by the Eva analyzer:      0 errors    0 warnings
+    by the Frama-C kernel:    0 errors    5 warnings
+  ----------------------------------------------------------------------------
+  0 alarms generated by the analysis.
+  ----------------------------------------------------------------------------
+  Evaluation of the logical properties reached by the analysis:
+    Assertions        8 valid     0 unknown     0 invalid      8 total
+    Preconditions    21 valid     0 unknown     0 invalid     21 total
+  100% of the logical properties reached have been proven.
+  ----------------------------------------------------------------------------

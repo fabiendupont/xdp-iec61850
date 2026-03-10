@@ -1,0 +1,37 @@
+TLC2 Version 2.20 of Day Month 20?? (rev: 30ec586)
+Running breadth-first search Model-Checking with fp 14 and seed 6343416050148908465 with 32 workers on 32 cores with 27305MB heap and 64MB offheap memory [pid: 1047064] (Linux 6.18.13-200.fc43.x86_64 amd64, Red Hat, Inc. 25.0.2 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /home/fdupont/Code/github.com/smgglrs/xdp-iec61850/verification/tlaplus/SampledValuesProtocol.tla
+Parsing file /tmp/tlc-6005536216936430251/Integers.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
+Parsing file /tmp/tlc-6005536216936430251/Sequences.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /tmp/tlc-6005536216936430251/FiniteSets.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /tmp/tlc-6005536216936430251/TLC.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/TLC.tla)
+Parsing file /tmp/tlc-6005536216936430251/_TLCTrace.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/_TLCTrace.tla)
+Parsing file /tmp/tlc-6005536216936430251/Naturals.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /tmp/tlc-6005536216936430251/TLCExt.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/TLCExt.tla)
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module TLCExt
+Semantic processing of module _TLCTrace
+Semantic processing of module SampledValuesProtocol
+Linting of module TLCExt
+Linting of module _TLCTrace
+Linting of module SampledValuesProtocol
+Starting... (2026-03-05 20:45:27)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-03-05 20:45:27.
+Progress(19) at 2026-03-05 20:45:30: 7,066,741 states generated (7,066,741 s/min), 2,389,978 distinct states found (2,389,978 ds/min), 1,378,821 states left on queue.
+Progress(25) at 2026-03-05 20:46:30: 281,926,974 states generated (274,860,233 s/min), 47,757,269 distinct states found (45,367,291 ds/min), 10,051,660 states left on queue.
+Progress(29) at 2026-03-05 20:47:30: 565,549,169 states generated (283,622,195 s/min), 93,641,608 distinct states found (45,884,339 ds/min), 13,441,995 states left on queue.
+Progress(33) at 2026-03-05 20:48:30: 861,180,106 states generated (295,630,937 s/min), 133,148,136 distinct states found (39,506,528 ds/min), 5,580,916 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = .0071
+  based on the actual fingerprints:  val = 1.5E-4
+1007350512 states generated, 154677863 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 40.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 17 and the 95th percentile is 2).
+Finished in 03min 42s at (2026-03-05 20:49:10)
