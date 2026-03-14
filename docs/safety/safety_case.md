@@ -53,9 +53,9 @@ xdp-graph-lib, and hardware NIC drivers are assumed correct.
 │       └── **[Sn18]** Safety requirements: 10 requirements, all with verification (safety_requirements.md)
 │
 ├── **[S2]** Strategy: Argue over testing coverage
-│   ├── **[Sn19]** 39+ unit tests (default build), 67+ (full build)
+│   ├── **[Sn19]** 49+ unit tests (default build), 75+ (full build incl. interop)
 │   ├── **[Sn20]** Property-based tests with randomized inputs
-│   ├── **[Sn21]** ASAN/UBSAN clean: all 67 tests, 0 memory errors
+│   ├── **[Sn21]** ASAN/UBSAN clean: all 75 tests, 0 memory errors
 │   └── **[Sn22]** Fuzz targets for GOOSE and SV decoders
 │
 └── **[S3]** Strategy: Argue over process compliance
@@ -72,10 +72,10 @@ xdp-graph-lib, and hardware NIC drivers are assumed correct.
 | TLA+ model checking | 6 configs (Basic + Comprehensive + Stress × 2) | GOOSE: 89.5M + 986K + Stress (FairSpec); SV: 224.7M + 1.0B + 1.0B; all 0 errors. Note: GOOSE Stress liveness requires WF_vars(Next) fairness. | `verification/logs/tlaplus_*.log` |
 | CBMC harnesses | 4 (encoder, decoder full, decoder primitives, shallow BER) | Encoder (0/1048), shallow BER (0/72), decoder primitives (0/1797) VERIFIED; decoder full: state space explosion | `verification/logs/cbmc_*.log` |
 | Frama-C EVA | 4 (encoder, decoder, GOOSE, SV) | Encoder: 24/24 (100%), Decoder: 27/27 (84% stmt), GOOSE: 57% stmt (0 invalid), SV: 79% stmt (0 invalid) | `verification/logs/frama-c_*.log` |
-| Unit tests | 67+ (full build) | All passing | — |
+| Unit tests | 75+ (full build incl. interop) | All passing | — |
 | Property tests | 7 suites | All passing | — |
 | Fuzz targets | 2 (GOOSE, SV decoder) | Complete | — |
 | FMEA | 1 (16 failure modes) | Complete | — |
 | Safety requirements | 10 | Documented | — |
 | CI pipeline | 1 (.gitlab-ci.yml) | Complete | — |
-| ASAN/UBSAN | All 67+ tests | Clean (0 memory errors) | — |
+| ASAN/UBSAN | All 75+ tests | Clean (0 memory errors) | — |
