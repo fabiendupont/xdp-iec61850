@@ -31,7 +31,7 @@ RPN = S × O × D (Risk Priority Number)
 | FM-012 | Report Gen | Missing quality change trigger | Unreported quality degradation | 4 | 2 | 2 | 16 | qchg trigger implemented, property tests | Low |
 | FM-013 | Data Model | Missing BasicType/CDC | SCL parse failure | 2 | 2 | 1 | 4 | All IEC 61850 types added | Low |
 | FM-014 | XSK Map | XSKMAP not populated | All packets XDP_DROPped | 4 | 2 | 2 | 16 | xgl_graph_create_xsk() integration, graph macros | Low |
-| FM-015 | Session SPDU | Wrong PI tag for Requirements | Session negotiation failure | 3 | 5 | 1 | 15 | Fixed to 0x14 (SR-008) | Low |
+| FM-015 | Session SPDU | Wrong PI tag for Requirements | Session negotiation failure | 3 | 5 | 1 | 15 | Fixed to 0x14 (SR-007) | Low |
 | FM-016 | Presentation | Missing A0 wrapper | Peer decoder rejects PDU | 3 | 5 | 1 | 15 | A0 wrapper added to CP/CPA/P-DATA | Low |
 
 ---
