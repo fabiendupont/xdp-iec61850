@@ -19,16 +19,23 @@ XGL_NODE(node_sv_filter)
     if (!meta)
         XGL_DROP();
 
+    /* Look up own PROG_ARRAY index from config map */
+    __u32 role = IEC61850_ROLE_SV_FILTER;
+    __u32 *my_idx = bpf_map_lookup_elem(&iec61850_node_config, &role);
+    if (!my_idx)
+        XGL_DROP();
+    __u32 idx = *my_idx;
+
     void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
     __u32 pkt_len = (__u32)(data_end - data);
 
-    XGL_STATS_INC_RX(egl_node_stats, NODE_SV_FILTER, pkt_len);
+    XGL_STATS_INC_RX(egl_node_stats, idx, pkt_len);
 
     /* Ethernet header */
     struct ethhdr *eth = data;
     if ((void *)(eth + 1) > data_end) {
-        XGL_STATS_INC_DROP(egl_node_stats, NODE_SV_FILTER);
+        XGL_STATS_INC_DROP(egl_node_stats, idx);
         XGL_DROP();
     }
 
@@ -43,7 +50,7 @@ XGL_NODE(node_sv_filter)
         } __attribute__((packed)) *vlan = pdu_start;
 
         if ((void *)(vlan + 1) > data_end) {
-            XGL_STATS_INC_DROP(egl_node_stats, NODE_SV_FILTER);
+            XGL_STATS_INC_DROP(egl_node_stats, idx);
             XGL_DROP();
         }
 
@@ -52,14 +59,14 @@ XGL_NODE(node_sv_filter)
     }
 
     if (eth_type != ETH_P_SV) {
-        XGL_STATS_INC_DROP(egl_node_stats, NODE_SV_FILTER);
+        XGL_STATS_INC_DROP(egl_node_stats, idx);
         XGL_DROP();
     }
 
     /* SV PDU header */
     struct sv_pdu_header *pdu = pdu_start;
     if ((void *)(pdu + 1) > data_end) {
-        XGL_STATS_INC_DROP(egl_node_stats, NODE_SV_FILTER);
+        XGL_STATS_INC_DROP(egl_node_stats, idx);
         XGL_DROP();
     }
 
@@ -68,13 +75,13 @@ XGL_NODE(node_sv_filter)
     __u8 *action = bpf_map_lookup_elem(&sv_filter, &appid);
 
     if (!action || *action == 0) {
-        XGL_STATS_INC_DROP(egl_node_stats, NODE_SV_FILTER);
+        XGL_STATS_INC_DROP(egl_node_stats, idx);
         XGL_DROP();
     }
 
     /* Accepted — redirect to AF_XDP */
     __u32 queue_id = ctx->rx_queue_index;
-    XGL_STATS_INC_TX(egl_node_stats, NODE_SV_FILTER, pkt_len);
+    XGL_STATS_INC_TX(egl_node_stats, idx, pkt_len);
 
     return XGL_REDIRECT_XSK(xgl_xsk_map, queue_id, XDP_DROP);
 }

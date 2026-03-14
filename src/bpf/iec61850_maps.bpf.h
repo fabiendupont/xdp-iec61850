@@ -43,11 +43,20 @@ struct {
     __type(value, struct goose_state);
 } goose_state_map SEC(".maps");
 
-/* Node indices */
-#define NODE_GOOSE_FILTER   14
-#define NODE_GOOSE_PARSE    15
-#define NODE_SV_FILTER      16
-#define NODE_SV_PARSE       17
+/* Logical roles (not PROG_ARRAY indices — indices are dynamic) */
+#define IEC61850_ROLE_GOOSE_FILTER   0
+#define IEC61850_ROLE_GOOSE_PARSE    1
+#define IEC61850_ROLE_SV_FILTER      2
+#define IEC61850_ROLE_SV_PARSE       3
+#define IEC61850_ROLE_COUNT          4
+
+/* Config map: role → PROG_ARRAY index (populated by userspace) */
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 8);
+    __type(key, __u32);
+    __type(value, __u32);
+} iec61850_node_config SEC(".maps");
 
 /* EtherType constants */
 #define ETH_P_GOOSE         0x88B8

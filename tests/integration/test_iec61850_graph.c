@@ -3,7 +3,7 @@
  * Integration Test: iec61850_graph — XDP graph registration
  *
  * Tests the IEC 61850 BPF node registration (GOOSE/SV filter+parse)
- * and EtherType dispatch map setup.
+ * with dynamically allocated PROG_ARRAY indices and EtherType dispatch.
  *
  * Requires: root (CAP_BPF + CAP_NET_ADMIN).
  * Requires: BPF .bpf.o files built (custom_target in meson).
@@ -76,15 +76,16 @@ static void check_prerequisites(void)
 static void test_register_null_args(void)
 {
     TEST("graph_register_null_args");
-    ASSERT_TRUE(iec61850_graph_register(NULL, "/tmp") < 0);
-    /* Can't test NULL bpf_dir with valid graph without root, but NULL graph is enough */
+    ASSERT_TRUE(iec61850_graph_register(NULL, "/tmp", NULL) < 0);
     PASS();
 }
 
 static void test_dispatch_null_args(void)
 {
-    TEST("graph_setup_dispatch_invalid_fd");
-    ASSERT_TRUE(iec61850_graph_setup_dispatch(-1) < 0);
+    TEST("graph_setup_dispatch_invalid_args");
+    struct iec61850_graph_indices idx = { .goose_filter = 1, .sv_filter = 2 };
+    ASSERT_TRUE(iec61850_graph_setup_dispatch(-1, &idx) < 0);
+    ASSERT_TRUE(iec61850_graph_setup_dispatch(0, NULL) < 0);
     PASS();
 }
 
@@ -92,7 +93,7 @@ static void test_dispatch_null_args(void)
 
 static void test_graph_register_nodes(void)
 {
-    TEST("graph_register_iec61850_nodes");
+    TEST("graph_register_dynamic_indices");
     if (!is_root) { SKIP("not root"); }
     if (!has_dispatch) { SKIP("xgl_dispatch.bpf.o not found"); }
     if (!has_iec_bpf) { SKIP("IEC 61850 .bpf.o not found"); }
@@ -109,28 +110,37 @@ static void test_graph_register_nodes(void)
         return;
     }
 
-    /* Register IEC 61850 nodes at indices 14-17 */
-    ret = iec61850_graph_register(g, iec_bpf_dir);
+    /* Register IEC 61850 nodes with dynamic index allocation */
+    struct iec61850_graph_indices indices;
+    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
     ASSERT_EQ(ret, 0);
 
-    /* Verify PROG_ARRAY fd is valid */
+    /* Indices must be valid (>= 0) and distinct */
+    ASSERT_GE(indices.goose_filter, 0);
+    ASSERT_GE(indices.goose_parse, 0);
+    ASSERT_GE(indices.sv_filter, 0);
+    ASSERT_GE(indices.sv_parse, 0);
+    ASSERT_TRUE(indices.goose_filter != indices.goose_parse);
+    ASSERT_TRUE(indices.goose_filter != indices.sv_filter);
+    ASSERT_TRUE(indices.goose_filter != indices.sv_parse);
+
+    /* Verify nodes are in PROG_ARRAY by looking up their indices */
     int pa_fd = xgl_graph_get_prog_array_fd(g);
     ASSERT_GE(pa_fd, 0);
 
-    /* Verify nodes are in PROG_ARRAY by looking up their indices */
     __u32 key;
     __u32 val;
 
-    key = IEC61850_NODE_GOOSE_FILTER;
+    key = (__u32)indices.goose_filter;
     ASSERT_EQ(bpf_map_lookup_elem(pa_fd, &key, &val), 0);
 
-    key = IEC61850_NODE_GOOSE_PARSE;
+    key = (__u32)indices.goose_parse;
     ASSERT_EQ(bpf_map_lookup_elem(pa_fd, &key, &val), 0);
 
-    key = IEC61850_NODE_SV_FILTER;
+    key = (__u32)indices.sv_filter;
     ASSERT_EQ(bpf_map_lookup_elem(pa_fd, &key, &val), 0);
 
-    key = IEC61850_NODE_SV_PARSE;
+    key = (__u32)indices.sv_parse;
     ASSERT_EQ(bpf_map_lookup_elem(pa_fd, &key, &val), 0);
 
     xgl_graph_destroy(g);
@@ -155,7 +165,7 @@ static void test_graph_register_bad_dir(void)
     }
 
     /* Register with nonexistent directory should fail */
-    ret = iec61850_graph_register(g, "/nonexistent/path/to/bpf");
+    ret = iec61850_graph_register(g, "/nonexistent/path/to/bpf", NULL);
     ASSERT_TRUE(ret != 0);
 
     xgl_graph_destroy(g);
@@ -176,20 +186,28 @@ static void test_setup_dispatch_map(void)
         SKIP("BPF map creation failed");
     }
 
-    int ret = iec61850_graph_setup_dispatch(map_fd);
+    /* Use arbitrary dynamic indices */
+    struct iec61850_graph_indices indices = {
+        .goose_filter = 7,
+        .goose_parse = 8,
+        .sv_filter = 9,
+        .sv_parse = 10,
+    };
+
+    int ret = iec61850_graph_setup_dispatch(map_fd, &indices);
     ASSERT_EQ(ret, 0);
 
-    /* Verify GOOSE EtherType 0x88B8 maps to index 14 */
+    /* Verify GOOSE EtherType 0x88B8 maps to the allocated index */
     uint16_t key = 0x88B8U;
     uint32_t val = 0;
     ASSERT_EQ(bpf_map_lookup_elem(map_fd, &key, &val), 0);
-    ASSERT_EQ((int)val, IEC61850_NODE_GOOSE_FILTER);
+    ASSERT_EQ((int)val, indices.goose_filter);
 
-    /* Verify SV EtherType 0x88BA maps to index 16 */
+    /* Verify SV EtherType 0x88BA maps to the allocated index */
     key = 0x88BAU;
     val = 0;
     ASSERT_EQ(bpf_map_lookup_elem(map_fd, &key, &val), 0);
-    ASSERT_EQ((int)val, IEC61850_NODE_SV_FILTER);
+    ASSERT_EQ((int)val, indices.sv_filter);
 
     close(map_fd);
     PASS();
@@ -215,32 +233,32 @@ static void test_full_pipeline(void)
     }
 
     /* Register all IEC 61850 nodes */
-    ret = iec61850_graph_register(g, iec_bpf_dir);
+    struct iec61850_graph_indices indices;
+    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
     ASSERT_EQ(ret, 0);
 
     /* Get dispatch map and set up EtherType routing */
     int dispatch_fd = xgl_graph_get_map_fd(g, "xgl_ext_dispatch");
     if (dispatch_fd < 0) {
-        /* Try alternative map name */
         dispatch_fd = xgl_graph_get_map_fd(g, "ext_dispatch");
     }
     if (dispatch_fd >= 0) {
-        ret = iec61850_graph_setup_dispatch(dispatch_fd);
+        ret = iec61850_graph_setup_dispatch(dispatch_fd, &indices);
         ASSERT_EQ(ret, 0);
     }
 
     /* Add edges: dispatch → GOOSE filter → GOOSE parse */
-    ret = xgl_graph_add_edge(g, 0, IEC61850_NODE_GOOSE_FILTER);
+    ret = xgl_graph_add_edge(g, 0, indices.goose_filter);
     if (ret == 0) {
-        (void)xgl_graph_add_edge(g, IEC61850_NODE_GOOSE_FILTER,
-                                  IEC61850_NODE_GOOSE_PARSE);
+        (void)xgl_graph_add_edge(g, indices.goose_filter,
+                                  indices.goose_parse);
     }
 
     /* Add edges: dispatch → SV filter → SV parse */
-    ret = xgl_graph_add_edge(g, 0, IEC61850_NODE_SV_FILTER);
+    ret = xgl_graph_add_edge(g, 0, indices.sv_filter);
     if (ret == 0) {
-        (void)xgl_graph_add_edge(g, IEC61850_NODE_SV_FILTER,
-                                  IEC61850_NODE_SV_PARSE);
+        (void)xgl_graph_add_edge(g, indices.sv_filter,
+                                  indices.sv_parse);
     }
 
     /* Validate DAG */

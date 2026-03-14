@@ -238,15 +238,56 @@ xdp-iec61850/
 
 ## BPF Fast Path
 
-### Node Indices (in groutx graph)
+### Node Indices — DYNAMIC (no hardcoded constants)
+
+Extension node indices MUST be dynamically allocated via
+`egl_graph_alloc_index()` at registration time. BPF programs read
+their target indices from a config map (indirection table) at runtime.
 
 ```c
-/* Extension node indices registered in groutx node_eth_input */
-#define NODE_GOOSE_FILTER   14
-#define NODE_GOOSE_PARSE    15
-#define NODE_SV_FILTER      16
-#define NODE_SV_PARSE       17
+/* In iec61850_maps.bpf.h — config map for dynamic indices: */
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 8);
+    __type(key, __u32);       /* role ID */
+    __type(value, __u32);     /* PROG_ARRAY index (set by userspace) */
+} iec61850_node_config SEC(".maps");
+
+/* Logical roles (not PROG_ARRAY indices): */
+#define IEC61850_ROLE_GOOSE_FILTER   0
+#define IEC61850_ROLE_GOOSE_PARSE    1
+#define IEC61850_ROLE_SV_FILTER      2
+#define IEC61850_ROLE_SV_PARSE       3
+#define IEC61850_ROLE_ETH_INPUT      4  /* groutx node to return to */
 ```
+
+```c
+/* In BPF program — lookup target index at runtime: */
+__u32 role = IEC61850_ROLE_ETH_INPUT;
+__u32 *idx = bpf_map_lookup_elem(&iec61850_node_config, &role);
+if (idx)
+    XGL_NEXT(ctx, egl_prog_array, *idx);
+XGL_DROP();  /* fallback if config not populated */
+```
+
+```c
+/* In userspace (iec61850_graph.c) — allocate + register: */
+int goose_idx = egl_graph_alloc_index(g);
+egl_graph_add_node(g, goose_idx, "node_goose_filter.bpf.o", "node_goose_filter");
+
+/* Populate config map so BPF knows where to tail-call: */
+__u32 role = IEC61850_ROLE_ETH_INPUT;
+__u32 eth_input_idx = 1;  /* groutx core, always 1 */
+bpf_map_update_elem(config_fd, &role, &eth_input_idx, BPF_ANY);
+
+/* Populate ext_dispatch so groutx routes EtherType to us: */
+uint16_t goose_et = 0x88B8;
+bpf_map_update_elem(dispatch_fd, &goose_et, &goose_idx, BPF_ANY);
+```
+
+See ebpf-graph-lib CLAUDE.md "Dynamic Node Index Allocation" for the
+full design pattern. This prevents index collisions with groutx K8s
+nodes (conntrack=13, snat=14, ndp=15) and xdp-hsr-prp extension nodes.
 
 ### BPF Maps — `src/bpf/iec61850_maps.bpf.h`
 
