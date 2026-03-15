@@ -65,6 +65,7 @@ extern "C" {
 #define SV_MAX_SVID_LEN             129U
 #define SV_MAX_DATSET_LEN           129U
 #define SV_MAX_SAMPLES              64U    /* Maximum samples per ASDU */
+#define SV_MAX_ASDU                 8U     /* Maximum ASDUs per APDU (IEC 61850-9-2) */
 #define SV_MAX_APDU_SIZE            1518U  /* Max Ethernet payload */
 #define SV_MAX_SIGNATURE_LEN        512U   /* Max signature size (RSA-4096 = 512 bytes) */
 #define SV_KEYID_LEN                4U     /* Key ID per IEC 62351-6 (4 bytes) */
@@ -158,7 +159,7 @@ typedef struct {
     /* IEC 62351-6 Security Extension */
     bool secure;                                  /* Security enabled? */
     sv_signature_algo_t signature_algo;           /* Signature algorithm */
-    uint8_t key_id[SV_KEYID_LEN];                /* SHA-1 hash of public key (20 bytes) */
+    uint8_t key_id[SV_KEYID_LEN];                /* Key ID per IEC 62351-6 (4 bytes) */
     uint64_t security_timestamp;                  /* Timestamp for replay protection (microseconds) */
     uint8_t signature[SV_MAX_SIGNATURE_LEN];     /* Digital signature */
     size_t signature_len;                         /* Actual signature length */
@@ -169,7 +170,7 @@ typedef struct {
  */
 typedef struct {
     uint8_t noASDU;                /* Number of ASDUs (typically 1) */
-    sv_asdu_t asdu[1];             /* ASDU array (currently support 1 ASDU) */
+    sv_asdu_t asdu[SV_MAX_ASDU];   /* ASDU array */
 } sv_apdu_t;
 
 /***************************************************************************
@@ -266,7 +267,7 @@ int sv_add_sample(sv_asdu_t *asdu, int32_t value, sv_quality_t quality);
  *
  * Encodes the security field ([9] SEQUENCE) containing:
  * - [0] Signature algorithm (INTEGER)
- * - [1] Key ID (OCTET STRING, 20 bytes)
+ * - [1] Key ID (OCTET STRING, 4 bytes per IEC 62351-6)
  * - [2] Security timestamp (UtcTime, 8 bytes)
  * - [3] Signature (OCTET STRING, variable length)
  *
@@ -290,16 +291,16 @@ int sv_encode_security(uint8_t *buf, size_t buf_size, size_t *offset,
  *
  * @param asdu           SV ASDU to configure
  * @param signature_algo Signature algorithm
- * @param key_id         Key identifier (20 bytes, SHA-1 hash)
+ * @param key_id         Key identifier (4 bytes per IEC 62351-6)
  * @param signature      Signature data
  * @param signature_len  Length of signature
  * @return 0 on success, negative error code on failure
  */
 /*@ requires \valid(asdu);
-  @ requires \valid_read(key_id + (0..19));
+  @ requires \valid_read(key_id + (0..3));
   @ requires \valid_read(signature + (0..signature_len-1));
   @ requires signature_len <= 512;
-  @ assigns asdu->secure, asdu->signature_algo, asdu->key_id[0..19],
+  @ assigns asdu->secure, asdu->signature_algo, asdu->key_id[0..3],
   @         asdu->security_timestamp, asdu->signature[0..signature_len-1],
   @         asdu->signature_len;
   @*/

@@ -176,8 +176,10 @@ void main(void)
     offset = 255;
     ret = verify_ber_encode_tag(buffer, 256, &offset, 0x80, &tag_result);
     /*@ assert ret == GOOSE_BER_OK; */
+    /* Call ber_encode_tag directly — offset==buf_size intentionally violates
+       verify_ber_encode_tag's precondition to test the overflow guard. */
     offset = 256;
-    ret = verify_ber_encode_tag(buffer, 256, &offset, 0x80, &tag_result);
+    ret = ber_encode_tag(buffer, 256, &offset, 0x80);
     /*@ assert ret == GOOSE_BER_ERR_BUFFER_FULL; */
 
     /* Test 11: NULL pointer protection */

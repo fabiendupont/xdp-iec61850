@@ -304,8 +304,8 @@ int sv_encode_apdu(uint8_t *buf, size_t buf_size,
 
     size_t seq_start = offset;
 
-    /* Encode each ASDU (currently support 1) */
-    for (size_t i = 0; i < apdu->noASDU && i < 1; i++) {
+    /* Encode each ASDU */
+    for (size_t i = 0; i < apdu->noASDU && i < SV_MAX_ASDU; i++) {
         ret = encode_asdu(buf, buf_size, &offset, &apdu->asdu[i]);
         if (ret != SV_BER_OK) {
             return ret;
@@ -646,8 +646,8 @@ int sv_decode_apdu(const uint8_t *buf, size_t buf_size, sv_apdu_t *apdu)
         return SV_BER_ERR_DECODING;
     }
 
-    /* Decode each ASDU (currently support 1) */
-    for (uint8_t i = 0; i < apdu->noASDU && i < 1; i++) {
+    /* Decode each ASDU */
+    for (uint8_t i = 0; i < apdu->noASDU && i < SV_MAX_ASDU; i++) {
         /* Each ASDU is a SEQUENCE */
         ret = ber_decode_tag(buf, buf_size, &offset, &tag);
         if (ret != SV_BER_OK) {

@@ -242,7 +242,7 @@ int goose_decode_alldata(const uint8_t *buf, size_t buf_size, size_t *offset,
  *
  * Decodes the security field ([12] SEQUENCE) containing:
  * - [0] Signature algorithm (INTEGER)
- * - [1] Key ID (OCTET STRING, 20 bytes)
+ * - [1] Key ID (OCTET STRING, 4 bytes per IEC 62351-6)
  * - [2] Security timestamp (UtcTime, 8 bytes)
  * - [3] Signature (OCTET STRING, variable length)
  *
@@ -256,7 +256,7 @@ int goose_decode_alldata(const uint8_t *buf, size_t buf_size, size_t *offset,
   @ requires \valid(offset);
   @ requires \valid(apdu);
   @ requires 0 <= *offset <= buf_size;
-  @ assigns *offset, apdu->secure, apdu->signature_algo, apdu->key_id[0..19],
+  @ assigns *offset, apdu->secure, apdu->signature_algo, apdu->key_id[0..3],
   @         apdu->security_timestamp, apdu->signature[0..511], apdu->signature_len;
   @*/
 int goose_decode_security(const uint8_t *buf, size_t buf_size, size_t *offset,

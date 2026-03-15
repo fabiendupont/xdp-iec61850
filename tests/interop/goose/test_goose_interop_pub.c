@@ -5,7 +5,7 @@
  * Our publisher builds GOOSE frames, libiec61850 goose_sub_helper
  * captures and decodes them. Verifies wire compatibility.
  *
- * Tests: GP-01 through GP-08
+ * Tests: GP-01 through GP-09
  * Requires: root (raw sockets), libiec61850 helpers built
  */
 
@@ -287,6 +287,69 @@ static void test_gp08_time_allowed(void)
     INTEROP_PASS();
 }
 
+/*
+ * GP-09: sqNum increment + stNum reset on state change
+ * Verifies that sqNum increments on each prepare, and resets to 0
+ * when state_change is called (stNum increments).
+ */
+static void test_gp09_sqnum_wrap(void)
+{
+    INTEROP_TEST("GP-09: sqNum increment and stNum reset");
+
+    iec61850_goose_publisher_t pub;
+    iec61850_goose_publisher_init(&pub, NULL);
+    iec61850_goose_publisher_set_boolean(&pub, 0, true);
+
+    /* Initial state: stNum=0, sqNum=0 */
+    INTEROP_ASSERT_EQ((int)iec61850_goose_publisher_get_st_num(&pub), 0);
+    INTEROP_ASSERT_EQ((int)iec61850_goose_publisher_get_sq_num(&pub), 0);
+
+    /* First prepare: encodes sqNum=0, then increments to 1 */
+    uint8_t apdu_buf[GOOSE_MAX_APDU_SIZE];
+    size_t apdu_len;
+    int ret = iec61850_goose_publisher_prepare(&pub, apdu_buf,
+                                                   sizeof(apdu_buf), &apdu_len);
+    INTEROP_ASSERT_EQ(ret, 0);
+
+    goose_apdu_t decoded;
+    goose_apdu_init(&decoded);
+    ret = goose_decode_apdu(apdu_buf, apdu_len, &decoded);
+    INTEROP_ASSERT_EQ(ret, 0);
+    INTEROP_ASSERT_EQ((int)decoded.stNum, 0);
+    INTEROP_ASSERT_EQ((int)decoded.sqNum, 0);
+
+    /* After prepare, sqNum should have incremented */
+    INTEROP_ASSERT_EQ((int)iec61850_goose_publisher_get_sq_num(&pub), 1);
+
+    /* Second prepare: sqNum=1 on wire */
+    ret = iec61850_goose_publisher_prepare(&pub, apdu_buf,
+                                               sizeof(apdu_buf), &apdu_len);
+    INTEROP_ASSERT_EQ(ret, 0);
+    goose_apdu_init(&decoded);
+    ret = goose_decode_apdu(apdu_buf, apdu_len, &decoded);
+    INTEROP_ASSERT_EQ(ret, 0);
+    INTEROP_ASSERT_EQ((int)decoded.sqNum, 1);
+    INTEROP_ASSERT_EQ((int)iec61850_goose_publisher_get_sq_num(&pub), 2);
+
+    /* State change: stNum increments, sqNum resets to 0 */
+    iec61850_goose_publisher_state_change(&pub);
+    INTEROP_ASSERT_EQ((int)iec61850_goose_publisher_get_st_num(&pub), 1);
+    INTEROP_ASSERT_EQ((int)iec61850_goose_publisher_get_sq_num(&pub), 0);
+
+    /* Prepare after state change: stNum=1, sqNum=0 on wire */
+    ret = iec61850_goose_publisher_prepare(&pub, apdu_buf,
+                                               sizeof(apdu_buf), &apdu_len);
+    INTEROP_ASSERT_EQ(ret, 0);
+    goose_apdu_init(&decoded);
+    ret = goose_decode_apdu(apdu_buf, apdu_len, &decoded);
+    INTEROP_ASSERT_EQ(ret, 0);
+    INTEROP_ASSERT_EQ((int)decoded.stNum, 1);
+    INTEROP_ASSERT_EQ((int)decoded.sqNum, 0);
+
+    iec61850_goose_publisher_destroy(&pub);
+    INTEROP_PASS();
+}
+
 int main(void)
 {
     printf("\n=== GOOSE Interop Tests: xdp pub → libiec61850 sub ===\n");
@@ -302,6 +365,7 @@ int main(void)
     test_gp06_quality_roundtrip();
     test_gp07_confrev();
     test_gp08_time_allowed();
+    test_gp09_sqnum_wrap();
 
     INTEROP_SUMMARY();
     return interop_tests_failed > 0 ? 1 : 0;

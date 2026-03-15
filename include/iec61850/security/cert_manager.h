@@ -68,7 +68,7 @@ EVP_PKEY *iec61850_cert_manager_get_public_key(
     const iec61850_cert_manager_t *cm);
 
 /**
- * Get the key ID (SHA-1 of public key DER, 20 bytes).
+ * Get the key ID (first 4 bytes of SHA-1 per IEC 62351-6).
  */
 const uint8_t *iec61850_cert_manager_get_key_id(
     const iec61850_cert_manager_t *cm);

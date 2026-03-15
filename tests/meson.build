@@ -347,6 +347,29 @@ if get_option('enable_mms')
         dependencies: core_deps,
     )
     test('mms_e2e', test_mms_e2e, suite: 'integration')
+
+    # Unit test — Coverage Boost (sv_ber security, mms_server process_request,
+    #   goose/sv subscriber frame processing)
+    test_coverage_boost = executable('test_coverage_boost',
+        'unit/test_coverage_boost.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+        c_args: ['-Wno-conversion', '-Wno-sign-conversion'],
+    )
+    test('coverage_boost', test_coverage_boost, suite: 'unit',
+         workdir: meson.project_source_root())
+
+    # Unit test — Coverage Boost 2 (goose_ber_decode allData types, goose_ber
+    #   encode paths, key_manager sign/verify, mms_report RCB lifecycle)
+    test_coverage_boost2 = executable('test_coverage_boost2',
+        'unit/test_coverage_boost2.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('coverage_boost2', test_coverage_boost2, suite: 'unit',
+         workdir: meson.project_source_root())
 endif
 
 # Security-dependent tests (only if security is enabled)
@@ -394,6 +417,15 @@ if get_option('enable_security')
         dependencies: core_deps,
     )
     test('security_edge_cases', test_security_edge_cases, suite: 'unit',
+         workdir: meson.project_source_root())
+
+    test_security_publisher = executable('test_security_publisher',
+        'unit/test_security_publisher.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('security_publisher', test_security_publisher, suite: 'unit',
          workdir: meson.project_source_root())
 
     test_hmac_verify = executable('test_hmac_verify',
@@ -571,7 +603,7 @@ test_goose_interop_sub = executable('test_goose_interop_sub',
 test('goose_interop_sub', test_goose_interop_sub,
      suite: 'interop', is_parallel: false)
 
-# GOOSE interop: xdp pub → libiec61850 sub (8 scenarios)
+# GOOSE interop: xdp pub → libiec61850 sub (9 scenarios)
 test_goose_interop_pub = executable('test_goose_interop_pub',
     'interop/goose/test_goose_interop_pub.c',
     include_directories: [inc_dirs, test_inc, interop_inc],
@@ -645,6 +677,18 @@ wire_test_scripts = [
     ['wire_mms', 'interop/wire/test_wire_mms.sh'],
 ]
 foreach t : wire_test_scripts
+    test(t[0], find_program('sh'), args: [files(t[1])],
+         suite: 'interop', is_parallel: false,
+         workdir: meson.project_source_root())
+endforeach
+
+# Wire cross-validation tests (require libiec61850 + root/tshark)
+wire_xval_scripts = [
+    ['wire_goose_xval', 'interop/wire/test_wire_goose_xval.sh'],
+    ['wire_sv_xval', 'interop/wire/test_wire_sv_xval.sh'],
+    ['wire_mms_xval', 'interop/wire/test_wire_mms_xval.sh'],
+]
+foreach t : wire_xval_scripts
     test(t[0], find_program('sh'), args: [files(t[1])],
          suite: 'interop', is_parallel: false,
          workdir: meson.project_source_root())

@@ -17,7 +17,7 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-#define BER_MAX_ITERATIONS  10
+#define BER_MAX_ITERATIONS  15
 
 /*
  * Parse BER length at data[offset].
