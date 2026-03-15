@@ -123,7 +123,7 @@ static __always_inline int ber_find_two_tags(const __u8 *data, void *data_end,
     *val2_len = 0;
 
     /* Use 8 iterations max — GOOSE stNum is field [5], sqNum is field [6],
-     * so 7 iterations suffices with 1 margin. Using BER_MAX_ITERATIONS (10)
+     * so 7 iterations suffices with 1 margin. Using BER_MAX_ITERATIONS (15)
      * causes the verifier to exceed 1M instructions from state explosion. */
     for (int i = 0; i < 8; i++) {
         const __u8 *p = data + offset;

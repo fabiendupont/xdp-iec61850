@@ -1,6 +1,6 @@
 TLC2 Version 2.20 of Day Month 20?? (rev: 30ec586)
 Running breadth-first search Model-Checking with fp 75 and seed -4649882149740403069 with 1 worker on 32 cores with 27305MB heap and 64MB offheap memory [pid: 863161] (Linux 6.18.13-200.fc43.x86_64 amd64, Red Hat, Inc. 25.0.2 x86_64, MSBDiskFPSet, DiskStateQueue).
-Parsing file /home/fdupont/Code/github.com/smgglrs/xdp-iec61850/verification/tlaplus/SampledValuesProtocol.tla
+Parsing file /home/fdupont/Code/github.com/fabiendupont/xdp-iec61850/verification/tlaplus/SampledValuesProtocol.tla
 Parsing file /tmp/tlc-4009620168820276544/Integers.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Integers.tla)
 Parsing file /tmp/tlc-4009620168820276544/Sequences.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
 Parsing file /tmp/tlc-4009620168820276544/FiniteSets.tla (jar:file:/home/fdupont/.local/share/tlaplus/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)

@@ -7,28 +7,56 @@
 
 #include "security/hmac_verify.h"
 
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
-#include <openssl/hmac.h>
+#include <openssl/params.h>
 #include <string.h>
 
 int hmac_sha256_sign(const uint8_t *key, size_t key_len,
                      const uint8_t *data, size_t data_len,
                      uint8_t *out_mac, size_t mac_len)
 {
-    unsigned int actual_len = 0;
-    unsigned char *result;
+    EVP_MAC *mac = NULL;
+    EVP_MAC_CTX *ctx = NULL;
+    OSSL_PARAM params[2];
+    size_t actual_len = 0;
+    int ret = -2;
 
     if (!key || !data || !out_mac || mac_len < 32) {
         return -2;
     }
 
-    result = HMAC(EVP_sha256(), key, (int)key_len,
-                  data, data_len, out_mac, &actual_len);
-    if (result == NULL) {
+    mac = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    if (mac == NULL) {
         return -2;
     }
 
-    return 0;
+    ctx = EVP_MAC_CTX_new(mac);
+    if (ctx == NULL) {
+        goto cleanup;
+    }
+
+    params[0] = OSSL_PARAM_construct_utf8_string("digest", "SHA256", 0);
+    params[1] = OSSL_PARAM_construct_end();
+
+    if (EVP_MAC_init(ctx, key, key_len, params) != 1) {
+        goto cleanup;
+    }
+
+    if (EVP_MAC_update(ctx, data, data_len) != 1) {
+        goto cleanup;
+    }
+
+    if (EVP_MAC_final(ctx, out_mac, &actual_len, mac_len) != 1) {
+        goto cleanup;
+    }
+
+    ret = 0;
+
+cleanup:
+    EVP_MAC_CTX_free(ctx);
+    EVP_MAC_free(mac);
+    return ret;
 }
 
 int hmac_sha256_verify(const uint8_t *key, size_t key_len,
