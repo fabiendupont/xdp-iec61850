@@ -607,7 +607,9 @@ int sv_decode_apdu(const uint8_t *buf, size_t buf_size, sv_apdu_t *apdu)
     if (ret != SV_BER_OK) {
         return ret;
     }
-    if (tag != SV_APDU_TAG) {
+    /* Accept both APPLICATION 0 (0x60, per IEC 61850-9-2) and
+     * APPLICATION 2 (0x62, used by some implementations) */
+    if (tag != 0x60 && tag != SV_APDU_TAG) {
         return SV_BER_ERR_DECODING;
     }
 
@@ -634,7 +636,8 @@ int sv_decode_apdu(const uint8_t *buf, size_t buf_size, sv_apdu_t *apdu)
     if (ret != SV_BER_OK) {
         return ret;
     }
-    if (tag != SV_TAG_SEQASDU) {
+    /* Accept both [2] (0xA2, per IEC 61850-9-2) and [1] (0xA1, legacy) */
+    if (tag != 0xA2 && tag != 0xA1) {
         return SV_BER_ERR_DECODING;
     }
     ret = ber_decode_length(buf, buf_size, &offset, &length);

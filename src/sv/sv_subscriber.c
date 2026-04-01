@@ -398,8 +398,11 @@ int iec61850_sv_subscriber_process_frame(
         return 0;
     }
 
-    /* Validate multicast MAC */
-    if (!iec61850_eth_is_sv_multicast(frame_data)) {
+    /* Validate multicast MAC — accept both SV (01:0C:CD:04) and
+     * GOOSE (01:0C:CD:01) prefixes for interop with implementations
+     * that use the GOOSE range for SV traffic */
+    if (!iec61850_eth_is_sv_multicast(frame_data) &&
+        !iec61850_eth_is_goose_multicast(frame_data)) {
         return 0;
     }
 

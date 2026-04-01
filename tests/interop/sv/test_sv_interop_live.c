@@ -52,28 +52,15 @@ static void test_sl01_libiec_pub_to_our_sub(void)
     if (interop_create_veth("igt0", "igt1") != 0)
         INTEROP_FAIL("veth creation failed");
 
-    /* Start libiec61850 SV publisher on igt0 */
-    char *pub_args[] = { pub_path, "igt0", NULL };
-    pid_t pub_pid = interop_start_bg(pub_path, pub_args, NULL);
-    if (pub_pid < 0) {
-        interop_destroy_veth("igt0");
-        INTEROP_FAIL("sv publisher start failed");
-    }
-
-    /* Give publisher time to start and send frames */
-    usleep(500000);
-
-    /* Create raw socket on igt1 */
+    /* Create raw socket on igt1 BEFORE starting publisher */
     struct packet_io *rx_io = packet_io_create_raw();
     if (!rx_io) {
-        interop_stop_helper(pub_pid);
         interop_destroy_veth("igt0");
         INTEROP_FAIL("packet_io_create_raw failed");
     }
 
     if (packet_io_open(rx_io, "igt1", 0) != 0) {
         packet_io_destroy(rx_io);
-        interop_stop_helper(pub_pid);
         interop_destroy_veth("igt0");
         INTEROP_FAIL("packet_io_open failed");
     }
@@ -83,6 +70,17 @@ static void test_sl01_libiec_pub_to_our_sub(void)
     iec61850_sv_subscriber_init(&sub, NULL);
     g_sv_cb_count = 0;
     iec61850_sv_subscriber_set_callback(&sub, sv_callback, NULL);
+
+    /* NOW start libiec61850 SV publisher on igt0 */
+    char *pub_args[] = { pub_path, "igt0", NULL };
+    pid_t pub_pid = interop_start_bg(pub_path, pub_args, NULL);
+    if (pub_pid < 0) {
+        iec61850_sv_subscriber_destroy(&sub);
+        packet_io_close(rx_io);
+        packet_io_destroy(rx_io);
+        interop_destroy_veth("igt0");
+        INTEROP_FAIL("sv publisher start failed");
+    }
 
     /* Poll for up to 5 seconds, 10ms intervals */
     for (int i = 0; i < 500 && g_sv_cb_count == 0; i++) {

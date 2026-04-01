@@ -41,7 +41,7 @@ extern "C" {
 
 /* SV APDU Field Tags (Context-Specific) */
 #define SV_TAG_NOASDU               0x80U  /* [0] */
-#define SV_TAG_SEQASDU              0xA1U  /* [1] | CONSTRUCTED */
+#define SV_TAG_SEQASDU              0xA2U  /* [2] | CONSTRUCTED (per IEC 61850-9-2) */
 
 /* ASDU Field Tags (Context-Specific) */
 #define SV_TAG_SVID                 0x80U  /* [0] */
