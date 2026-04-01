@@ -627,6 +627,72 @@ static void test_sv_quality_questionable(void)
     PASS();
 }
 
+static void test_sv_multi_asdu(void)
+{
+    TEST("sv_multi_asdu_encode_decode");
+    sv_apdu_t apdu_in, apdu_out;
+    uint8_t buf[SV_MAX_APDU_SIZE];
+    size_t encoded_len;
+
+    sv_apdu_init(&apdu_in);
+    apdu_in.noASDU = 3;
+
+    /* ASDU 0: svpub1 with 2 samples */
+    sv_set_svid(&apdu_in.asdu[0], "svpub1");
+    apdu_in.asdu[0].confRev = 1;
+    apdu_in.asdu[0].smpCnt = 100;
+    sv_add_sample(&apdu_in.asdu[0], 1000, (sv_quality_t){0});
+    sv_add_sample(&apdu_in.asdu[0], 2000, (sv_quality_t){0});
+
+    /* ASDU 1: svpub2 with 1 sample */
+    sv_set_svid(&apdu_in.asdu[1], "svpub2");
+    apdu_in.asdu[1].confRev = 2;
+    apdu_in.asdu[1].smpCnt = 200;
+    sv_add_sample(&apdu_in.asdu[1], 3000, (sv_quality_t){0});
+
+    /* ASDU 2: svpub3 with 2 samples */
+    sv_set_svid(&apdu_in.asdu[2], "svpub3");
+    apdu_in.asdu[2].confRev = 3;
+    apdu_in.asdu[2].smpCnt = 300;
+    sv_add_sample(&apdu_in.asdu[2], 4000, (sv_quality_t){0});
+    sv_add_sample(&apdu_in.asdu[2], 5000, (sv_quality_t){0});
+
+    int ret = sv_encode_apdu(buf, sizeof(buf), &apdu_in, &encoded_len);
+    ASSERT_EQ(ret, 0);
+
+    sv_apdu_init(&apdu_out);
+    ret = sv_decode_apdu(buf, encoded_len, &apdu_out);
+    ASSERT_EQ(ret, 0);
+
+    /* Verify all 3 ASDUs decoded */
+    ASSERT_EQ((int)apdu_out.noASDU, 3);
+
+    /* ASDU 0 */
+    ASSERT_TRUE(strcmp(apdu_out.asdu[0].svID, "svpub1") == 0);
+    ASSERT_EQ((int)apdu_out.asdu[0].smpCnt, 100);
+    ASSERT_EQ((int)apdu_out.asdu[0].confRev, 1);
+    ASSERT_EQ((int)apdu_out.asdu[0].num_samples, 2);
+    ASSERT_EQ(apdu_out.asdu[0].samples[0].value, 1000);
+    ASSERT_EQ(apdu_out.asdu[0].samples[1].value, 2000);
+
+    /* ASDU 1 */
+    ASSERT_TRUE(strcmp(apdu_out.asdu[1].svID, "svpub2") == 0);
+    ASSERT_EQ((int)apdu_out.asdu[1].smpCnt, 200);
+    ASSERT_EQ((int)apdu_out.asdu[1].confRev, 2);
+    ASSERT_EQ((int)apdu_out.asdu[1].num_samples, 1);
+    ASSERT_EQ(apdu_out.asdu[1].samples[0].value, 3000);
+
+    /* ASDU 2 */
+    ASSERT_TRUE(strcmp(apdu_out.asdu[2].svID, "svpub3") == 0);
+    ASSERT_EQ((int)apdu_out.asdu[2].smpCnt, 300);
+    ASSERT_EQ((int)apdu_out.asdu[2].confRev, 3);
+    ASSERT_EQ((int)apdu_out.asdu[2].num_samples, 2);
+    ASSERT_EQ(apdu_out.asdu[2].samples[0].value, 4000);
+    ASSERT_EQ(apdu_out.asdu[2].samples[1].value, 5000);
+
+    PASS();
+}
+
 int main(void)
 {
     property_test_init();
@@ -659,6 +725,9 @@ int main(void)
     test_sv_quality_4byte_roundtrip();
     test_sv_flat_octet_string_format();
     test_sv_quality_questionable();
+
+    printf("\n=== SV Multi-ASDU Tests ===\n");
+    test_sv_multi_asdu();
 
     printf("\n=== Property Tests ===\n");
     test_sv_encode_decode_roundtrip();

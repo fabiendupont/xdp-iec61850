@@ -940,11 +940,11 @@ unless the application manually creates MMS named variables.
 
 ### P1 — HIGH (from 4th review)
 
-**TLA+ GOOSE Stress temporal violation** — `tlaplus_goose_stress.log`
-shows a liveness property violation caused by missing fairness constraints.
-Not a safety invariant violation, but the safety case claims "0 errors
-for all TLA+ runs" which is now false. Fix: add `FAIRNESS` to the stress
-.cfg file, or document the liveness gap in the safety case.
+**TLA+ GOOSE Stress temporal properties** — RESOLVED. The stress
+configuration uses `FairSpec` with weak fairness (`WF_vars(Next)`).
+Liveness properties (EventualDelivery, EventualIdleOrRetransmit)
+verified with 1.46B states, no errors. Liveness requires fairness
+assumptions; safety invariants hold without fairness.
 
 **Certificate expiry not checked at runtime** —
 `iec61850_cert_manager_is_valid_time()` exists but is never called during

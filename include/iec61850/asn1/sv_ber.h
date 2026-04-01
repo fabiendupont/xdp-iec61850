@@ -168,8 +168,10 @@ typedef struct {
 /**
  * SV APDU Structure (Application Protocol Data Unit)
  */
+#define SV_MAX_ASDU 8              /* Max ASDUs per APDU (IEC 61850-9-2LE) */
+
 typedef struct {
-    uint8_t noASDU;                /* Number of ASDUs (typically 1) */
+    uint8_t noASDU;                /* Number of ASDUs (1..SV_MAX_ASDU) */
     sv_asdu_t asdu[SV_MAX_ASDU];   /* ASDU array */
 } sv_apdu_t;
 
