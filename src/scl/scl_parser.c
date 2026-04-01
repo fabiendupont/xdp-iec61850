@@ -127,6 +127,12 @@ static void parse_report_control(xmlNode *rcb_node, const char *ied_name,
     copy_attr(rcb->dataset, sizeof(rcb->dataset), rcb_node, "datSet");
     rcb->buffered = parse_bool_attr(rcb_node, "buffered");
 
+    xmlChar *conf_rev_str = xmlGetProp(rcb_node, (const xmlChar *)"confRev");
+    if (conf_rev_str != NULL) {
+        rcb->conf_rev = (uint32_t)strtoul((const char *)conf_rev_str, NULL, 10);
+        xmlFree(conf_rev_str);
+    }
+
     xmlChar *buf_time_str = xmlGetProp(rcb_node, (const xmlChar *)"bufTime");
     if (buf_time_str != NULL) {
         rcb->buf_time = (uint32_t)strtoul((const char *)buf_time_str, NULL, 10);

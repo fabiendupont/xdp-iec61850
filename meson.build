@@ -124,6 +124,7 @@ if get_option('enable_mms')
         'src/transport/iso_stack.c',
         'src/scl/scl_parser.c',
         'src/scl/scl_ied_builder.c',
+        'src/scl/scl_rcb_config.c',
         'src/mms/mms_variable_binding.c',
     )
     core_deps += [libxml2_dep]

@@ -262,7 +262,8 @@ if get_option('enable_mms')
         link_with: [iec61850_lib] + mms_lib,
         dependencies: core_deps,
     )
-    test('rcb_auto_config', test_rcb_auto_config, suite: 'unit')
+    test('rcb_auto_config', test_rcb_auto_config, suite: 'unit',
+         workdir: meson.project_source_root())
 
     test_mms_journal = executable('test_mms_journal',
         'unit/test_mms_journal.c',

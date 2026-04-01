@@ -83,6 +83,7 @@ typedef struct {
     char ld_inst[IEC61850_SCL_MAX_NAME];
     char rpt_id[IEC61850_SCL_MAX_NAME];
     char dataset[IEC61850_SCL_MAX_NAME];
+    uint32_t conf_rev;
     bool buffered;       /* true=BRCB, false=URCB */
     uint32_t buf_time;   /* Buffer time ms (BRCB only) */
     uint32_t intg_pd;    /* Integrity period ms */
