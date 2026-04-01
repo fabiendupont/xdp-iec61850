@@ -1078,6 +1078,18 @@ static int encode_get_namelist_req_body(const mms_confirmed_request_t *request,
         buf[slen++] = 0x80;
         buf[slen++] = 0x00;
     }
+
+    /* continueAfter [2] IMPLICIT VisibleString (optional) */
+    if (request->params.getnamelist.continue_after) {
+        size_t ca_len = strlen(request->params.getnamelist.continue_after_id);
+        if (ca_len > 0) {
+            buf[slen++] = 0x82;  /* [2] IMPLICIT */
+            buf[slen++] = (uint8_t)ca_len;
+            memcpy(buf + slen, request->params.getnamelist.continue_after_id, ca_len);
+            slen += (int)ca_len;
+        }
+    }
+
     return slen;
 }
 
@@ -2164,6 +2176,14 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                                 }
                                 offset += gnl_dom_len;
                                 continue;  /* already advanced */
+                            }
+                            break;
+                        case 0x82:  /* continueAfter [2] IMPLICIT VisibleString */
+                            request->params.getnamelist.continue_after = true;
+                            if (gnl_tag_len < MMS_MAX_VARIABLE_NAME) {
+                                memcpy(request->params.getnamelist.continue_after_id,
+                                       buffer + offset, gnl_tag_len);
+                                request->params.getnamelist.continue_after_id[gnl_tag_len] = '\0';
                             }
                             break;
                         default:
@@ -3619,6 +3639,19 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                         response->params.getnamelist.identifiers[ni][name_len] = '\0';
                         offset += name_len;
                         response->params.getnamelist.num_identifiers++;
+                    }
+                }
+                /* moreFollows [1] IMPLICIT BOOLEAN (optional, default TRUE) */
+                response->params.getnamelist.more_follows = true;  /* default */
+                if (offset < gnlr_end && buffer[offset] == 0x81) {
+                    offset++;
+                    size_t mf_len;
+                    ret = mms_decode_length(buffer + offset, gnlr_end - offset, &mf_len);
+                    if (ret > 0) {
+                        offset += ret;
+                        if (mf_len >= 1) {
+                            response->params.getnamelist.more_follows = (buffer[offset] != 0);
+                        }
                     }
                 }
                 offset = gnlr_end;

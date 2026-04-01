@@ -128,25 +128,45 @@ static int process_request(iec61850_mms_session_t *session,
         }
 
         case MMS_SERVICE_TYPE_GET_NAMELIST: {
-            resp->params.getnamelist.num_identifiers = 0;
-            resp->params.getnamelist.more_follows = false;
+            /* Get all names into a temp buffer, then apply continueAfter filter */
+            char all_names[MMS_MAX_NAMELIST_ITEMS][MMS_MAX_VARIABLE_NAME];
+            uint32_t total = 0;
 
             if (req->params.getnamelist.object_class == MMS_OBJECT_CLASS_DOMAIN) {
-                uint32_t count = 0;
                 (void)iec61850_mms_ds_get_domain_names(session->data_store,
-                                                        resp->params.getnamelist.identifiers,
-                                                        &count,
+                                                        all_names, &total,
                                                         MMS_MAX_NAMELIST_ITEMS);
-                resp->params.getnamelist.num_identifiers = count;
             } else if (req->params.getnamelist.object_class == MMS_OBJECT_CLASS_NAMED_VARIABLE) {
-                uint32_t count = 0;
                 (void)iec61850_mms_ds_get_var_names(session->data_store,
                                                       req->params.getnamelist.domain,
-                                                      resp->params.getnamelist.identifiers,
-                                                      &count,
+                                                      all_names, &total,
                                                       MMS_MAX_NAMELIST_ITEMS);
-                resp->params.getnamelist.num_identifiers = count;
             }
+
+            /* Apply continueAfter: skip until we find the token, then start from next */
+            uint32_t start = 0;
+            if (req->params.getnamelist.continue_after) {
+                for (uint32_t i = 0; i < total; i++) {
+                    if (strcmp(all_names[i], req->params.getnamelist.continue_after_id) == 0) {
+                        start = i + 1;
+                        break;
+                    }
+                }
+            }
+
+            /* Copy up to MMS_MAX_NAMELIST_ITEMS from the start position */
+            uint32_t remaining = (start < total) ? total - start : 0;
+            uint32_t to_copy = remaining;
+            if (to_copy > MMS_MAX_NAMELIST_ITEMS) {
+                to_copy = MMS_MAX_NAMELIST_ITEMS;
+            }
+
+            resp->params.getnamelist.num_identifiers = to_copy;
+            for (uint32_t i = 0; i < to_copy; i++) {
+                (void)memcpy(resp->params.getnamelist.identifiers[i],
+                             all_names[start + i], MMS_MAX_VARIABLE_NAME);
+            }
+            resp->params.getnamelist.more_follows = (start + to_copy < total);
             return 0;
         }
 

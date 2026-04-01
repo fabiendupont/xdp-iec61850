@@ -180,30 +180,53 @@ int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
         return IEC61850_MMS_CLIENT_ERR_ARGS;
     }
 
-    (void)memset(&req, 0, sizeof(req));
-    client->invoke_id++;
-    req.invoke_id = client->invoke_id;
-    req.service = MMS_SERVICE_TYPE_GET_NAMELIST;
-    req.params.getnamelist.object_class = obj_class;
-    if (domain != NULL) {
-        (void)strncpy(req.params.getnamelist.domain, domain,
-                       MMS_MAX_DOMAIN_NAME - 1);
-    }
-
-    ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
-
-    if (resp.service != MMS_SERVICE_TYPE_GET_NAMELIST) {
-        return IEC61850_MMS_CLIENT_ERR_MMS;
-    }
-
     *count = 0;
-    for (uint32_t i = 0; i < resp.params.getnamelist.num_identifiers &&
-         i < max_count; i++) {
-        (void)strncpy(names[i], resp.params.getnamelist.identifiers[i],
-                       MMS_MAX_VARIABLE_NAME - 1);
-        names[i][MMS_MAX_VARIABLE_NAME - 1] = '\0';
-        (*count)++;
+    bool has_more = true;
+    char continue_after_id[MMS_MAX_VARIABLE_NAME] = {0};
+    bool use_continue = false;
+
+    while (has_more && *count < max_count) {
+        (void)memset(&req, 0, sizeof(req));
+        client->invoke_id++;
+        req.invoke_id = client->invoke_id;
+        req.service = MMS_SERVICE_TYPE_GET_NAMELIST;
+        req.params.getnamelist.object_class = obj_class;
+        if (domain != NULL) {
+            (void)strncpy(req.params.getnamelist.domain, domain,
+                           MMS_MAX_DOMAIN_NAME - 1);
+        }
+        if (use_continue) {
+            req.params.getnamelist.continue_after = true;
+            (void)strncpy(req.params.getnamelist.continue_after_id,
+                           continue_after_id, MMS_MAX_VARIABLE_NAME - 1);
+        }
+
+        ret = transact(client, &req, &resp);
+        if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+
+        if (resp.service != MMS_SERVICE_TYPE_GET_NAMELIST) {
+            return IEC61850_MMS_CLIENT_ERR_MMS;
+        }
+
+        for (uint32_t i = 0; i < resp.params.getnamelist.num_identifiers &&
+             *count < max_count; i++) {
+            (void)strncpy(names[*count], resp.params.getnamelist.identifiers[i],
+                           MMS_MAX_VARIABLE_NAME - 1);
+            names[*count][MMS_MAX_VARIABLE_NAME - 1] = '\0';
+            (*count)++;
+        }
+
+        has_more = resp.params.getnamelist.more_follows;
+        if (has_more && resp.params.getnamelist.num_identifiers > 0) {
+            /* Set continue token to last identifier received */
+            uint32_t last = resp.params.getnamelist.num_identifiers - 1;
+            (void)strncpy(continue_after_id,
+                           resp.params.getnamelist.identifiers[last],
+                           MMS_MAX_VARIABLE_NAME - 1);
+            use_continue = true;
+        } else {
+            has_more = false;
+        }
     }
 
     return IEC61850_MMS_CLIENT_OK;

@@ -441,7 +441,8 @@ typedef struct {
 typedef struct {
     mms_object_class_t object_class;
     char domain[MMS_MAX_DOMAIN_NAME];
-    bool continue_after;  /* For pagination */
+    bool continue_after;  /* True if continueAfter token is set */
+    char continue_after_id[MMS_MAX_VARIABLE_NAME];  /* Last identifier from previous response */
 } mms_getnamelist_request_t;
 
 /**
