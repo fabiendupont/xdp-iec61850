@@ -435,6 +435,26 @@ if get_option('enable_mms')
         dependencies: core_deps,
     )
     test('journal_e2e', test_journal_e2e, suite: 'integration')
+
+    # Integration: IED ACSI — SCL → IED model → MMS data store pipeline
+    test_ied_acsi = executable('test_ied_acsi_integration',
+        'integration/test_ied_acsi_integration.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('ied_acsi_integration', test_ied_acsi, suite: 'integration',
+         workdir: meson.project_source_root())
+
+    # Integration: Phase 7 Combined Workflow + Monitoring
+    test_phase7_monitoring = executable('test_phase7_monitoring',
+        'integration/test_phase7_monitoring.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('phase7_monitoring', test_phase7_monitoring, suite: 'integration',
+         is_parallel: false)
 endif
 
 # Security-dependent tests (only if security is enabled)
@@ -500,6 +520,14 @@ if get_option('enable_security')
         dependencies: core_deps,
     )
     test('hmac_verify', test_hmac_verify, suite: 'unit')
+
+    test_security_protocols = executable('test_security_protocols',
+        'unit/test_security_protocols.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('security_protocols', test_security_protocols, suite: 'unit')
 
     # Integration: Secure GOOSE E2E
     test_secure_goose_e2e = executable('test_secure_goose_e2e',
