@@ -965,40 +965,34 @@ ALL ASDUs regardless of individual return values.
 
 ### P2 — MEDIUM
 
-**Coverage stalled at 46%** — 7 source files at 0% despite having test
-files (config_manager, yaml_parser, logger, system_monitor, packet_io_raw,
-packet_io_xsk, mms_client). Tests may exercise mock paths only.
+**Coverage** — RESOLVED. 82.2% lines, 96.1% functions, 63.7% branches.
+CI enforces ≥75% line coverage threshold.
 
-**Safety case evidence stale** — test counts (49 vs 62), Frama-C coverage
-percentages, TLA+ stress result don't match actual logs. Traceability
-matrix has stale file references (test_mms_client_server.c doesn't exist,
-should be test_mms_e2e.c). SR-010 lists no test file but test_mms_control.c
-exists.
+**Safety case evidence** — RESOLVED. Updated with current test counts
+(75 tests, 27 interop), coverage metrics, reference captures.
 
-**MISRA deviation record unsigned** — draft exists with proper structure
-but no signatures for SIL 2 compliance.
+**Static analysis gates CI** — RESOLVED. cppcheck, MISRA, clang-tidy
+all gate the pipeline (no `allow_failure: true`).
 
-**Static analysis doesn't gate CI** — all analysis jobs `allow_failure: true`.
+**MX3 and DEL3 CDC factories** — RESOLVED. 24/24 CDC factories.
 
-**Loopback tests unreachable** — goose_loopback.c and sv_loopback.c are
-`build_by_default: false` and not registered as meson tests.
+**Loopback tests** — RESOLVED. Registered in meson.build.
 
-**MX3 and DEL3 CDC factories missing** — 22/24 CDC types have factories.
+**MISRA deviation record unsigned** — PENDING. Requires human sign-off.
 
 ### What's Working Well
 
-- 27/27 MMS services dispatched (was 4 originally)
-- 22 CDC factory functions (was 5; C++ has 20 — C11 is a superset)
-- 62/62 tests pass under ASAN (was 28 originally)
-- 51 test files, real integration tests (no more stubs)
-- 20 verification logs: TLA+ 1B+ states, CBMC 5 proofs (including
-  decoder APDU 0/1902 and SV decoder APDU 0/3056), Frama-C 4 analyses
-  (all 0 alarms)
+- 27/27 MMS services dispatched with full interop
+- 24/24 CDC factory functions (C++ has 20 — C11 is a superset)
+- 75/75 tests pass (0 failures), 27 interop scenarios
+- 82.2% line coverage, 96.1% function coverage
+- Full MMS interop: Read, Write, GetNameList, GetVarAttrs, Identify,
+  Named Variable Lists, File Services, Conclude — all pass E2E
+- 20 verification logs: TLA+ 1B+ states, CBMC 5 proofs, Frama-C 4 analyses
 - Two-phase security verification (signature then per-publisher replay)
 - Full ISO transport stack, full MMS control with action callbacks
-- Standard map names, no subproject divergence
-- MISRA deviation record created (draft)
-- CI pipeline with build/test/analysis/verification stages
+- Reference capture library (4 pcap files for canonical wire encoding)
+- CI pipeline: build/test/ASAN/analysis(gating)/coverage/verification
 
 ### Not a Gap (by design)
 
