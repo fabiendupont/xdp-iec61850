@@ -456,6 +456,24 @@ if get_option('enable_mms')
     test('ied_acsi_integration', test_ied_acsi, suite: 'integration',
          workdir: meson.project_source_root())
 
+    # Unit test — MMS Variable Binding Manager
+    test_mms_variable_binding = executable('test_mms_variable_binding',
+        'unit/test_mms_variable_binding.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('mms_variable_binding', test_mms_variable_binding, suite: 'unit')
+
+    # Integration: Bidirectional MMS/IED Binding
+    test_bidirectional_binding = executable('test_bidirectional_binding',
+        'integration/test_bidirectional_binding.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('bidirectional_binding', test_bidirectional_binding, suite: 'integration')
+
     # Integration: Phase 7 Combined Workflow + Monitoring
     test_phase7_monitoring = executable('test_phase7_monitoring',
         'integration/test_phase7_monitoring.c',
