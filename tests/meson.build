@@ -198,6 +198,16 @@ test_goose_roundtrip = executable('test_goose_roundtrip',
 
 test('goose_roundtrip', test_goose_roundtrip, suite: 'integration')
 
+# Integration test — GOOSE Subscriber Timeout (always built)
+test_subscriber_timeout = executable('test_subscriber_timeout',
+    'integration/test_subscriber_timeout.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+
+test('subscriber_timeout', test_subscriber_timeout, suite: 'integration')
+
 # MMS-dependent tests (only if MMS is enabled)
 if get_option('enable_mms')
     test_mms_file_service = executable('test_mms_file_service',
@@ -370,6 +380,23 @@ if get_option('enable_mms')
     )
     test('coverage_boost2', test_coverage_boost2, suite: 'unit',
          workdir: meson.project_source_root())
+
+    # Integration: MMS Session Lifecycle
+    test_mms_session = executable('test_mms_session',
+        'integration/test_mms_session.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('mms_session', test_mms_session, suite: 'integration')
+
+    test_file_e2e = executable('test_file_e2e',
+        'integration/test_file_e2e.c',
+        include_directories: inc_dirs,
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('file_e2e', test_file_e2e, suite: 'integration')
 endif
 
 # Security-dependent tests (only if security is enabled)
@@ -565,6 +592,19 @@ bench_ber_codec = executable('bench_ber_codec',
     build_by_default: false,
 )
 
+# Benchmark — Performance latency/throughput (GOOSE, SV, MMS)
+if get_option('enable_mms')
+    bench_performance = executable('benchmark_performance',
+        'benchmark/benchmark_performance.c',
+        include_directories: [inc_dirs],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+        c_args: ['-Wno-missing-prototypes'],
+    )
+    test('benchmark_performance', bench_performance, suite: 'benchmark',
+         is_parallel: false, timeout: 120)
+endif
+
 # Property-based tests — Phase 6
 property_tests = [
     ['goose_properties', 'property/test_goose_properties.c'],
@@ -693,3 +733,20 @@ foreach t : wire_xval_scripts
          suite: 'interop', is_parallel: false,
          workdir: meson.project_source_root())
 endforeach
+
+# ============================================================
+# Long-duration stress tests (suite: 'longrun', timeout: 600)
+# Require MMS for client/server scenario.
+# Duration configurable via LONGRUN_DURATION_SEC (default: 10).
+# ============================================================
+
+if get_option('enable_mms')
+    test_long_duration = executable('test_long_duration',
+        'longrun/test_long_duration.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('long_duration', test_long_duration,
+         suite: 'longrun', timeout: 600, is_parallel: false)
+endif
