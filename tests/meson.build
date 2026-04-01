@@ -92,6 +92,16 @@ test_ied_data_model = executable('test_ied_data_model',
 
 test('ied_data_model', test_ied_data_model, suite: 'unit')
 
+# Unit test — Data Model Deep (always built)
+test_data_model_deep = executable('test_data_model_deep',
+    'unit/test_data_model_deep.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+    c_args: ['-Wno-float-equal'],
+)
+test('data_model_deep', test_data_model_deep, suite: 'unit')
+
 # Unit test — Data Attribute (always built)
 test_data_attribute = executable('test_data_attribute',
     'unit/test_data_attribute.c',
@@ -208,6 +218,16 @@ test_subscriber_timeout = executable('test_subscriber_timeout',
 
 test('subscriber_timeout', test_subscriber_timeout, suite: 'integration')
 
+# Integration test — TCP Listener (always built, loopback sockets)
+test_transport_listener = executable('test_transport_listener',
+    'integration/test_transport_listener.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+
+test('transport_listener', test_transport_listener, suite: 'integration')
+
 # MMS-dependent tests (only if MMS is enabled)
 if get_option('enable_mms')
     test_mms_file_service = executable('test_mms_file_service',
@@ -322,6 +342,16 @@ if get_option('enable_mms')
     test('coverage_gaps', test_coverage_gaps, suite: 'unit',
          workdir: meson.project_source_root())
 
+    # Unit test — MMS Named Type Services
+    test_mms_type_services = executable('test_mms_type_services',
+        'unit/test_mms_type_services.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+        c_args: ['-Wno-conversion', '-Wno-sign-conversion'],
+    )
+    test('mms_type_services', test_mms_type_services, suite: 'unit')
+
     # Unit test — MMS Control Services
     test_mms_control = executable('test_mms_control',
         'unit/test_mms_control.c',
@@ -397,6 +427,14 @@ if get_option('enable_mms')
         dependencies: core_deps,
     )
     test('file_e2e', test_file_e2e, suite: 'integration')
+
+    test_journal_e2e = executable('test_journal_e2e',
+        'integration/test_journal_e2e.c',
+        include_directories: inc_dirs,
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('journal_e2e', test_journal_e2e, suite: 'integration')
 endif
 
 # Security-dependent tests (only if security is enabled)
