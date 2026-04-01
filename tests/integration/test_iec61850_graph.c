@@ -176,40 +176,98 @@ static void test_setup_dispatch_map(void)
 {
     TEST("graph_setup_dispatch_map");
     if (!is_root) { SKIP("not root"); }
+    if (!has_dispatch) { SKIP("xgl_dispatch.bpf.o not found"); }
+    if (!has_iec_bpf) { SKIP("IEC 61850 .bpf.o not found"); }
 
-    /* Create a hash map to simulate the dispatch map */
-    LIBBPF_OPTS(bpf_map_create_opts, opts);
-    int map_fd = bpf_map_create(BPF_MAP_TYPE_HASH, "test_dispatch",
-                                 sizeof(uint16_t), sizeof(uint32_t),
-                                 64, &opts);
-    if (map_fd < 0) {
-        SKIP("BPF map creation failed");
+    struct xgl_graph *g = xgl_graph_create("iec61850-dispatch", 0);
+    ASSERT_TRUE(g != NULL);
+
+    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
+    if (ret != 0) {
+        tests_skipped++;
+        printf("SKIP: dispatch failed\n");
+        xgl_graph_destroy(g);
+        return;
     }
 
-    /* Use arbitrary dynamic indices */
-    struct iec61850_graph_indices indices = {
-        .goose_filter = 7,
-        .goose_parse = 8,
-        .sv_filter = 9,
-        .sv_parse = 10,
-    };
+    /* Register IEC 61850 nodes to get dynamic indices */
+    struct iec61850_graph_indices indices;
+    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
+    ASSERT_EQ(ret, 0);
 
-    int ret = iec61850_graph_setup_dispatch(map_fd, &indices);
+    /* Get dispatch map fd */
+    int dispatch_fd = xgl_graph_get_map_fd(g, "xgl_ext_dispatch");
+    if (dispatch_fd < 0) {
+        dispatch_fd = xgl_graph_get_map_fd(g, "ext_dispatch");
+    }
+    ASSERT_GE(dispatch_fd, 0);
+
+    /* Set up dispatch with allocated indices */
+    ret = iec61850_graph_setup_dispatch(dispatch_fd, &indices);
     ASSERT_EQ(ret, 0);
 
     /* Verify GOOSE EtherType 0x88B8 maps to the allocated index */
     uint16_t key = 0x88B8U;
     uint32_t val = 0;
-    ASSERT_EQ(bpf_map_lookup_elem(map_fd, &key, &val), 0);
+    ASSERT_EQ(bpf_map_lookup_elem(dispatch_fd, &key, &val), 0);
     ASSERT_EQ((int)val, indices.goose_filter);
 
     /* Verify SV EtherType 0x88BA maps to the allocated index */
     key = 0x88BAU;
     val = 0;
-    ASSERT_EQ(bpf_map_lookup_elem(map_fd, &key, &val), 0);
+    ASSERT_EQ(bpf_map_lookup_elem(dispatch_fd, &key, &val), 0);
     ASSERT_EQ((int)val, indices.sv_filter);
 
-    close(map_fd);
+    xgl_graph_destroy(g);
+    PASS();
+}
+
+static void test_get_filter_map_fd(void)
+{
+    TEST("graph_get_filter_map_fd");
+    if (!is_root) { SKIP("not root"); }
+    if (!has_dispatch) { SKIP("xgl_dispatch.bpf.o not found"); }
+    if (!has_iec_bpf) { SKIP("IEC 61850 .bpf.o not found"); }
+
+    struct xgl_graph *g = xgl_graph_create("iec61850-filter", 0);
+    ASSERT_TRUE(g != NULL);
+
+    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
+    if (ret != 0) {
+        tests_skipped++;
+        printf("SKIP: dispatch failed\n");
+        xgl_graph_destroy(g);
+        return;
+    }
+
+    struct iec61850_graph_indices indices;
+    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
+    ASSERT_EQ(ret, 0);
+
+    /* GOOSE and SV filter maps should be retrievable */
+    int goose_fd = iec61850_graph_get_filter_map_fd(g, "goose_filter");
+    ASSERT_GE(goose_fd, 0);
+
+    int sv_fd = iec61850_graph_get_filter_map_fd(g, "sv_filter");
+    ASSERT_GE(sv_fd, 0);
+
+    /* Populate a filter entry and verify */
+    uint16_t appid = 0x1000U;
+    uint8_t action = 1;
+    ASSERT_EQ(bpf_map_update_elem(goose_fd, &appid, &action, BPF_ANY), 0);
+
+    uint8_t readback = 0;
+    ASSERT_EQ(bpf_map_lookup_elem(goose_fd, &appid, &readback), 0);
+    ASSERT_EQ((int)readback, 1);
+
+    /* Invalid map name returns error */
+    ASSERT_TRUE(iec61850_graph_get_filter_map_fd(g, "nonexistent") < 0);
+
+    /* NULL args return error */
+    ASSERT_TRUE(iec61850_graph_get_filter_map_fd(NULL, "goose_filter") < 0);
+    ASSERT_TRUE(iec61850_graph_get_filter_map_fd(g, NULL) < 0);
+
+    xgl_graph_destroy(g);
     PASS();
 }
 
@@ -293,6 +351,7 @@ int main(void)
     test_graph_register_nodes();
     test_graph_register_bad_dir();
     test_setup_dispatch_map();
+    test_get_filter_map_fd();
     test_full_pipeline();
 
     printf("\n%d/%d passed, %d skipped, %d failed\n",

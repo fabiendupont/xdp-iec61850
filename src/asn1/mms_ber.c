@@ -670,13 +670,18 @@ int mms_encode_initiate_response(const mms_initiate_response_t* response,
     memcpy(content + content_offset, temp_buf, ret);
     content_offset += ret;
 
-    /* negociatedMaxServOutstandingCalled [1] IMPLICIT INTEGER */
+    /* negociatedMaxServOutstandingCalling [1] IMPLICIT INTEGER */
     content[content_offset++] = 0x81;
     content[content_offset++] = 0x01;
     content[content_offset++] = 0x01;
 
-    /* negociatedDataStructureNestingLevel [2] IMPLICIT INTEGER */
+    /* negociatedMaxServOutstandingCalled [2] IMPLICIT INTEGER */
     content[content_offset++] = 0x82;
+    content[content_offset++] = 0x01;
+    content[content_offset++] = 0x04;
+
+    /* negociatedDataStructureNestingLevel [3] IMPLICIT INTEGER */
+    content[content_offset++] = 0x83;
     ret = encode_integer(response->negotiated_data_structure_nesting_level, temp_buf, sizeof(temp_buf));
     if (ret < 0) {
         return ret;
@@ -686,23 +691,29 @@ int mms_encode_initiate_response(const mms_initiate_response_t* response,
     content_offset += ret;
 
     /* initResponseDetail [4] IMPLICIT SEQUENCE {
-     *   [0] proposedParameterCBB  BIT STRING (11 bits),
-     *   [1] servicesSupported     BIT STRING (85 bits = 11 bytes)
+     *   [0] negotiatedVersionNumber  INTEGER,
+     *   [1] proposedParameterCBB     BIT STRING (11 bits),
+     *   [2] servicesSupportedCalled  BIT STRING (85 bits = 11 bytes)
      * }
      * Required by MMS clients (ISO 9506-2) to accept the association. */
     {
         uint8_t detail[64];
         size_t detail_offset = 0;
 
-        /* [0] proposedParameterCBB - BIT STRING (11 bits → 2 bytes + unused) */
+        /* [0] negotiatedVersionNumber - INTEGER = 1 */
         detail[detail_offset++] = 0x80;  /* [0] tag */
+        detail[detail_offset++] = 0x01;  /* length 1 */
+        detail[detail_offset++] = 0x01;  /* version 1 */
+
+        /* [1] proposedParameterCBB - BIT STRING (11 bits → 2 bytes + unused) */
+        detail[detail_offset++] = 0x81;  /* [1] tag */
         detail[detail_offset++] = 0x03;  /* length: 3 bytes (1 unused + 2 data) */
         detail[detail_offset++] = 0x05;  /* 5 unused bits (16 - 11 = 5) */
         detail[detail_offset++] = 0xF1;  /* CBB: str1+str2+vnam+valt+vadr (bits 0-4 set) */
         detail[detail_offset++] = 0x00;  /* remaining bits */
 
-        /* [1] servicesSupported - BIT STRING (85 bits → 11 bytes + unused) */
-        detail[detail_offset++] = 0x81;  /* [1] tag */
+        /* [2] servicesSupportedCalled - BIT STRING (85 bits → 11 bytes + unused) */
+        detail[detail_offset++] = 0x82;  /* [2] tag */
         detail[detail_offset++] = 0x0C;  /* length: 12 bytes (1 unused + 11 data) */
         detail[detail_offset++] = 0x03;  /* 3 unused bits (88 - 85 = 3) */
         /* Services supported bitmap (85 bits, MSB first):
@@ -921,42 +932,35 @@ static int encode_read_req_body(const mms_confirmed_request_t *request,
     (void)buflen;
     size_t domain_len = strlen(request->params.read.variable_spec.domain);
     size_t item_len = strlen(request->params.read.variable_spec.item_id);
-    size_t o = 0;
 
     /*
      * Read-Request ::= SEQUENCE {
-     *   specificationWithResult [0] IMPLICIT BOOLEAN OPTIONAL,
-     *   variableAccessSpec CHOICE {
+     *   specificationWithResult [0] IMPLICIT BOOLEAN DEFAULT FALSE,  -- omitted
+     *   variableAccessSpecification [1] CHOICE {
      *     listOfVariable [0] IMPLICIT SEQUENCE OF SEQUENCE {
-     *       variableSpecification VariableSpecification
-     *     }
-     *   }
-     * }
+     *       variableSpecification CHOICE {
+     *         name [0] ObjectName CHOICE {
+     *           domain-specific [1] IMPLICIT SEQUENCE {
+     *             domainId VisibleString,
+     *             itemId VisibleString
+     * }}}}}}
      *
-     * VariableSpecification CHOICE {
-     *   name [0] ObjectName CHOICE {
-     *     domain-specific [1] IMPLICIT SEQUENCE {
-     *       domainId VisibleString,
-     *       itemId VisibleString
-     *     }
-     *   }
-     * }
+     * The [1] wrapper avoids tag conflict with specificationWithResult [0].
      */
+    size_t ds_content = (2 + domain_len) + (2 + item_len);
+    size_t ds_total = 2 + ds_content;   /* A1 + len */
+    size_t name_total = 2 + ds_total;   /* A0 + len */
+    size_t seq_total = 2 + name_total;  /* 30 + len */
+    size_t lov_content = seq_total;
+    size_t lov_total = 2 + lov_content; /* A0 + len */
 
-    /* domain-specific [1] SEQUENCE { domainId, itemId } */
-    size_t ds_content = (2 + domain_len) + (2 + item_len);  /* inside A1 */
-    size_t ds_total = 2 + ds_content;                         /* A1 + len + content */
-    size_t name_total = 2 + ds_total;                         /* A0 + len + A1 element */
-    size_t seq_total = 2 + name_total;                        /* 30 + len + A0 element */
-    size_t lov_content = seq_total;                           /* inside listOfVariable [0] */
-    size_t lov_total = 2 + lov_content;                       /* A0 + len + content */
-
-    /* variableAccessSpecification wrapped in [1] per MMS/IEC 61850 encoding */
-    buf[o++] = 0xA1;  /* [1] CONSTRUCTED */
+    size_t o = 0;
+    /* variableAccessSpecification [1] CONSTRUCTED */
+    buf[o++] = 0xA1;
     buf[o++] = (uint8_t)lov_total;
 
     /* listOfVariable [0] IMPLICIT SEQUENCE OF */
-    buf[o++] = 0xA0;  /* [0] CONSTRUCTED */
+    buf[o++] = 0xA0;
     buf[o++] = (uint8_t)lov_content;
 
     /* SEQUENCE (one variable) */
@@ -988,35 +992,65 @@ static int encode_read_req_body(const mms_confirmed_request_t *request,
 
 static int encode_write_req_body(const mms_confirmed_request_t *request,
                        uint8_t *buf, size_t buflen) {
-    uint8_t temp_buf[16];
     int ret;
-    (void)temp_buf; (void)ret; (void)buflen;
-    size_t domain_len;
-    size_t item_len;
-    /* Write-Request: variableAccessSpecification + data */
-    size_t write_offset = 0;
-    buf[write_offset++] = 0xA0;  /* variableAccessSpecification */
-    domain_len = strlen(request->params.write.variable_spec.domain);
-    item_len = strlen(request->params.write.variable_spec.item_id);
-    buf[write_offset++] = (uint8_t)(1 + domain_len + 1 + item_len);
-    buf[write_offset++] = (uint8_t)domain_len;
-    memcpy(buf + write_offset, request->params.write.variable_spec.domain, domain_len);
-    write_offset += domain_len;
-    buf[write_offset++] = (uint8_t)item_len;
-    memcpy(buf + write_offset, request->params.write.variable_spec.item_id, item_len);
-    write_offset += item_len;
+    size_t domain_len = strlen(request->params.write.variable_spec.domain);
+    size_t item_len = strlen(request->params.write.variable_spec.item_id);
 
-    /* data [1] IMPLICIT Data */
-    buf[write_offset++] = 0xA1;  /* [1] IMPLICIT */
-    ret = mms_encode_value(&request->params.write.value, buf + write_offset + 1, buflen - write_offset - 1);
+    /*
+     * Write-Request ::= SEQUENCE {
+     *   variableAccessSpecification VariableAccessSpecification,
+     *   listOfData [0] IMPLICIT SEQUENCE OF Data
+     * }
+     *
+     * variableAccessSpecification: listOfVariable [0] { 30 { A0 { A1 { 1A dom 1A item }}}}
+     * No [1] wrapper needed (unlike Read — Write has no specificationWithResult).
+     */
+    size_t ds_content = (2 + domain_len) + (2 + item_len);
+    size_t ds_total = 2 + ds_content;
+    size_t name_total = 2 + ds_total;
+    size_t seq_total = 2 + name_total;
+
+    size_t o = 0;
+
+    /* listOfVariable [0] CONSTRUCTED */
+    buf[o++] = 0xA0;
+    buf[o++] = (uint8_t)seq_total;
+
+    /* SEQUENCE (one variable) */
+    buf[o++] = 0x30;
+    buf[o++] = (uint8_t)name_total;
+
+    /* variableSpecification: name [0] */
+    buf[o++] = 0xA0;
+    buf[o++] = (uint8_t)ds_total;
+
+    /* domain-specific [1] IMPLICIT SEQUENCE */
+    buf[o++] = 0xA1;
+    buf[o++] = (uint8_t)ds_content;
+
+    /* domainId: VisibleString */
+    buf[o++] = 0x1A;
+    buf[o++] = (uint8_t)domain_len;
+    memcpy(buf + o, request->params.write.variable_spec.domain, domain_len);
+    o += domain_len;
+
+    /* itemId: VisibleString */
+    buf[o++] = 0x1A;
+    buf[o++] = (uint8_t)item_len;
+    memcpy(buf + o, request->params.write.variable_spec.item_id, item_len);
+    o += item_len;
+
+    /* listOfData [0] IMPLICIT SEQUENCE OF Data */
+    buf[o++] = 0xA0;
+    ret = mms_encode_value(&request->params.write.value, buf + o + 1, buflen - o - 1);
     if (ret < 0) {
         return ret;
     }
-    buf[write_offset] = (uint8_t)ret;
-    write_offset++;
-    /* Value already encoded at correct position (write_offset), no memmove needed */
-    write_offset += ret;
-    return (int)(write_offset);
+    buf[o] = (uint8_t)ret;
+    o++;
+    o += (size_t)ret;
+
+    return (int)o;
 }
 
 static int encode_get_namelist_req_body(const mms_confirmed_request_t *request,
@@ -1049,20 +1083,26 @@ static int encode_get_namelist_req_body(const mms_confirmed_request_t *request,
 
 static int encode_get_variable_attrs_req_body(const mms_confirmed_request_t *request,
                        uint8_t *buf, size_t buflen) {
-    (void)buflen;
-    size_t domain_len = strlen(request->params.getvariableattrs.variable_spec.domain);
-    size_t item_len = strlen(request->params.getvariableattrs.variable_spec.item_id);
-    size_t o = 0;
-
+    uint8_t temp_buf[16];
+    int ret;
+    (void)temp_buf; (void)ret; (void)buflen;
+    size_t domain_len;
+    size_t item_len;
     /* GetVariableAccessAttributes-Request ::= CHOICE {
-     *   name [0] ObjectName { domain-specific [1] { domainId, itemId } }
-     * } */
+     *   name [0] ObjectName CHOICE {
+     *     domain-specific [1] IMPLICIT SEQUENCE {
+     *       domainId VisibleString, itemId VisibleString
+     * }}}
+     */
+    domain_len = strlen(request->params.getvariableattrs.variable_spec.domain);
+    item_len = strlen(request->params.getvariableattrs.variable_spec.item_id);
+
     size_t ds_content = (2 + domain_len) + (2 + item_len);
-    size_t ds_total = 2 + ds_content;
+    size_t o = 0;
 
     /* name [0] CONSTRUCTED */
     buf[o++] = 0xA0;
-    buf[o++] = (uint8_t)ds_total;
+    buf[o++] = (uint8_t)(2 + ds_content);
 
     /* domain-specific [1] IMPLICIT SEQUENCE */
     buf[o++] = 0xA1;
@@ -1658,6 +1698,10 @@ int mms_encode_confirmed_request(const mms_confirmed_request_t* request,
     int service_len;
 
     switch (request->service) {
+        case MMS_SERVICE_TYPE_IDENTIFY:
+            service_tag = MMS_SERVICE_IDENTIFY;
+            service_len = 0;  /* Identify-Request is NULL (empty) */
+            break;
         case MMS_SERVICE_TYPE_READ:
             service_tag = MMS_SERVICE_READ;
             service_len = encode_read_req_body(request, service_buf, sizeof(service_buf));
@@ -1855,7 +1899,15 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
         return MMS_ERROR_INVALID_ENCODING;
     }
 
-    uint8_t service_tag = buffer[offset++];
+    uint8_t raw_service_tag = buffer[offset++];
+    /* Normalize: set the constructed bit so both 0x8x and 0xAx match.
+     * Our defines use 0xA0|n for SEQUENCE services.
+     * Exceptions: 0x80 (STATUS), 0x82 (IDENTIFY), 0x90 (FILE_CLOSE). */
+    uint8_t tag_num = raw_service_tag & 0x1F;
+    uint8_t service_tag = raw_service_tag;
+    if (tag_num != 0 && tag_num != 2 && raw_service_tag != 0x90) {
+        service_tag = raw_service_tag | 0x20;
+    }
     ret = mms_decode_length(buffer + offset, buflen - offset, &field_len);
     if (ret < 0) {
         return ret;
@@ -1864,114 +1916,95 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
 
     switch (service_tag) {
         case MMS_SERVICE_READ:
-            /* Parse variableAccessSpecification.
-             * Standard format: A1 { A0 { 30 { A0 { A1 { 1A domainId 1A itemId }}}}}
-             * Legacy format: A0 { domain_len domain item_len item }
-             */
-            if (buffer[offset] == 0xA1) {
-                /* A1 can be either:
-                 * - Standard Read: A1 { A0 { 30 ... }} — inner starts with 0xA0
-                 * - ReadNamedVariableList: A1 { domLen dom listLen list } — inner starts with raw byte
-                 * Check the first byte after A1's length to distinguish. */
-                size_t a1_start = offset + 1;
-                size_t a1_inner_len;
-                int a1_ret = mms_decode_length(buffer + a1_start, buflen - a1_start, &a1_inner_len);
-                size_t first_inner = a1_start + (a1_ret > 0 ? (size_t)a1_ret : 1);
-
-                if (first_inner < offset + field_len && buffer[first_inner] == 0xA0) {
-                    /* Standard Read format — nested A0 */
-                    request->service = MMS_SERVICE_TYPE_READ;
+            /* Read-Request: [0] specificationWithResult (optional, skipped),
+             * then variableAccessSpecification wrapped in [1].
+             * Inside [1]: listOfVariable [0] or variableListName [1]. */
+            {
                 size_t read_end = offset + field_len;
 
-                /* Scan for the innermost domain-specific data:
-                 * Skip nested wrappers (A1, A0, 30) until we find 0x1A (VisibleString) */
-                size_t scan = offset;
-                while (scan + 2 < read_end) {
-                    uint8_t t = buffer[scan];
-                    if (t == 0x1A) break;  /* Found VisibleString = domainId */
-                    scan++;
-                    size_t skip;
-                    ret = mms_decode_length(buffer + scan, read_end - scan, &skip);
-                    if (ret < 0) break;
-                    scan += (size_t)ret;
-                    /* For CONSTRUCTED tags, descend into content */
-                    if (t & 0x20) continue;  /* CONSTRUCTED — content follows */
-                    scan += skip;  /* PRIMITIVE — skip content */
+                /* Skip specificationWithResult [0] if present */
+                if (buffer[offset] == 0x80) {
+                    offset++;
+                    size_t swrlen;
+                    ret = mms_decode_length(buffer + offset, read_end - offset, &swrlen);
+                    if (ret < 0) return ret;
+                    offset += ret + swrlen;
                 }
 
-                if (scan + 2 < read_end && buffer[scan] == 0x1A) {
-                    /* domainId: VisibleString (0x1A) */
-                    scan++;
-                    size_t domain_len = buffer[scan++];
-                    if (domain_len < MMS_MAX_DOMAIN_NAME) {
-                        memcpy(request->params.read.variable_spec.domain, buffer + scan, domain_len);
-                        request->params.read.variable_spec.domain[domain_len] = '\0';
-                    }
-                    scan += domain_len;
+                /* variableAccessSpecification [1] CONSTRUCTED */
+                if (offset < read_end && buffer[offset] == 0xA1) {
+                    offset++;
+                    size_t vas_len;
+                    ret = mms_decode_length(buffer + offset, read_end - offset, &vas_len);
+                    if (ret < 0) return ret;
+                    offset += ret;
+                    size_t vas_end = offset + vas_len;
 
-                    /* itemId: VisibleString (0x1A) */
-                    if (scan + 2 <= read_end && buffer[scan] == 0x1A) {
-                        scan++;
-                        size_t item_len = buffer[scan++];
-                        if (item_len < MMS_MAX_VARIABLE_NAME) {
-                            memcpy(request->params.read.variable_spec.item_id, buffer + scan, item_len);
-                            request->params.read.variable_spec.item_id[item_len] = '\0';
+                    if (offset < vas_end && buffer[offset] == 0xA0) {
+                        /* listOfVariable [0] — Read */
+                        request->service = MMS_SERVICE_TYPE_READ;
+
+                        /* Scan for VisibleString (0x1A) tags */
+                        size_t scan = offset;
+                        while (scan + 2 < vas_end) {
+                            uint8_t t = buffer[scan];
+                            if (t == 0x1A) break;
+                            scan++;
+                            size_t skip;
+                            ret = mms_decode_length(buffer + scan, vas_end - scan, &skip);
+                            if (ret < 0) break;
+                            scan += (size_t)ret;
+                            if (t & 0x20) continue;
+                            scan += skip;
+                        }
+
+                        if (scan + 2 < vas_end && buffer[scan] == 0x1A) {
+                            scan++;
+                            size_t domain_len = buffer[scan++];
+                            if (domain_len < MMS_MAX_DOMAIN_NAME) {
+                                memcpy(request->params.read.variable_spec.domain,
+                                       buffer + scan, domain_len);
+                                request->params.read.variable_spec.domain[domain_len] = '\0';
+                            }
+                            scan += domain_len;
+
+                            if (scan + 2 <= vas_end && buffer[scan] == 0x1A) {
+                                scan++;
+                                size_t item_len = buffer[scan++];
+                                if (item_len < MMS_MAX_VARIABLE_NAME) {
+                                    memcpy(request->params.read.variable_spec.item_id,
+                                           buffer + scan, item_len);
+                                    request->params.read.variable_spec.item_id[item_len] = '\0';
+                                }
+                            }
+                        }
+                    } else {
+                        /* variableListName — ReadNamedVariableList.
+                         * Content is bare domain_len + domain + list_name_len + list_name */
+                        request->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+                        if (offset < vas_end) {
+                            size_t rnvl_dom_len = buffer[offset++];
+                            if (rnvl_dom_len < MMS_MAX_DOMAIN_NAME) {
+                                memcpy(request->params.readnamedvarlist.domain,
+                                       buffer + offset, rnvl_dom_len);
+                                request->params.readnamedvarlist.domain[rnvl_dom_len] = '\0';
+                            }
+                            offset += rnvl_dom_len;
+
+                            size_t rnvl_name_len = buffer[offset++];
+                            if (rnvl_name_len < MMS_MAX_VARIABLE_NAME) {
+                                memcpy(request->params.readnamedvarlist.list_name,
+                                       buffer + offset, rnvl_name_len);
+                                request->params.readnamedvarlist.list_name[rnvl_name_len] = '\0';
+                            }
                         }
                     }
-                }
-                offset = read_end;
+                    offset = read_end;
                 } else {
-                    /* ReadNamedVariableList: A1 { domLen dom listLen list } */
-                    request->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
-                    offset++;
-                    size_t rnvl_spec_len;
-                    ret = mms_decode_length(buffer + offset, buflen - offset, &rnvl_spec_len);
-                    if (ret < 0) { return ret; }
-                    offset += ret;
-
-                    size_t rnvl_dom_len = buffer[offset++];
-                    if (rnvl_dom_len >= MMS_MAX_DOMAIN_NAME) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
-                    }
-                    memcpy(request->params.readnamedvarlist.domain, buffer + offset, rnvl_dom_len);
-                    request->params.readnamedvarlist.domain[rnvl_dom_len] = '\0';
-                    offset += rnvl_dom_len;
-
-                    size_t rnvl_name_len = buffer[offset++];
-                    if (rnvl_name_len >= MMS_MAX_VARIABLE_NAME) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
-                    }
-                    memcpy(request->params.readnamedvarlist.list_name, buffer + offset, rnvl_name_len);
-                    request->params.readnamedvarlist.list_name[rnvl_name_len] = '\0';
-                    offset += rnvl_name_len;
+                    /* No [1] wrapper — legacy flat format */
+                    request->service = MMS_SERVICE_TYPE_READ;
+                    offset = read_end;
                 }
-            } else if (buffer[offset] == 0xA0) {  /* Legacy format */
-                request->service = MMS_SERVICE_TYPE_READ;
-                offset++;
-                size_t spec_len;
-                ret = mms_decode_length(buffer + offset, buflen - offset, &spec_len);
-                if (ret < 0) {
-                    return ret;
-                }
-                offset += ret;
-
-                /* domain name */
-                size_t domain_len = buffer[offset++];
-                if (domain_len >= MMS_MAX_DOMAIN_NAME) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.read.variable_spec.domain, buffer + offset, domain_len);
-                request->params.read.variable_spec.domain[domain_len] = '\0';
-                offset += domain_len;
-
-                /* item name */
-                size_t item_len = buffer[offset++];
-                if (item_len >= MMS_MAX_VARIABLE_NAME) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.read.variable_spec.item_id, buffer + offset, item_len);
-                request->params.read.variable_spec.item_id[item_len] = '\0';
-                offset += item_len;
             }
             break;
 
@@ -2023,35 +2056,55 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     }
                 }
             } else {
-                /* Write-Request: variableAccessSpecification [0] + data [1] */
+                /* Write-Request: variableAccessSpecification [0] + listOfData [0] */
                 request->service = MMS_SERVICE_TYPE_WRITE;
-                if (buffer[offset] == 0xA0) {  /* variableAccessSpecification */
+                if (buffer[offset] == 0xA0) {
+                    /* First [0]: variableAccessSpecification listOfVariable */
                     offset++;
-                    size_t spec_len;
-                    ret = mms_decode_length(buffer + offset, buflen - offset, &spec_len);
+                    size_t vas_len;
+                    ret = mms_decode_length(buffer + offset, buflen - offset, &vas_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    size_t vas_end = offset + vas_len;
 
-                    /* domain name */
-                    size_t wr_domain_len = buffer[offset++];
-                    if (wr_domain_len >= MMS_MAX_DOMAIN_NAME) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    /* Scan for VisibleString (0x1A) tags */
+                    size_t scan = offset;
+                    while (scan + 2 < vas_end) {
+                        uint8_t t = buffer[scan];
+                        if (t == 0x1A) break;
+                        scan++;
+                        size_t skip;
+                        ret = mms_decode_length(buffer + scan, vas_end - scan, &skip);
+                        if (ret < 0) break;
+                        scan += (size_t)ret;
+                        if (t & 0x20) continue;
+                        scan += skip;
                     }
-                    memcpy(request->params.write.variable_spec.domain, buffer + offset, wr_domain_len);
-                    request->params.write.variable_spec.domain[wr_domain_len] = '\0';
-                    offset += wr_domain_len;
 
-                    /* item name */
-                    size_t wr_item_len = buffer[offset++];
-                    if (wr_item_len >= MMS_MAX_VARIABLE_NAME) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    if (scan + 2 < vas_end && buffer[scan] == 0x1A) {
+                        scan++;
+                        size_t wr_domain_len = buffer[scan++];
+                        if (wr_domain_len < MMS_MAX_DOMAIN_NAME) {
+                            memcpy(request->params.write.variable_spec.domain,
+                                   buffer + scan, wr_domain_len);
+                            request->params.write.variable_spec.domain[wr_domain_len] = '\0';
+                        }
+                        scan += wr_domain_len;
+
+                        if (scan + 2 <= vas_end && buffer[scan] == 0x1A) {
+                            scan++;
+                            size_t wr_item_len = buffer[scan++];
+                            if (wr_item_len < MMS_MAX_VARIABLE_NAME) {
+                                memcpy(request->params.write.variable_spec.item_id,
+                                       buffer + scan, wr_item_len);
+                                request->params.write.variable_spec.item_id[wr_item_len] = '\0';
+                            }
+                        }
                     }
-                    memcpy(request->params.write.variable_spec.item_id, buffer + offset, wr_item_len);
-                    request->params.write.variable_spec.item_id[wr_item_len] = '\0';
-                    offset += wr_item_len;
+                    offset = vas_end;
                 }
-                /* data [1] IMPLICIT Data */
-                if (offset < end && buffer[offset] == 0xA1) {
+                /* listOfData [0] IMPLICIT SEQUENCE OF Data */
+                if (offset < end && buffer[offset] == 0xA0) {
                     offset++;
                     size_t data_len;
                     ret = mms_decode_length(buffer + offset, buflen - offset, &data_len);
@@ -2063,6 +2116,11 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     offset += data_len;
                 }
             }
+            break;
+
+        case MMS_SERVICE_IDENTIFY:
+            request->service = MMS_SERVICE_TYPE_IDENTIFY;
+            offset += field_len;
             break;
 
         case MMS_SERVICE_GET_NAMELIST:
@@ -2078,15 +2136,17 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     offset += ret;
 
                     switch (gnl_tag) {
-                        case 0xA0:  /* extendedObjectClass [0] CONSTRUCTED { [0] INTEGER } */
-                            if (gnl_tag_len >= 3 && buffer[offset] == 0x80 && buffer[offset + 1] >= 1) {
-                                request->params.getnamelist.object_class =
-                                    (mms_object_class_t)buffer[offset + 2];
-                            }
-                            break;
-                        case 0x80:  /* objectClass [0] IMPLICIT INTEGER (legacy) */
+                        case 0x80:  /* objectClass [0] IMPLICIT INTEGER */
                             if (gnl_tag_len >= 1) {
                                 request->params.getnamelist.object_class = (mms_object_class_t)buffer[offset];
+                            }
+                            break;
+                        case 0xA0:  /* extendedObjectClass [0] CONSTRUCTED { objectClass [0] } */
+                            if (gnl_tag_len >= 3 && buffer[offset] == 0x80) {
+                                size_t oc_len = buffer[offset + 1];
+                                if (oc_len >= 1) {
+                                    request->params.getnamelist.object_class = (mms_object_class_t)buffer[offset + 2];
+                                }
                             }
                             break;
                         case 0xA1:  /* objectScope [1] */
@@ -2116,42 +2176,47 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
 
         case MMS_SERVICE_GET_VARIABLE_ATTRS:
             request->service = MMS_SERVICE_TYPE_GET_VARIABLE_ATTRS;
-            /* GetVariableAccessAttributes-Request: name [0] { domain-specific [1] { 1A dom 1A item } } */
-            {
+            /* GetVariableAccessAttributes-Request: name [0] { A1 { 1A dom 1A item } } */
+            if (buffer[offset] == 0xA0) {
                 size_t gva_end = offset + field_len;
-                /* Scan for VisibleString tags (0x1A) through nested wrappers */
-                size_t gva_scan = offset;
-                while (gva_scan + 2 < gva_end) {
-                    uint8_t t = buffer[gva_scan];
+
+                /* Scan for VisibleString (0x1A) tags inside nested wrappers */
+                size_t scan = offset;
+                while (scan + 2 < gva_end) {
+                    uint8_t t = buffer[scan];
                     if (t == 0x1A) break;
-                    gva_scan++;
+                    scan++;
                     size_t skip;
-                    ret = mms_decode_length(buffer + gva_scan, gva_end - gva_scan, &skip);
+                    ret = mms_decode_length(buffer + scan, gva_end - scan, &skip);
                     if (ret < 0) break;
-                    gva_scan += (size_t)ret;
-                    if (t & 0x20) continue;  /* CONSTRUCTED — descend */
-                    gva_scan += skip;
+                    scan += (size_t)ret;
+                    if (t & 0x20) continue;
+                    scan += skip;
                 }
 
-                if (gva_scan + 2 < gva_end && buffer[gva_scan] == 0x1A) {
-                    gva_scan++;
-                    size_t gva_dom_len = buffer[gva_scan++];
+                if (scan + 2 < gva_end && buffer[scan] == 0x1A) {
+                    scan++;
+                    size_t gva_dom_len = buffer[scan++];
                     if (gva_dom_len < MMS_MAX_DOMAIN_NAME) {
-                        memcpy(request->params.getvariableattrs.variable_spec.domain, buffer + gva_scan, gva_dom_len);
+                        memcpy(request->params.getvariableattrs.variable_spec.domain,
+                               buffer + scan, gva_dom_len);
                         request->params.getvariableattrs.variable_spec.domain[gva_dom_len] = '\0';
                     }
-                    gva_scan += gva_dom_len;
+                    scan += gva_dom_len;
 
-                    if (gva_scan + 2 <= gva_end && buffer[gva_scan] == 0x1A) {
-                        gva_scan++;
-                        size_t gva_item_len = buffer[gva_scan++];
+                    if (scan + 2 <= gva_end && buffer[scan] == 0x1A) {
+                        scan++;
+                        size_t gva_item_len = buffer[scan++];
                         if (gva_item_len < MMS_MAX_VARIABLE_NAME) {
-                            memcpy(request->params.getvariableattrs.variable_spec.item_id, buffer + gva_scan, gva_item_len);
+                            memcpy(request->params.getvariableattrs.variable_spec.item_id,
+                                   buffer + scan, gva_item_len);
                             request->params.getvariableattrs.variable_spec.item_id[gva_item_len] = '\0';
                         }
                     }
                 }
                 offset = gva_end;
+            } else {
+                offset += field_len;
             }
             break;
 
@@ -2925,7 +2990,7 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
     uint8_t content[MMS_MAX_PDU_SIZE];
     size_t content_offset = 0;
 
-    /* invokeID — UNIVERSAL INTEGER for interop */
+    /* invokeID — encoded as UNIVERSAL INTEGER (0x02) for interop */
     content[content_offset++] = 0x02;
     uint8_t temp_buf[16];
     int ret = encode_integer(response->invoke_id, temp_buf, sizeof(temp_buf));
@@ -2942,6 +3007,57 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
     int service_len;
 
     switch (response->service) {
+        case MMS_SERVICE_TYPE_IDENTIFY:
+            service_tag = 0xA2;  /* Identify response is SEQUENCE → CONSTRUCTED */
+            /* Identify-Response ::= SEQUENCE {
+             *   vendorName [0] IMPLICIT VisibleString,
+             *   modelName  [1] IMPLICIT VisibleString,
+             *   revision   [2] IMPLICIT VisibleString } */
+            {
+                size_t o = 0;
+                size_t vn_len = strlen(response->params.identify.vendor_name);
+                size_t mn_len = strlen(response->params.identify.model_name);
+                size_t rv_len = strlen(response->params.identify.revision);
+
+                service_buf[o++] = 0x80;  /* vendorName [0] */
+                service_buf[o++] = (uint8_t)vn_len;
+                memcpy(service_buf + o, response->params.identify.vendor_name, vn_len);
+                o += vn_len;
+
+                service_buf[o++] = 0x81;  /* modelName [1] */
+                service_buf[o++] = (uint8_t)mn_len;
+                memcpy(service_buf + o, response->params.identify.model_name, mn_len);
+                o += mn_len;
+
+                service_buf[o++] = 0x82;  /* revision [2] */
+                service_buf[o++] = (uint8_t)rv_len;
+                memcpy(service_buf + o, response->params.identify.revision, rv_len);
+                o += rv_len;
+
+                service_len = (int)o;
+            }
+            break;
+
+        case MMS_SERVICE_TYPE_READ_NAMED_VARLIST:
+            /* ReadNamedVariableList response — multiple values in listOfAccessResult */
+            service_tag = MMS_SERVICE_READ;
+            {
+                size_t rnvl_o = 0;
+                service_buf[rnvl_o++] = 0xA1;  /* listOfAccessResult [1] */
+                size_t rnvl_vals_start = rnvl_o + 1;
+                rnvl_o++;  /* skip length placeholder */
+                for (uint32_t i = 0; i < response->params.readnamedvarlist.num_values; i++) {
+                    ret = mms_encode_value(&response->params.readnamedvarlist.values[i],
+                                           service_buf + rnvl_o,
+                                           sizeof(service_buf) - rnvl_o);
+                    if (ret < 0) return ret;
+                    rnvl_o += (size_t)ret;
+                }
+                service_buf[rnvl_vals_start - 1] = (uint8_t)(rnvl_o - rnvl_vals_start);
+                service_len = (int)rnvl_o;
+            }
+            break;
+
         case MMS_SERVICE_TYPE_READ:
             service_tag = MMS_SERVICE_READ;
             /* Read-Response: listOfAccessResult [1] */
@@ -2956,37 +3072,34 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
 
         case MMS_SERVICE_TYPE_WRITE:
             service_tag = MMS_SERVICE_WRITE;
-            /* Write-Response: empty (success indication) */
-            service_buf[0] = 0xA1;  /* [1] IMPLICIT SEQUENCE OF */
-            service_buf[1] = 0x01;
-            service_buf[2] = 0x00;  /* success */
-            service_len = 3;
+            /* Write-Response: success [1] IMPLICIT NULL */
+            service_buf[0] = 0x81;  /* success [1] PRIMITIVE */
+            service_buf[1] = 0x00;  /* length 0 */
+            service_len = 2;
             break;
 
         case MMS_SERVICE_TYPE_GET_NAMELIST:
             service_tag = MMS_SERVICE_GET_NAMELIST;
-            /* GetNameList-Response: listOfIdentifier [0] + moreFollows [1] */
+            /* GetNameList-Response: listOfIdentifier [0] { VisibleString* }
+             *                      moreFollows [1] IMPLICIT BOOLEAN */
             {
-                size_t names_offset = 0;
-                service_buf[names_offset++] = 0xA0;  /* listOfIdentifier [0] */
-                size_t list_len_pos = names_offset++;  /* placeholder */
-
+                size_t gnl_o = 0;
+                service_buf[gnl_o++] = 0xA0;  /* listOfIdentifier [0] */
+                size_t gnl_list_start = gnl_o + 1;  /* skip length byte */
+                gnl_o++;
                 for (uint32_t i = 0; i < response->params.getnamelist.num_identifiers; i++) {
                     size_t name_len = strlen(response->params.getnamelist.identifiers[i]);
-                    service_buf[names_offset++] = 0x1A;  /* VisibleString tag */
-                    service_buf[names_offset++] = (uint8_t)name_len;
-                    memcpy(service_buf + names_offset,
-                           response->params.getnamelist.identifiers[i], name_len);
-                    names_offset += name_len;
+                    service_buf[gnl_o++] = 0x1A;  /* VisibleString */
+                    service_buf[gnl_o++] = (uint8_t)name_len;
+                    memcpy(service_buf + gnl_o, response->params.getnamelist.identifiers[i], name_len);
+                    gnl_o += name_len;
                 }
-                service_buf[list_len_pos] = (uint8_t)(names_offset - list_len_pos - 1);
-
-                /* moreFollows [1] IMPLICIT BOOLEAN */
-                service_buf[names_offset++] = 0x81;
-                service_buf[names_offset++] = 0x01;
-                service_buf[names_offset++] = response->params.getnamelist.more_follows ? 0xFF : 0x00;
-
-                service_len = (int)names_offset;
+                service_buf[gnl_list_start - 1] = (uint8_t)(gnl_o - gnl_list_start);
+                /* moreFollows [1] IMPLICIT BOOLEAN = FALSE */
+                service_buf[gnl_o++] = 0x81;
+                service_buf[gnl_o++] = 0x01;
+                service_buf[gnl_o++] = 0x00;
+                service_len = (int)gnl_o;
             }
             break;
 
@@ -3009,16 +3122,14 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
 
         case MMS_SERVICE_TYPE_DEFINE_NAMED_VARLIST:
             service_tag = MMS_SERVICE_DEFINE_NAMED_VARLIST;
-            /* DefineNamedVariableList-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            /* DefineNamedVariableList-Response: NULL (empty) */
+            service_len = 0;
             break;
 
         case MMS_SERVICE_TYPE_DELETE_NAMED_VARLIST:
             service_tag = MMS_SERVICE_DELETE_NAMED_VARLIST;
-            /* DeleteNamedVariableList-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            /* DeleteNamedVariableList-Response: NULL (empty) */
+            service_len = 0;
             break;
 
         case MMS_SERVICE_TYPE_GET_NAMED_VARLIST_ATTRS:
@@ -3107,8 +3218,7 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
         case MMS_SERVICE_TYPE_CANCEL:
             service_tag = MMS_SERVICE_CANCEL;
             /* Cancel-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            service_len = 0;
             break;
 
         /* Phase 7 Week 2: File Services */
@@ -3154,15 +3264,13 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
         case MMS_SERVICE_TYPE_FILE_CLOSE:
             service_tag = MMS_SERVICE_FILE_CLOSE;
             /* FileClose-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            service_len = 0;
             break;
 
         case MMS_SERVICE_TYPE_FILE_DELETE:
             service_tag = MMS_SERVICE_FILE_DELETE;
             /* FileDelete-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            service_len = 0;
             break;
 
         case MMS_SERVICE_TYPE_FILE_DIRECTORY:
@@ -3254,23 +3362,20 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
         case MMS_SERVICE_TYPE_INITIALIZE_JOURNAL:
             service_tag = MMS_SERVICE_INITIALIZE_JOURNAL;
             /* InitializeJournal-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            service_len = 0;
             break;
 
         /* Phase 7 Week 4: Type Services */
         case MMS_SERVICE_TYPE_DEFINE_NAMED_TYPE:
             service_tag = MMS_SERVICE_DEFINE_NAMED_TYPE;
             /* DefineNamedType-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            service_len = 0;
             break;
 
         case MMS_SERVICE_TYPE_DELETE_NAMED_TYPE:
             service_tag = MMS_SERVICE_DELETE_NAMED_TYPE;
             /* DeleteNamedType-Response: empty (success indication) */
-            service_buf[0] = 0x00;  /* Empty response */
-            service_len = 1;
+            service_len = 0;
             break;
 
         case MMS_SERVICE_TYPE_GET_NAMED_TYPE_ATTRS:
@@ -3363,7 +3468,15 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
         return MMS_ERROR_INVALID_ENCODING;
     }
 
-    uint8_t service_tag = buffer[offset++];
+    uint8_t raw_service_tag = buffer[offset++];
+    /* Normalize: set the constructed bit so both 0x8x and 0xAx match.
+     * Response Identify uses 0xA2 (constructed SEQUENCE), so no exception for tag 2.
+     * Exceptions: 0x80 (STATUS), 0x90 (FILE_CLOSE). */
+    uint8_t tag_num = raw_service_tag & 0x1F;
+    uint8_t service_tag = raw_service_tag;
+    if (tag_num != 0 && raw_service_tag != 0x90) {
+        service_tag = raw_service_tag | 0x20;
+    }
     ret = mms_decode_length(buffer + offset, buflen - offset, &field_len);
     if (ret < 0) {
         return ret;
@@ -3371,6 +3484,47 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
     offset += ret;
 
     switch (service_tag) {
+        case 0xA2:  /* Identify response [2] CONSTRUCTED */
+            response->service = MMS_SERVICE_TYPE_IDENTIFY;
+            {
+                size_t id_end = offset + field_len;
+                /* Parse [0] vendorName, [1] modelName, [2] revision */
+                while (offset < id_end) {
+                    uint8_t id_tag = buffer[offset++];
+                    size_t id_len;
+                    ret = mms_decode_length(buffer + offset, buflen - offset, &id_len);
+                    if (ret < 0) return ret;
+                    offset += ret;
+                    switch (id_tag) {
+                        case 0x80:
+                            if (id_len < MMS_MAX_VARIABLE_NAME) {
+                                memcpy(response->params.identify.vendor_name,
+                                       buffer + offset, id_len);
+                                response->params.identify.vendor_name[id_len] = '\0';
+                            }
+                            break;
+                        case 0x81:
+                            if (id_len < MMS_MAX_VARIABLE_NAME) {
+                                memcpy(response->params.identify.model_name,
+                                       buffer + offset, id_len);
+                                response->params.identify.model_name[id_len] = '\0';
+                            }
+                            break;
+                        case 0x82:
+                            if (id_len < MMS_MAX_VARIABLE_NAME) {
+                                memcpy(response->params.identify.revision,
+                                       buffer + offset, id_len);
+                                response->params.identify.revision[id_len] = '\0';
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                    offset += id_len;
+                }
+            }
+            break;
+
         case MMS_SERVICE_READ:
             /* Read can be either single value or named variable list */
             /* Decode listOfAccessResult [1] IMPLICIT SEQUENCE */
@@ -3383,6 +3537,14 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 }
                 offset += ret;
                 size_t result_end = offset + result_len;
+
+                /* Check for AccessResult failure [0] */
+                if (offset < result_end && buffer[offset] == 0x80) {
+                    /* failure [0] IMPLICIT INTEGER — data access error */
+                    response->service = MMS_SERVICE_TYPE_READ;
+                    offset = result_end;
+                    return MMS_ERROR_SERVICE_ERROR;
+                }
 
                 /* Try to decode multiple values (ReadNamedVariableList) */
                 uint32_t num_values = 0;
@@ -3409,9 +3571,10 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     response->params.readnamedvarlist.num_values = num_values;
                     offset = temp_offset;
                 } else {
-                    /* Failed to decode - default to Read */
+                    /* Failed to decode — unknown content */
                     response->service = MMS_SERVICE_TYPE_READ;
-                    offset += result_len;
+                    offset = result_end;
+                    return MMS_ERROR_SERVICE_ERROR;
                 }
             } else {
                 response->service = MMS_SERVICE_TYPE_READ;
@@ -3443,9 +3606,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     response->params.getnamelist.num_identifiers = 0;
                     while (offset < list_end && response->params.getnamelist.num_identifiers < MMS_MAX_NAMED_VARIABLES) {
                         uint32_t ni = response->params.getnamelist.num_identifiers;
-                        /* Handle VisibleString tag (0x1A) if present */
+                        /* Skip VisibleString tag (0x1A) if present */
                         if (buffer[offset] == 0x1A) {
-                            offset++;  /* skip tag */
+                            offset++;
                         }
                         size_t name_len = buffer[offset++];
                         if (name_len >= MMS_MAX_VARIABLE_NAME) {
@@ -3456,18 +3619,6 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                         response->params.getnamelist.identifiers[ni][name_len] = '\0';
                         offset += name_len;
                         response->params.getnamelist.num_identifiers++;
-                    }
-                }
-                /* moreFollows [1] IMPLICIT BOOLEAN (optional) */
-                if (offset < gnlr_end && buffer[offset] == 0x81) {
-                    offset++;
-                    if (offset < gnlr_end) {
-                        size_t mf_len = buffer[offset++];
-                        if (mf_len >= 1 && offset < gnlr_end) {
-                            response->params.getnamelist.more_follows =
-                                (buffer[offset] != 0);
-                        }
-                        offset += mf_len;
                     }
                 }
                 offset = gnlr_end;

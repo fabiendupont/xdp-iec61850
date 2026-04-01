@@ -56,6 +56,18 @@ static int xsk_recv(struct packet_io *io, void **pkt_data, uint32_t *pkt_len)
     return xgl_xsk_recv(priv->xsk, pkt_data, pkt_len);
 }
 
+static int xsk_recv_batch(struct packet_io *io, void **pkt_data,
+                           uint32_t *pkt_lens, int max)
+{
+    struct packet_io_xsk_priv *priv = io->priv;
+
+    if (priv->xsk == NULL) {
+        return -ENODEV;
+    }
+
+    return xgl_xsk_recv_batch(priv->xsk, pkt_data, pkt_lens, max);
+}
+
 static int xsk_send(struct packet_io *io, const void *pkt_data, uint32_t pkt_len)
 {
     struct packet_io_xsk_priv *priv = io->priv;
@@ -83,6 +95,15 @@ static void xsk_release(struct packet_io *io)
     }
 }
 
+static void xsk_release_batch(struct packet_io *io, int count)
+{
+    struct packet_io_xsk_priv *priv = io->priv;
+
+    if (priv->xsk != NULL) {
+        xgl_xsk_recv_release_batch(priv->xsk, count);
+    }
+}
+
 static void xsk_close(struct packet_io *io)
 {
     struct packet_io_xsk_priv *priv = io->priv;
@@ -94,11 +115,13 @@ static void xsk_close(struct packet_io *io)
 }
 
 static const struct packet_io_ops xsk_ops = {
-    .open    = xsk_open,
-    .recv    = xsk_recv,
-    .send    = xsk_send,
-    .release = xsk_release,
-    .close   = xsk_close,
+    .open          = xsk_open,
+    .recv          = xsk_recv,
+    .recv_batch    = xsk_recv_batch,
+    .send          = xsk_send,
+    .release       = xsk_release,
+    .release_batch = xsk_release_batch,
+    .close         = xsk_close,
 };
 
 struct packet_io *packet_io_create_xsk(void)

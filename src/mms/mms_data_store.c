@@ -318,6 +318,22 @@ bool iec61850_mms_ds_variable_exists(const iec61850_mms_data_store_t *ds,
     return find_var_const(dom, item_id) != NULL;
 }
 
+int iec61850_mms_ds_get_domain_names(const iec61850_mms_data_store_t *ds,
+                                      char names[][MMS_MAX_DOMAIN_NAME],
+                                      uint32_t *count, uint32_t max_count)
+{
+    if (ds == NULL || names == NULL || count == NULL) {
+        return IEC61850_MMS_DS_ERR_ARGS;
+    }
+    *count = 0;
+    for (size_t i = 0; i < ds->domain_count && *count < max_count; i++) {
+        (void)strncpy(names[*count], ds->domains[i].name, MMS_MAX_DOMAIN_NAME - 1);
+        names[*count][MMS_MAX_DOMAIN_NAME - 1] = '\0';
+        (*count)++;
+    }
+    return IEC61850_MMS_DS_OK;
+}
+
 int iec61850_mms_ds_get_var_names(const iec61850_mms_data_store_t *ds,
                                    const char *domain,
                                    char names[][MMS_MAX_VARIABLE_NAME],

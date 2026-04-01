@@ -124,3 +124,13 @@ int iec61850_graph_setup_dispatch(int dispatch_map_fd,
 
     return 0;
 }
+
+int iec61850_graph_get_filter_map_fd(struct xgl_graph *g,
+                                      const char *map_name)
+{
+    if (g == NULL || map_name == NULL) {
+        return -EINVAL;
+    }
+
+    return xgl_graph_get_map_fd(g, map_name);
+}

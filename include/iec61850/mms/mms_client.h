@@ -94,6 +94,66 @@ int iec61850_mms_client_get_var_attrs(iec61850_mms_client_t *client,
                                         const char *item_id,
                                         mms_variable_access_attrs_t *attrs);
 
+/**
+ * Identify server (get vendor, model, revision).
+ */
+int iec61850_mms_client_identify(iec61850_mms_client_t *client,
+                                   char *vendor, char *model, char *revision,
+                                   size_t buf_size);
+
+/**
+ * Define a named variable list.
+ */
+int iec61850_mms_client_define_named_varlist(
+    iec61850_mms_client_t *client,
+    const char *domain, const char *list_name,
+    const mms_variable_spec_t *vars, uint32_t num_vars);
+
+/**
+ * Delete a named variable list.
+ */
+int iec61850_mms_client_delete_named_varlist(
+    iec61850_mms_client_t *client,
+    const char *domain, const char *list_name);
+
+/**
+ * Read all variables in a named variable list.
+ */
+int iec61850_mms_client_read_named_varlist(
+    iec61850_mms_client_t *client,
+    const char *domain, const char *list_name,
+    mms_value_t *values, uint32_t *num_values, uint32_t max_values);
+
+/**
+ * Get file directory listing.
+ */
+int iec61850_mms_client_file_directory(
+    iec61850_mms_client_t *client,
+    const char *file_spec,
+    mms_file_entry_t *entries, uint32_t *num_entries,
+    uint32_t max_entries);
+
+/**
+ * Open a file for reading.
+ */
+int iec61850_mms_client_file_open(
+    iec61850_mms_client_t *client,
+    const char *filename, uint32_t *file_handle, uint32_t *file_size);
+
+/**
+ * Read from an open file.
+ */
+int iec61850_mms_client_file_read(
+    iec61850_mms_client_t *client,
+    uint32_t file_handle, uint8_t *data, uint32_t *data_len,
+    uint32_t max_len, bool *more_follows);
+
+/**
+ * Close an open file.
+ */
+int iec61850_mms_client_file_close(
+    iec61850_mms_client_t *client, uint32_t file_handle);
+
 #ifdef __cplusplus
 }
 #endif

@@ -91,9 +91,9 @@ extern "C" {
 #define MMS_TAG_CONCLUDE_RESPONSE     0x8B  /* [11] IMPLICIT */
 
 /*
- * MMS Confirmed Service tags.
- * IMPLICIT on SEQUENCE types keeps the CONSTRUCTED bit (0x20),
- * so [n] IMPLICIT SEQUENCE → 0xA0|n. Only primitive types use 0x80|n.
+ * MMS Confirmed Service tags (context-specific [n], constructed form).
+ * Per ASN.1 BER, IMPLICIT on a SEQUENCE preserves the constructed bit.
+ * Decoders normalize both 0x80|n and 0xA0|n for interoperability.
  */
 #define MMS_SERVICE_STATUS                  0x80  /* [0] IMPLICIT INTEGER */
 #define MMS_SERVICE_GET_NAMELIST            0xA1  /* [1] IMPLICIT SEQUENCE */

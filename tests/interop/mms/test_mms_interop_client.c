@@ -5,7 +5,7 @@
  * Launches libiec61850's server_example_basic_io as a subprocess,
  * then connects our MMS client to it over TCP loopback.
  *
- * Tests: MC-01 through MC-09
+ * Tests: MC-01 through MC-11 (including MC-02b, MC-02c)
  * No root needed (TCP loopback).
  * Requires: LIBIEC61850_BUILD_DIR set or default path exists.
  */
@@ -105,6 +105,71 @@ static void test_mc02_read(void)
     g_port++;
 
     INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_ASSERT(val.type == MMS_TYPE_INTEGER);
+    INTEROP_PASS();
+}
+
+/*
+ * MC-02b: Read float from libiec61850 server
+ */
+static void test_mc02b_read_float(void)
+{
+    INTEROP_TEST("MC-02b: read float from libiec61850 server");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    pid_t srv = start_libiec_server(g_port);
+    if (srv < 0) { g_port++; INTEROP_FAIL("server start failed"); }
+
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    int ret = iec61850_mms_client_connect(&client, "127.0.0.1", g_port, 5000);
+    if (ret != IEC61850_MMS_CLIENT_OK) {
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("connect failed");
+    }
+
+    mms_value_t val;
+    ret = iec61850_mms_client_read(&client, "simpleIOGenericIO",
+                                      "GGIO1$MX$AnIn1$mag$f", &val);
+    iec61850_mms_client_disconnect(&client);
+    interop_stop_helper(srv);
+    g_port++;
+
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_ASSERT(val.type == MMS_TYPE_FLOATING_POINT);
+    INTEROP_PASS();
+}
+
+/*
+ * MC-02c: Read boolean from libiec61850 server
+ */
+static void test_mc02c_read_boolean(void)
+{
+    INTEROP_TEST("MC-02c: read boolean from libiec61850 server");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    pid_t srv = start_libiec_server(g_port);
+    if (srv < 0) { g_port++; INTEROP_FAIL("server start failed"); }
+
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    int ret = iec61850_mms_client_connect(&client, "127.0.0.1", g_port, 5000);
+    if (ret != IEC61850_MMS_CLIENT_OK) {
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("connect failed");
+    }
+
+    mms_value_t val;
+    ret = iec61850_mms_client_read(&client, "simpleIOGenericIO",
+                                      "GGIO1$ST$SPCSO1$stVal", &val);
+    iec61850_mms_client_disconnect(&client);
+    interop_stop_helper(srv);
+    g_port++;
+
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_ASSERT(val.type == MMS_TYPE_BOOLEAN);
     INTEROP_PASS();
 }
 
@@ -312,6 +377,90 @@ static void test_mc08_reconnect(void)
 }
 
 /*
+ * MC-10: Write variable to libiec61850 server
+ */
+static void test_mc10_write(void)
+{
+    INTEROP_TEST("MC-10: write to libiec61850 server");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    pid_t srv = start_libiec_server(g_port);
+    if (srv < 0) { g_port++; INTEROP_FAIL("server start failed"); }
+
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    int ret = iec61850_mms_client_connect(&client, "127.0.0.1", g_port, 5000);
+    if (ret != IEC61850_MMS_CLIENT_OK) {
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("connect failed");
+    }
+
+    mms_value_t val;
+    memset(&val, 0, sizeof(val));
+    val.type = MMS_TYPE_VISIBLE_STRING;
+    (void)strncpy(val.value.visible_string.data, "xdp-test",
+                   MMS_MAX_STRING_LENGTH - 1);
+    val.value.visible_string.len = 8;
+
+    ret = iec61850_mms_client_write(&client, "simpleIOGenericIO",
+                                       "GGIO1$DC$NamPlt$vendor", &val);
+    iec61850_mms_client_disconnect(&client);
+    interop_stop_helper(srv);
+    g_port++;
+
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_PASS();
+}
+
+/*
+ * MC-11: Write then read back from libiec61850 server
+ */
+static void test_mc11_write_read_back(void)
+{
+    INTEROP_TEST("MC-11: write then read back");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    pid_t srv = start_libiec_server(g_port);
+    if (srv < 0) { g_port++; INTEROP_FAIL("server start failed"); }
+
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    int ret = iec61850_mms_client_connect(&client, "127.0.0.1", g_port, 5000);
+    if (ret != IEC61850_MMS_CLIENT_OK) {
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("connect failed");
+    }
+
+    /* Write a value */
+    mms_value_t wval;
+    memset(&wval, 0, sizeof(wval));
+    wval.type = MMS_TYPE_VISIBLE_STRING;
+    (void)strncpy(wval.value.visible_string.data, "roundtrip-test",
+                   MMS_MAX_STRING_LENGTH - 1);
+    wval.value.visible_string.len = 14;
+
+    ret = iec61850_mms_client_write(&client, "simpleIOGenericIO",
+                                       "GGIO1$DC$NamPlt$vendor", &wval);
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+
+    /* Read it back */
+    mms_value_t rval;
+    ret = iec61850_mms_client_read(&client, "simpleIOGenericIO",
+                                      "GGIO1$DC$NamPlt$vendor", &rval);
+
+    iec61850_mms_client_disconnect(&client);
+    interop_stop_helper(srv);
+    g_port++;
+
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_ASSERT(rval.type == MMS_TYPE_VISIBLE_STRING);
+    INTEROP_ASSERT(strstr(rval.value.visible_string.data, "roundtrip-test") != NULL);
+    INTEROP_PASS();
+}
+
+/*
  * MC-09: libiec61850 mms_utility reads from our server
  * Our server → libiec61850 mms_utility client
  */
@@ -381,12 +530,16 @@ int main(void)
 
     test_mc01_connect();
     test_mc02_read();
+    test_mc02b_read_float();
+    test_mc02c_read_boolean();
     test_mc03_getnamelist_domains();
     test_mc04_getnamelist_vars();
     test_mc05_get_var_attrs();
     test_mc06_multi_request();
     test_mc07_read_nonexistent();
     test_mc08_reconnect();
+    test_mc10_write();
+    test_mc11_write_read_back();
     test_mc09_libiec_reads_our_server();
 
     INTEROP_SUMMARY();

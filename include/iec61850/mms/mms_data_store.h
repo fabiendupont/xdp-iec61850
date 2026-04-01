@@ -123,6 +123,14 @@ bool iec61850_mms_ds_variable_exists(const iec61850_mms_data_store_t *ds,
                                       const char *domain, const char *item_id);
 
 /* Get variable names in a domain */
+/**
+ * Get list of domain names.
+ * Fills names array (up to max_count), sets *count to actual number.
+ */
+int iec61850_mms_ds_get_domain_names(const iec61850_mms_data_store_t *ds,
+                                      char names[][MMS_MAX_DOMAIN_NAME],
+                                      uint32_t *count, uint32_t max_count);
+
 int iec61850_mms_ds_get_var_names(const iec61850_mms_data_store_t *ds,
                                    const char *domain,
                                    char names[][MMS_MAX_VARIABLE_NAME],

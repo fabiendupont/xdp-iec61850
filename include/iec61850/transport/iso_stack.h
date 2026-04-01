@@ -143,11 +143,11 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
 
 /* Well-known OIDs (BER-encoded value bytes, no tag/length) */
 #define IEC61850_OID_ACSE_LEN  4
-#define IEC61850_OID_BER_LEN   3
+#define IEC61850_OID_BER_LEN   2
 #define IEC61850_OID_MMS_LEN   5
 
 extern const uint8_t IEC61850_OID_ACSE[4];   /* 2.2.1.0.1 */
-extern const uint8_t IEC61850_OID_BER[3];    /* 2.1.1 */
+extern const uint8_t IEC61850_OID_BER[2];    /* 2.1.1 */
 extern const uint8_t IEC61850_OID_MMS[5];    /* 1.0.9506.2.1 */
 
 /* Presentation Context IDs */

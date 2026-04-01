@@ -132,19 +132,13 @@ static int process_request(iec61850_mms_session_t *session,
             resp->params.getnamelist.more_follows = false;
 
             if (req->params.getnamelist.object_class == MMS_OBJECT_CLASS_DOMAIN) {
-                /* List domain names */
                 uint32_t count = 0;
-                for (size_t i = 0; i < session->data_store->domain_count &&
-                     count < MMS_MAX_NAMELIST_ITEMS; i++) {
-                    (void)strncpy(resp->params.getnamelist.identifiers[count],
-                                   session->data_store->domains[i].name,
-                                   MMS_MAX_VARIABLE_NAME - 1);
-                    resp->params.getnamelist.identifiers[count][MMS_MAX_VARIABLE_NAME - 1] = '\0';
-                    count++;
-                }
+                (void)iec61850_mms_ds_get_domain_names(session->data_store,
+                                                        resp->params.getnamelist.identifiers,
+                                                        &count,
+                                                        MMS_MAX_NAMELIST_ITEMS);
                 resp->params.getnamelist.num_identifiers = count;
             } else if (req->params.getnamelist.object_class == MMS_OBJECT_CLASS_NAMED_VARIABLE) {
-                /* List variable names in a domain */
                 uint32_t count = 0;
                 (void)iec61850_mms_ds_get_var_names(session->data_store,
                                                       req->params.getnamelist.domain,

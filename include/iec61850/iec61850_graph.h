@@ -64,6 +64,21 @@ int iec61850_graph_register(struct xgl_graph *g, const char *bpf_dir,
 int iec61850_graph_setup_dispatch(int dispatch_map_fd,
                                    const struct iec61850_graph_indices *indices);
 
+/**
+ * Get the BPF map fd for a named IEC 61850 filter map.
+ *
+ * Retrieves pinned map fd by name from the graph. Useful for
+ * populating GOOSE/SV subscription filters at runtime:
+ *   - "goose_filter" → APPID-based GOOSE accept/drop
+ *   - "sv_filter"    → APPID-based SV accept/drop
+ *
+ * @param g         Graph instance (must have IEC 61850 nodes loaded)
+ * @param map_name  Map name (e.g. "goose_filter", "sv_filter")
+ * @return map fd on success, negative errno on failure
+ */
+int iec61850_graph_get_filter_map_fd(struct xgl_graph *g,
+                                      const char *map_name);
+
 #ifdef __cplusplus
 }
 #endif

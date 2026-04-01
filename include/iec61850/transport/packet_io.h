@@ -31,8 +31,11 @@ struct packet_io;
 struct packet_io_ops {
     int  (*open)(struct packet_io *io, const char *ifname, int queue_id);
     int  (*recv)(struct packet_io *io, void **pkt_data, uint32_t *pkt_len);
+    int  (*recv_batch)(struct packet_io *io, void **pkt_data, uint32_t *pkt_lens,
+                       int max);
     int  (*send)(struct packet_io *io, const void *pkt_data, uint32_t pkt_len);
     void (*release)(struct packet_io *io);
+    void (*release_batch)(struct packet_io *io, int count);
     void (*close)(struct packet_io *io);
 };
 
@@ -87,6 +90,28 @@ static inline int packet_io_recv(struct packet_io *io, void **pkt_data,
     return io->ops->recv(io, pkt_data, pkt_len);
 }
 
+/**
+ * Batch receive: receive up to max packets in one call.
+ * Returns number of packets received, or -1 on error.
+ * Falls back to single recv if batch is not implemented.
+ */
+static inline int packet_io_recv_batch(struct packet_io *io, void **pkt_data,
+                                        uint32_t *pkt_lens, int max)
+{
+    if (io == NULL || io->ops == NULL) {
+        return -1;
+    }
+    if (io->ops->recv_batch != NULL) {
+        return io->ops->recv_batch(io, pkt_data, pkt_lens, max);
+    }
+    /* Fallback: single recv */
+    if (io->ops->recv == NULL || max < 1) {
+        return -1;
+    }
+    int ret = io->ops->recv(io, &pkt_data[0], &pkt_lens[0]);
+    return (ret > 0) ? 1 : ret;
+}
+
 static inline int packet_io_send(struct packet_io *io, const void *pkt_data,
                                   uint32_t pkt_len)
 {
@@ -100,6 +125,27 @@ static inline void packet_io_release(struct packet_io *io)
 {
     if (io != NULL && io->ops != NULL && io->ops->release != NULL) {
         io->ops->release(io);
+    }
+}
+
+/**
+ * Release a batch of received packets back to the pool.
+ * Falls back to single release if batch is not implemented.
+ */
+static inline void packet_io_release_batch(struct packet_io *io, int count)
+{
+    if (io == NULL || io->ops == NULL) {
+        return;
+    }
+    if (io->ops->release_batch != NULL) {
+        io->ops->release_batch(io, count);
+        return;
+    }
+    /* Fallback: release once (single-packet backends) */
+    if (io->ops->release != NULL) {
+        for (int i = 0; i < count; i++) {
+            io->ops->release(io);
+        }
     }
 }
 
