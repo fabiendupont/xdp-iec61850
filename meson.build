@@ -82,6 +82,7 @@ core_deps = [thread_dep]
 transport_sources = files(
     'src/transport/packet_io_raw.c',
     'src/transport/eth_frame.c',
+    'src/transport/ptp_clock.c',
 )
 
 if xgl_dep.found()
@@ -142,6 +143,14 @@ if libyaml_dep.found()
     core_sources += files('src/config/yaml_parser.c')
     core_deps += [libyaml_dep]
 endif
+
+# Optional: HSR/PRP redundancy (requires xdp-hsr-prp)
+hsr_prp_dep = dependency('xdp-hsr-prp', required: get_option('enable_hsr_prp'))
+if get_option('enable_hsr_prp') and hsr_prp_dep.found()
+    add_project_arguments('-DIEC61850_HSR_PRP_ENABLED', language: 'c')
+    core_deps += [hsr_prp_dep]
+endif
+core_sources += files('src/redundancy/hsr_prp_wrapper.c')
 
 # BPF programs (compiled with clang targeting BPF)
 clang = find_program('clang', required: false)
@@ -235,4 +244,5 @@ summary({
     'libbpf': libbpf_dep.found() ? libbpf_dep.version() : 'not found',
     'MMS': get_option('enable_mms') ? 'enabled' : 'disabled',
     'Security': get_option('enable_security') ? 'enabled' : 'disabled',
+    'HSR/PRP': get_option('enable_hsr_prp') ? 'enabled' : 'disabled',
 }, section: 'Configuration')

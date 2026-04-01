@@ -3,7 +3,7 @@ option('enable_mms', type: 'boolean', value: false,
 option('enable_security', type: 'boolean', value: false,
        description: 'Build IEC 62351-6 security (requires OpenSSL)')
 option('enable_hsr_prp', type: 'boolean', value: false,
-       description: 'Enable HSR/PRP redundancy support')
+       description: 'Enable HSR/PRP redundancy via xdp-hsr-prp')
 option('enable_tests', type: 'boolean', value: true,
        description: 'Build tests')
 option('enable_examples', type: 'boolean', value: true,

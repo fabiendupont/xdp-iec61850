@@ -189,6 +189,16 @@ test_config_manager = executable('test_config_manager',
 )
 test('config_manager', test_config_manager, suite: 'unit')
 
+# Unit test — PTP Clock
+test_ptp_clock = executable('test_ptp_clock',
+    'unit/test_ptp_clock.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+
+test('ptp_clock', test_ptp_clock, suite: 'unit')
+
 # Unit test — Packet I/O (raw + xsk lifecycle and error paths)
 test_packet_io = executable('test_packet_io',
     'unit/test_packet_io.c',
@@ -550,6 +560,15 @@ if libyaml_dep.found()
     )
     test('yaml_parser', test_yaml_parser, suite: 'unit')
 endif
+
+# Unit test — HSR/PRP Wrapper (always built; stubs when xdp-hsr-prp absent)
+test_hsr_prp = executable('test_hsr_prp',
+    'unit/test_hsr_prp.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: core_deps,
+)
+test('hsr_prp', test_hsr_prp, suite: 'unit')
 
 # Integration: Loopback tests (require root, build_by_default: false)
 goose_loopback = executable('goose_loopback',
