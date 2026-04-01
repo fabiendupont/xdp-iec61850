@@ -758,6 +758,16 @@ test_sv_interop_pub = executable('test_sv_interop_pub',
 test('sv_interop_pub', test_sv_interop_pub,
      suite: 'interop', is_parallel: false)
 
+# SV interop: live veth pub/sub (2 scenarios — SL-01, SL-02)
+test_sv_interop_live = executable('test_sv_interop_live',
+    'interop/sv/test_sv_interop_live.c',
+    include_directories: [inc_dirs, test_inc, interop_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+test('sv_interop_live', test_sv_interop_live,
+     suite: 'interop', is_parallel: false)
+
 # MMS interop tests (require MMS enabled)
 if get_option('enable_mms')
     # MMS interop: xdp client → libiec61850 server (9 scenarios)
