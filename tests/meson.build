@@ -830,10 +830,18 @@ wire_test_scripts = [
     ['wire_sv', 'interop/wire/test_wire_sv.sh'],
     ['wire_mms', 'interop/wire/test_wire_mms.sh'],
 ]
+wire_test_env = environment()
+wire_test_env.set('MESON_BUILD_ROOT', meson.project_build_root())
+libiec_build = get_option('libiec61850_build_dir')
+if libiec_build != ''
+    wire_test_env.set('LIBIEC61850_BUILD_DIR', libiec_build)
+endif
+
 foreach t : wire_test_scripts
     test(t[0], find_program('sh'), args: [files(t[1])],
          suite: 'interop', is_parallel: false,
-         workdir: meson.project_source_root())
+         workdir: meson.project_source_root(),
+         env: wire_test_env)
 endforeach
 
 # Wire cross-validation tests (require libiec61850 + root/tshark)
@@ -845,7 +853,8 @@ wire_xval_scripts = [
 foreach t : wire_xval_scripts
     test(t[0], find_program('sh'), args: [files(t[1])],
          suite: 'interop', is_parallel: false,
-         workdir: meson.project_source_root())
+         workdir: meson.project_source_root(),
+         env: wire_test_env)
 endforeach
 
 # ============================================================

@@ -8,3 +8,5 @@ option('enable_tests', type: 'boolean', value: true,
        description: 'Build tests')
 option('enable_examples', type: 'boolean', value: true,
        description: 'Build example programs')
+option('libiec61850_build_dir', type: 'string', value: '',
+       description: 'Path to libiec61850 build dir (for wire cross-validation tests)')

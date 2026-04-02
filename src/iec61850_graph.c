@@ -15,6 +15,19 @@
 #include <stdio.h>
 #include <errno.h>
 
+/*
+ * Local index allocator — xdp-graph-lib does not yet expose
+ * xgl_graph_alloc_index().  Start at 20 to stay above groutx
+ * reserved range (conntrack=13, snat=14, ndp=15) and xdp-hsr-prp.
+ */
+static int next_alloc_index = 20;
+
+static int xgl_graph_alloc_index(struct xgl_graph *g)
+{
+    (void)g;
+    return next_alloc_index++;
+}
+
 /* EtherType constants */
 #define ETHERTYPE_GOOSE  0x88B8U
 #define ETHERTYPE_SV     0x88BAU
