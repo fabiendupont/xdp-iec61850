@@ -8,12 +8,14 @@
  */
 
 #include "transport/packet_io.h"
+#include "transport/xsk_handoff.h"
 #include <xgl/xgl_xsk.h>
 #include <xgl/xgl_graph.h>
 
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/socket.h>
 
 #define XSK_FRAME_SIZE  4096U
 #define XSK_NUM_FRAMES  4096U
@@ -176,4 +178,83 @@ void packet_io_destroy(struct packet_io *io)
     packet_io_close(io);
     free(io->priv);
     free(io);
+}
+
+/* open() is a no-op for inherited sockets — the daemon already bound them. */
+static int xsk_open_noop(struct packet_io *io, const char *ifname,
+                          int queue_id)
+{
+    (void)io;
+    (void)ifname;
+    (void)queue_id;
+    return -EALREADY;
+}
+
+static const struct packet_io_ops xsk_inherited_ops = {
+    .open          = xsk_open_noop,
+    .recv          = xsk_recv,
+    .recv_batch    = xsk_recv_batch,
+    .send          = xsk_send,
+    .release       = xsk_release,
+    .release_batch = xsk_release_batch,
+    .close         = xsk_close,
+};
+
+struct packet_io *packet_io_create_xsk_inherited(int control_sock_fd)
+{
+    struct xsk_handoff_msg msg;
+    int fds[XSK_HANDOFF_NUM_FDS] = { -1, -1 };
+    char cmsgbuf[CMSG_SPACE(sizeof(fds))];
+    struct iovec iov = { .iov_base = &msg, .iov_len = sizeof(msg) };
+    struct msghdr mh = {
+        .msg_iov        = &iov,
+        .msg_iovlen     = 1,
+        .msg_control    = cmsgbuf,
+        .msg_controllen = sizeof(cmsgbuf),
+    };
+
+    if (recvmsg(control_sock_fd, &mh, 0) < (ssize_t)sizeof(msg)) {
+        errno = EPROTO;
+        return NULL;
+    }
+
+    if (msg.magic != XSK_HANDOFF_MAGIC || msg.reserved != 0) {
+        errno = EPROTO;
+        return NULL;
+    }
+
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh);
+    if (cmsg == NULL || cmsg->cmsg_level != SOL_SOCKET ||
+        cmsg->cmsg_type != SCM_RIGHTS ||
+        cmsg->cmsg_len != CMSG_LEN(sizeof(fds))) {
+        errno = EPROTO;
+        return NULL;
+    }
+    (void)memcpy(fds, CMSG_DATA(cmsg), sizeof(fds));
+
+    struct xgl_xsk *xsk = xgl_xsk_inherit(fds[XSK_HANDOFF_FD_XSK],
+                                           fds[XSK_HANDOFF_FD_UMEM],
+                                           msg.frame_size, msg.num_frames);
+    if (xsk == NULL) {
+        return NULL;
+    }
+
+    struct packet_io *io = calloc(1, sizeof(*io));
+    if (io == NULL) {
+        xgl_xsk_destroy(xsk);
+        return NULL;
+    }
+
+    struct packet_io_xsk_priv *priv = calloc(1, sizeof(*priv));
+    if (priv == NULL) {
+        xgl_xsk_destroy(xsk);
+        free(io);
+        return NULL;
+    }
+
+    priv->xsk = xsk;
+    io->ops   = &xsk_inherited_ops;
+    io->priv  = priv;
+
+    return io;
 }

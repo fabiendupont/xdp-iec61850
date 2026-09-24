@@ -60,6 +60,19 @@ struct packet_io *packet_io_create_xsk(void);
 struct packet_io *packet_io_create_xsk_graph(struct xgl_graph *graph);
 
 /**
+ * Create a packet_io by inheriting an already-bound AF_XDP socket from a
+ * privileged daemon.  Receives one xsk_handoff_msg + two fds via SCM_RIGHTS
+ * from control_sock_fd, then maps UMEM and all four AF_XDP rings without
+ * requiring any Linux capability in the calling process.
+ *
+ * The returned packet_io is ready to use immediately — open() must NOT be
+ * called on it.  All recv/send/release/close operations work normally.
+ *
+ * Returns NULL on failure (check errno).
+ */
+struct packet_io *packet_io_create_xsk_inherited(int control_sock_fd);
+
+/**
  * Create a packet_io backed by raw sockets (fallback for testing).
  * Returns NULL on allocation failure.
  */
