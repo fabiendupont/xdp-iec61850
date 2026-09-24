@@ -15,6 +15,16 @@
 #include <stdio.h>
 #include <errno.h>
 
+/* xdp-graph-lib does not expose xgl_graph_alloc_index(); use a local
+ * counter starting at 20 to stay above reserved indices (conntrack=13,
+ * snat=14, ndp=15) and xdp-hsr-prp. */
+static int next_alloc_index = 20;
+
+static int xgl_graph_alloc_index(struct xgl_graph *g)
+{
+    (void)g;
+    return next_alloc_index++;
+}
 
 /* EtherType constants */
 #define ETHERTYPE_GOOSE  0x88B8U
