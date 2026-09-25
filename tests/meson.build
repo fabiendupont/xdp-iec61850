@@ -641,6 +641,16 @@ test_packet_io_xsk_veth = executable('test_packet_io_xsk_veth',
     dependencies: [thread_dep],
 )
 
+# Integration: rootless AF_XDP fd inheritance (bad-magic test runs unprivileged;
+# the other three tests require root for veth + AF_XDP bind)
+test_xsk_inherited = executable('test_xsk_inherited',
+    'integration/test_xsk_inherited.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+    c_args: ['-D_DEFAULT_SOURCE'],
+)
+
 # Register privileged tests (require root)
 uid_result = run_command('id', '-u', check: false)
 if uid_result.returncode() == 0 and uid_result.stdout().strip() == '0'
@@ -652,11 +662,15 @@ if uid_result.returncode() == 0 and uid_result.stdout().strip() == '0'
          suite: 'integration', is_parallel: false)
     test('packet_io_xsk_veth', test_packet_io_xsk_veth,
          suite: 'integration', is_parallel: false)
+    test('xsk_inherited', test_xsk_inherited,
+         suite: 'integration', is_parallel: false)
 else
     # When not root, register but expect tests to skip gracefully (0 exit)
     test('packet_io_raw_veth', test_packet_io_raw_veth,
          suite: 'integration', is_parallel: false)
     test('packet_io_xsk_veth', test_packet_io_xsk_veth,
+         suite: 'integration', is_parallel: false)
+    test('xsk_inherited', test_xsk_inherited,
          suite: 'integration', is_parallel: false)
 endif
 
