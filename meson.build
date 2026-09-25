@@ -236,6 +236,18 @@ if get_option('enable_examples')
     )
 endif
 
+# Privileged AF_XDP socket daemon (requires xdp-graph-lib + libbpf)
+if xgl_dep.found() and libbpf_dep.found()
+    executable('xsk-daemon',
+        'src/daemon/xsk_daemon.c',
+        include_directories: inc_dirs,
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+        c_args: ['-Wno-missing-prototypes', '-D_DEFAULT_SOURCE', '-D_GNU_SOURCE'],
+        install: true,
+    )
+endif
+
 # Summary
 summary({
     'Project': meson.project_name(),
