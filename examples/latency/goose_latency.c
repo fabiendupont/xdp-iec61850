@@ -8,7 +8,6 @@
  * Usage: goose_latency <tx_interface> <rx_interface> [count]
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "goose/goose_publisher.h"
 #include "goose/goose_subscriber.h"

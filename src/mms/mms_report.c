@@ -5,7 +5,6 @@
  * BRCB/URCB trigger evaluation, integrity scanning, and report generation.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "mms/mms_report.h"
 #include "mms/mms_data_store.h"

@@ -3,7 +3,6 @@
  * Tests for MMS Report Buffer and RCB Manager
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "mms/mms_report.h"
 #include <stdio.h>

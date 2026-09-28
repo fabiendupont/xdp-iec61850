@@ -5,7 +5,6 @@
  * License: BSD-3-Clause
  */
 
-#define _POSIX_C_SOURCE 199309L
 
 #include "monitoring/system_monitor.h"
 #include <stdio.h>

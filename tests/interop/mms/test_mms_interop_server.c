@@ -9,8 +9,6 @@
  * No root needed (TCP loopback).
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "../interop_helpers.h"
 #include "mms/mms_server.h"

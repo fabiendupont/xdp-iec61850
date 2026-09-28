@@ -7,7 +7,6 @@
  * Path traversal attacks are prevented by rejecting ".." components.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "mms/mms_file_service.h"
 

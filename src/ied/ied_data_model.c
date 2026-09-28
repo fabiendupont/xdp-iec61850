@@ -8,7 +8,6 @@
  * License: BSD-3-Clause
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "ied/ied_data_model.h"
 #include <stdio.h>

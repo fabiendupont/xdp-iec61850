@@ -10,8 +10,6 @@
  * Requires: LIBIEC61850_BUILD_DIR set or default path exists.
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "../interop_helpers.h"
 #include "mms/mms_client.h"

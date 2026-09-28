@@ -5,7 +5,6 @@
  * Blocking MMS client using ISO stack transport.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "mms/mms_client.h"
 #include <string.h>

@@ -7,7 +7,6 @@
  * includes the extension bytes.
  */
 
-#define _POSIX_C_SOURCE 199309L
 
 #include "goose/goose_publisher.h"
 #include "goose/goose_subscriber.h"

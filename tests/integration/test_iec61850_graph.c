@@ -10,8 +10,6 @@
  * Skips gracefully when not root or BPF objects not found.
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "iec61850_graph.h"
 

@@ -9,8 +9,6 @@
  * Tests: GS-01 through GS-12
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "../interop_helpers.h"
 #include "goose/goose_publisher.h"

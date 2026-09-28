@@ -10,8 +10,6 @@
  * Skips gracefully when not root.
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "transport/packet_io.h"
 #include "transport/eth_frame.h"

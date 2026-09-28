@@ -6,7 +6,6 @@
  * Handles GetNameList, Read, Write, GetVariableAccessAttributes.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "mms/mms_server.h"
 #include "mms/mms_file_service.h"
@@ -598,8 +597,10 @@ static void *session_thread(void *arg)
             break;
         }
 
-        /* Decode confirmed request (returns consumed bytes > 0 on success) */
-        mms_confirmed_request_t req;
+        /* Decode confirmed request (returns consumed bytes > 0 on success).
+         * Zero-init so optional bool fields (e.g. continue_after) are false
+         * when absent from the BER encoding, preventing UBSan false values. */
+        mms_confirmed_request_t req = {0};
         ret = mms_decode_confirmed_request(recv_buf, recv_len, &req);
         if (ret < 0) {
             break;

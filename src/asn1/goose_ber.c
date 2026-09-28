@@ -7,7 +7,6 @@
  * License: BSD-3-Clause
  */
 
-#define _POSIX_C_SOURCE 199309L  /* For clock_gettime */
 
 #include "asn1/goose_ber.h"
 #include <string.h>

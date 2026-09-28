@@ -3,7 +3,6 @@
  * Unit Tests for Config Manager
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "config/config_manager.h"
 #include <stdio.h>

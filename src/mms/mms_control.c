@@ -3,7 +3,6 @@
  * MMS Control Services Implementation
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "mms/mms_control.h"
 #include <string.h>

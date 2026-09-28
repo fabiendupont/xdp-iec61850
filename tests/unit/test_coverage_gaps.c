@@ -6,7 +6,6 @@
  * and MMS BER encode/decode for untested service types.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "goose/goose_publisher.h"
 #include "goose/goose_subscriber.h"
@@ -1424,7 +1423,8 @@ static void test_goose_secure_replay(void)
 static void test_mms_response_roundtrip_all(void)
 {
     TEST("mms_ber response encode→decode roundtrip");
-    uint8_t buf[4096];
+    uint8_t *buf = malloc(4096);
+    if (!buf) { FAIL("malloc"); return; }
     int ok_count = 0;
     int total = 0;
 
@@ -1658,6 +1658,7 @@ static void test_mms_response_roundtrip_all(void)
     }
 
     printf("(%d/%d) ", ok_count, total);
+    free(buf);
     ASSERT_EQ(ok_count, total);
     PASS();
 }

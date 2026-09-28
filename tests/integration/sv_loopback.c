@@ -11,8 +11,6 @@
  * Interface names are passed as argv[1] (tx) and argv[2] (rx).
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "sv/sv_publisher.h"
 #include "sv/sv_subscriber.h"

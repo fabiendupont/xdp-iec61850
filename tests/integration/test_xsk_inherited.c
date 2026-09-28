@@ -13,7 +13,6 @@
  * Skips gracefully when not root or when veth creation fails.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "transport/packet_io.h"
 #include "transport/xsk_handoff.h"

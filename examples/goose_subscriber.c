@@ -8,7 +8,6 @@
  * Usage: goose_subscriber [interface]
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "goose/goose_subscriber.h"
 #include "logging/logger.h"

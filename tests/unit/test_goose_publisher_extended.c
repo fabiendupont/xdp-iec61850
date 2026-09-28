@@ -5,7 +5,6 @@
  * Tests retransmission, state changes, data types, and boundary conditions.
  */
 
-#define _POSIX_C_SOURCE 199309L
 
 #include "goose/goose_publisher.h"
 #include "transport/eth_frame.h"

@@ -13,8 +13,6 @@
  * - Latency statistics: min/max/avg calculation
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "mms/mms_server.h"
 #include "mms/mms_client.h"

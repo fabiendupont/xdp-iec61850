@@ -6,8 +6,6 @@
  * Usage: sv_wire_pub <interface>
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "sv/sv_publisher.h"
 #include "transport/eth_frame.h"

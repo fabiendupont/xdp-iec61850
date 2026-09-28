@@ -3,7 +3,6 @@
  * Unit Tests for System Monitor and Metrics Exporter
  */
 
-#define _POSIX_C_SOURCE 199309L
 
 #include "monitoring/system_monitor.h"
 #include <stdio.h>

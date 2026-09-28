@@ -8,7 +8,6 @@
  * Usage: goose_publisher [interface]
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "goose/goose_publisher.h"
 #include "logging/logger.h"

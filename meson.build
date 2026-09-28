@@ -25,6 +25,11 @@ warning_flags = [
 
 add_project_arguments(cc.get_supported_arguments(warning_flags), language: 'c')
 
+# POSIX and GNU feature-test macros — defined globally so source files do not
+# use reserved identifiers (_POSIX_C_SOURCE etc.) directly, which clang-tidy
+# cert-dcl37-c flags as violations.
+add_project_arguments(['-D_POSIX_C_SOURCE=200809L', '-D_DEFAULT_SOURCE'], language: 'c')
+
 # Security compile flag (must be before build targets)
 if get_option('enable_security')
     add_project_arguments('-DIEC61850_SECURITY_ENABLED', language: 'c')

@@ -8,7 +8,6 @@
  * Usage: sv_publisher [interface]
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "sv/sv_publisher.h"
 #include "logging/logger.h"

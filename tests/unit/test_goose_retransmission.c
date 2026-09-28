@@ -3,7 +3,6 @@
  * Unit Tests for GOOSE Retransmission Scheduler
  */
 
-#define _POSIX_C_SOURCE 199309L
 
 #include "goose/goose_retransmission.h"
 

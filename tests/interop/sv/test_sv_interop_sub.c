@@ -6,8 +6,6 @@
  * Requires: root (raw sockets), libiec61850 helpers built
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "../interop_helpers.h"
 #include "sv/sv_publisher.h"

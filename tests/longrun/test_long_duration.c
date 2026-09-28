@@ -10,8 +10,6 @@
  * Duration is configurable via LONGRUN_DURATION_SEC (default: 10 for CI).
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "mms/mms_server.h"
 #include "mms/mms_client.h"

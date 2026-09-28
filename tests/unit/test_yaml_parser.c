@@ -3,7 +3,6 @@
  * Unit Tests for YAML Parser
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "config/yaml_parser.h"
 #include <stdio.h>

@@ -8,7 +8,6 @@
  * License: BSD-3-Clause
  */
 
-#define _POSIX_C_SOURCE 199309L
 
 #include "goose/goose_subscriber.h"
 #include "sv/sv_subscriber.h"

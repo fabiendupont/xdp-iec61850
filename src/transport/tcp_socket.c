@@ -7,7 +7,6 @@
  * License: BSD-3-Clause
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "transport/tcp_socket.h"
 

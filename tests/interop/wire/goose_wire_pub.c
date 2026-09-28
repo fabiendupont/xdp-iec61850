@@ -6,8 +6,6 @@
  * Usage: goose_wire_pub <interface>
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "goose/goose_publisher.h"
 #include "transport/eth_frame.h"

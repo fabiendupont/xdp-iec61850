@@ -5,7 +5,6 @@
  * Measures GOOSE and SV BER codec throughput in ops/sec.
  */
 
-#define _POSIX_C_SOURCE 199309L
 
 #include "asn1/goose_ber.h"
 #include "asn1/goose_ber_decode.h"

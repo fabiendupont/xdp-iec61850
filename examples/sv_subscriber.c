@@ -8,7 +8,6 @@
  * Usage: sv_subscriber [interface]
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "sv/sv_subscriber.h"
 #include "logging/logger.h"

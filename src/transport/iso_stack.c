@@ -6,7 +6,6 @@
  * + ACSE (ISO 8650) composite stack for MMS transport.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "transport/iso_stack.h"
 #include <string.h>

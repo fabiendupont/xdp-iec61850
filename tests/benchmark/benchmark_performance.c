@@ -11,8 +11,6 @@
  * This is a benchmark, not assertion-based -- always returns 0.
  */
 
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 
 #include "asn1/goose_ber.h"
 #include "asn1/goose_ber_decode.h"

@@ -6,7 +6,6 @@
  * that don't require a live network connection.
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "transport/tcp_socket.h"
 #include "transport/iso_stack.h"

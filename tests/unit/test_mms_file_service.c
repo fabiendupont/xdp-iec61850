@@ -3,7 +3,6 @@
  * Tests for MMS File Service
  */
 
-#define _POSIX_C_SOURCE 200809L
 
 #include "mms/mms_file_service.h"
 #include <stdio.h>
