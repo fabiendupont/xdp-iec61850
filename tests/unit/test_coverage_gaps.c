@@ -1423,19 +1423,22 @@ static void test_goose_secure_replay(void)
 static void test_mms_response_roundtrip_all(void)
 {
     TEST("mms_ber response encode→decode roundtrip");
-    uint8_t *buf = malloc(4096);
+#define MMS_ROUNDTRIP_BUF_SIZE 4096
+    uint8_t *buf = malloc(MMS_ROUNDTRIP_BUF_SIZE);
     if (!buf) { FAIL("malloc"); return; }
+    /* Shared structs: declared once to avoid 36-struct stack frame with ASan */
+    mms_confirmed_response_t resp, decoded;
     int ok_count = 0;
     int total = 0;
 
     /* Read response — integer */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 1; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_INTEGER;
         resp.params.read.value.value.integer = 42;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0
             && decoded.service == MMS_SERVICE_TYPE_READ
@@ -1444,12 +1447,12 @@ static void test_mms_response_roundtrip_all(void)
 
     /* Read response — boolean */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 2; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_BOOLEAN;
         resp.params.read.value.value.boolean = true;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0
             && decoded.params.read.value.value.boolean == true) ok_count++;
@@ -1457,85 +1460,85 @@ static void test_mms_response_roundtrip_all(void)
 
     /* Read response — floating point */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 3; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_FLOATING_POINT;
         resp.params.read.value.value.floating_point = 3.14f;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* Read response — visible string */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 4; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_VISIBLE_STRING;
         strncpy(resp.params.read.value.value.visible_string.data, "hello", MMS_MAX_STRING_LENGTH-1);
         resp.params.read.value.value.visible_string.len = 5;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* Read response — unsigned */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 5; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_UNSIGNED;
         resp.params.read.value.value.unsigned_val = 99;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* Read response — bitstring */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 6; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_BIT_STRING;
         resp.params.read.value.value.bit_string.data[0] = 0xAB;
         resp.params.read.value.value.bit_string.bit_count = 8;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* Read response — octet string */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 7; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_OCTET_STRING;
         resp.params.read.value.value.octet_string.data[0] = 0xCD;
         resp.params.read.value.value.octet_string.len = 1;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* Read response — UTC time */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 8; resp.service = MMS_SERVICE_TYPE_READ;
         resp.params.read.value.type = MMS_TYPE_UTC_TIME;
         resp.params.read.value.value.utc_time = 1700000000ULL;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* Write response */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 10; resp.service = MMS_SERVICE_TYPE_WRITE;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0
             && decoded.service == MMS_SERVICE_TYPE_WRITE) ok_count++;
@@ -1543,14 +1546,14 @@ static void test_mms_response_roundtrip_all(void)
 
     /* GetNameList response */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 11; resp.service = MMS_SERVICE_TYPE_GET_NAMELIST;
         resp.params.getnamelist.num_identifiers = 3;
         strncpy(resp.params.getnamelist.identifiers[0], "var1", MMS_MAX_VARIABLE_NAME-1);
         strncpy(resp.params.getnamelist.identifiers[1], "var2", MMS_MAX_VARIABLE_NAME-1);
         strncpy(resp.params.getnamelist.identifiers[2], "var3", MMS_MAX_VARIABLE_NAME-1);
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0
             && decoded.params.getnamelist.num_identifiers == 3) ok_count++;
@@ -1558,12 +1561,12 @@ static void test_mms_response_roundtrip_all(void)
 
     /* GetVariableAttrs response */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 12; resp.service = MMS_SERVICE_TYPE_GET_VARIABLE_ATTRS;
         strncpy(resp.params.getvariableattrs.attributes.name, "stVal", MMS_MAX_VARIABLE_NAME-1);
         resp.params.getvariableattrs.attributes.type = MMS_TYPE_BOOLEAN;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0
             && decoded.service == MMS_SERVICE_TYPE_GET_VARIABLE_ATTRS) ok_count++;
@@ -1571,67 +1574,67 @@ static void test_mms_response_roundtrip_all(void)
 
     /* Control responses (Select, Operate, Cancel) */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 20; resp.service = MMS_SERVICE_TYPE_SELECT;
         resp.params.select.state = 1; resp.params.select.selection_id = 10;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 21; resp.service = MMS_SERVICE_TYPE_OPERATE;
         resp.params.operate.success = true;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* File service responses */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 30; resp.service = MMS_SERVICE_TYPE_FILE_OPEN;
         resp.params.fileopen.file_handle = 5; resp.params.fileopen.file_size = 1024;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 31; resp.service = MMS_SERVICE_TYPE_FILE_READ;
         resp.params.fileread.bytes_read = 4;
         memcpy(resp.params.fileread.data, "test", 4);
         resp.params.fileread.more_follows = false;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 32; resp.service = MMS_SERVICE_TYPE_FILE_DIRECTORY;
         resp.params.filedirectory.num_entries = 1;
         strncpy(resp.params.filedirectory.entries[0].filename, "data.csv", MMS_MAX_VARIABLE_NAME-1);
         resp.params.filedirectory.entries[0].file_size = 512;
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
 
     /* Journal response */
     {
-        mms_confirmed_response_t resp, decoded;
+        memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
         memset(&resp, 0, sizeof(resp));
         resp.invoke_id = 40; resp.service = MMS_SERVICE_TYPE_READ_JOURNAL;
         resp.params.readjournal.num_entries = 1;
         resp.params.readjournal.entries[0].entry_id = 1;
         resp.params.readjournal.entries[0].timestamp = 1000000;
         strncpy(resp.params.readjournal.entries[0].variable_ref, "var1", MMS_MAX_VARIABLE_NAME-1);
-        int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+        int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
         total++;
         if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
     }
@@ -1647,11 +1650,11 @@ static void test_mms_response_roundtrip_all(void)
             MMS_SERVICE_TYPE_INITIALIZE_JOURNAL,
         };
         for (size_t i = 0; i < sizeof(svcs)/sizeof(svcs[0]); i++) {
-            mms_confirmed_response_t resp, decoded;
+            memset(&resp, 0, sizeof(resp)); memset(&decoded, 0, sizeof(decoded));
             memset(&resp, 0, sizeof(resp));
             resp.invoke_id = (uint32_t)(50 + i);
             resp.service = svcs[i];
-            int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+            int enc = mms_encode_confirmed_response(&resp, buf, MMS_ROUNDTRIP_BUF_SIZE);
             total++;
             if (enc > 0 && mms_decode_confirmed_response(buf, (size_t)enc, &decoded) > 0) ok_count++;
         }
@@ -2381,7 +2384,7 @@ static void test_sv_encode_zero_samples(void)
 
     uint8_t buf[SV_MAX_APDU_SIZE];
     size_t len = 0;
-    int ret = sv_encode_apdu(buf, sizeof(buf), &apdu, &len);
+    int ret = sv_encode_apdu(buf, MMS_ROUNDTRIP_BUF_SIZE, &apdu, &len);
     /* Should succeed (or fail gracefully) with zero samples */
     (void)ret;
     PASS();
