@@ -1,4 +1,15 @@
-CBMC version 6.1.1 (cbmc-6.1.1) 64-bit x86_64 linux
+CBMC version 6.8.0 (ad933aa-dirty) 64-bit x86_64 linux
+file verification/cbmc/shallow_ber_harness.c line 19: verification/cbmc/shallow_ber_harness.c:19:9: warning: ‘__always_inline’ redefined
+   19 | #define __always_inline
+      |         ^~~~~~~~~~~~~~~
+In file included from /usr/include/features.h:540,
+                 from /usr/include/bits/libc-header-start.h:33,
+                 from /usr/include/stdint.h:26,
+                 from /usr/lib/gcc/x86_64-redhat-linux/16/include/stdint.h:11,
+file                  from verification/cbmc/shallow_ber_harness.c line 14:                  from verification/cbmc/shallow_ber_harness.c:14:
+file /usr/include/sys/cdefs.h line 595: /usr/include/sys/cdefs.h:595:10: note: this is the location of the previous definition
+  595 | # define __always_inline __inline __attribute__ ((__always_inline__))
+      |          ^~~~~~~~~~~~~~~
 Type-checking shallow_ber_harness
 Generating GOTO Program
 Adding CPROVER library (x86_64)
@@ -12,84 +23,133 @@ SAT checker: instance is UNSATISFIABLE
 
 ** Results:
 verification/cbmc/../../src/bpf/ber_shallow.bpf.h function ber_extract_uint32
-[ber_extract_uint32.pointer_dereference.1] line 103 dereference failure: pointer NULL in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.2] line 103 dereference failure: pointer invalid in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.3] line 103 dereference failure: deallocated dynamic object in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.4] line 103 dereference failure: dead object in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.5] line 103 dereference failure: pointer outside object bounds in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.6] line 103 dereference failure: invalid integer address in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.7] line 105 dereference failure: pointer NULL in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.8] line 105 dereference failure: pointer invalid in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.9] line 105 dereference failure: deallocated dynamic object in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.10] line 105 dereference failure: dead object in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.11] line 105 dereference failure: pointer outside object bounds in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.12] line 105 dereference failure: invalid integer address in *result: SUCCESS
-[ber_extract_uint32.pointer_dereference.13] line 105 dereference failure: pointer NULL in data[(signed long int)((unsigned int)offset + i)]: SUCCESS
-[ber_extract_uint32.pointer_dereference.14] line 105 dereference failure: pointer invalid in data[(signed long int)((unsigned int)offset + i)]: SUCCESS
-[ber_extract_uint32.pointer_dereference.15] line 105 dereference failure: deallocated dynamic object in data[(signed long int)((unsigned int)offset + i)]: SUCCESS
-[ber_extract_uint32.pointer_dereference.16] line 105 dereference failure: dead object in data[(signed long int)((unsigned int)offset + i)]: SUCCESS
-[ber_extract_uint32.pointer_dereference.17] line 105 dereference failure: pointer outside object bounds in data[(signed long int)((unsigned int)offset + i)]: SUCCESS
-[ber_extract_uint32.pointer_dereference.18] line 105 dereference failure: invalid integer address in data[(signed long int)((unsigned int)offset + i)]: SUCCESS
+[ber_extract_uint32.pointer_dereference.1] line 203 dereference failure: pointer NULL in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.2] line 203 dereference failure: pointer invalid in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.3] line 203 dereference failure: deallocated dynamic object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.4] line 203 dereference failure: dead object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.5] line 203 dereference failure: pointer outside object bounds in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.6] line 203 dereference failure: invalid integer address in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.7] line 206 dereference failure: pointer NULL in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.8] line 206 dereference failure: pointer invalid in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.9] line 206 dereference failure: deallocated dynamic object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.10] line 206 dereference failure: dead object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.11] line 206 dereference failure: pointer outside object bounds in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.12] line 206 dereference failure: invalid integer address in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.13] line 206 dereference failure: pointer NULL in p[(signed long int)0]: SUCCESS
+[ber_extract_uint32.pointer_dereference.14] line 206 dereference failure: pointer invalid in p[(signed long int)0]: SUCCESS
+[ber_extract_uint32.pointer_dereference.15] line 206 dereference failure: deallocated dynamic object in p[(signed long int)0]: SUCCESS
+[ber_extract_uint32.pointer_dereference.16] line 206 dereference failure: dead object in p[(signed long int)0]: SUCCESS
+[ber_extract_uint32.pointer_dereference.17] line 206 dereference failure: pointer outside object bounds in p[(signed long int)0]: SUCCESS
+[ber_extract_uint32.pointer_dereference.18] line 206 dereference failure: invalid integer address in p[(signed long int)0]: SUCCESS
+[ber_extract_uint32.pointer_dereference.19] line 210 dereference failure: pointer NULL in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.20] line 210 dereference failure: pointer invalid in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.21] line 210 dereference failure: deallocated dynamic object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.22] line 210 dereference failure: dead object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.23] line 210 dereference failure: pointer outside object bounds in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.24] line 210 dereference failure: invalid integer address in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.25] line 210 dereference failure: pointer NULL in p[(signed long int)1]: SUCCESS
+[ber_extract_uint32.pointer_dereference.26] line 210 dereference failure: pointer invalid in p[(signed long int)1]: SUCCESS
+[ber_extract_uint32.pointer_dereference.27] line 210 dereference failure: deallocated dynamic object in p[(signed long int)1]: SUCCESS
+[ber_extract_uint32.pointer_dereference.28] line 210 dereference failure: dead object in p[(signed long int)1]: SUCCESS
+[ber_extract_uint32.pointer_dereference.29] line 210 dereference failure: pointer outside object bounds in p[(signed long int)1]: SUCCESS
+[ber_extract_uint32.pointer_dereference.30] line 210 dereference failure: invalid integer address in p[(signed long int)1]: SUCCESS
+[ber_extract_uint32.pointer_dereference.31] line 214 dereference failure: pointer NULL in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.32] line 214 dereference failure: pointer invalid in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.33] line 214 dereference failure: deallocated dynamic object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.34] line 214 dereference failure: dead object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.35] line 214 dereference failure: pointer outside object bounds in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.36] line 214 dereference failure: invalid integer address in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.37] line 214 dereference failure: pointer NULL in p[(signed long int)2]: SUCCESS
+[ber_extract_uint32.pointer_dereference.38] line 214 dereference failure: pointer invalid in p[(signed long int)2]: SUCCESS
+[ber_extract_uint32.pointer_dereference.39] line 214 dereference failure: deallocated dynamic object in p[(signed long int)2]: SUCCESS
+[ber_extract_uint32.pointer_dereference.40] line 214 dereference failure: dead object in p[(signed long int)2]: SUCCESS
+[ber_extract_uint32.pointer_dereference.41] line 214 dereference failure: pointer outside object bounds in p[(signed long int)2]: SUCCESS
+[ber_extract_uint32.pointer_dereference.42] line 214 dereference failure: invalid integer address in p[(signed long int)2]: SUCCESS
+[ber_extract_uint32.pointer_dereference.43] line 218 dereference failure: pointer NULL in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.44] line 218 dereference failure: pointer invalid in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.45] line 218 dereference failure: deallocated dynamic object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.46] line 218 dereference failure: dead object in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.47] line 218 dereference failure: pointer outside object bounds in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.48] line 218 dereference failure: invalid integer address in *result: SUCCESS
+[ber_extract_uint32.pointer_dereference.49] line 218 dereference failure: pointer NULL in p[(signed long int)3]: SUCCESS
+[ber_extract_uint32.pointer_dereference.50] line 218 dereference failure: pointer invalid in p[(signed long int)3]: SUCCESS
+[ber_extract_uint32.pointer_dereference.51] line 218 dereference failure: deallocated dynamic object in p[(signed long int)3]: SUCCESS
+[ber_extract_uint32.pointer_dereference.52] line 218 dereference failure: dead object in p[(signed long int)3]: SUCCESS
+[ber_extract_uint32.pointer_dereference.53] line 218 dereference failure: pointer outside object bounds in p[(signed long int)3]: SUCCESS
+[ber_extract_uint32.pointer_dereference.54] line 218 dereference failure: invalid integer address in p[(signed long int)3]: SUCCESS
 
 verification/cbmc/../../src/bpf/ber_shallow.bpf.h function ber_find_tag
-[ber_find_tag.overflow.3] line 66 arithmetic overflow on signed + in i + 1: SUCCESS
-[ber_find_tag.pointer_dereference.1] line 70 dereference failure: pointer NULL in data[(signed long int)offset]: SUCCESS
-[ber_find_tag.pointer_dereference.2] line 70 dereference failure: pointer invalid in data[(signed long int)offset]: SUCCESS
-[ber_find_tag.pointer_dereference.3] line 70 dereference failure: deallocated dynamic object in data[(signed long int)offset]: SUCCESS
-[ber_find_tag.pointer_dereference.4] line 70 dereference failure: dead object in data[(signed long int)offset]: SUCCESS
-[ber_find_tag.pointer_dereference.5] line 70 dereference failure: pointer outside object bounds in data[(signed long int)offset]: SUCCESS
-[ber_find_tag.pointer_dereference.6] line 70 dereference failure: invalid integer address in data[(signed long int)offset]: SUCCESS
-[ber_find_tag.overflow.1] line 71 arithmetic overflow on signed + in offset + 1: SUCCESS
-[ber_find_tag.overflow.2] line 78 arithmetic overflow on signed + in offset + len_bytes: SUCCESS
-[ber_find_tag.pointer_dereference.7] line 81 dereference failure: pointer NULL in *value_len: SUCCESS
-[ber_find_tag.pointer_dereference.8] line 81 dereference failure: pointer invalid in *value_len: SUCCESS
-[ber_find_tag.pointer_dereference.9] line 81 dereference failure: deallocated dynamic object in *value_len: SUCCESS
-[ber_find_tag.pointer_dereference.10] line 81 dereference failure: dead object in *value_len: SUCCESS
-[ber_find_tag.pointer_dereference.11] line 81 dereference failure: pointer outside object bounds in *value_len: SUCCESS
-[ber_find_tag.pointer_dereference.12] line 81 dereference failure: invalid integer address in *value_len: SUCCESS
+[ber_find_tag.overflow.3] line 90 arithmetic overflow on signed + in i + 1: SUCCESS
+[ber_find_tag.pointer_dereference.1] line 95 dereference failure: pointer NULL in *p: SUCCESS
+[ber_find_tag.pointer_dereference.2] line 95 dereference failure: pointer invalid in *p: SUCCESS
+[ber_find_tag.pointer_dereference.3] line 95 dereference failure: deallocated dynamic object in *p: SUCCESS
+[ber_find_tag.pointer_dereference.4] line 95 dereference failure: dead object in *p: SUCCESS
+[ber_find_tag.pointer_dereference.5] line 95 dereference failure: pointer outside object bounds in *p: SUCCESS
+[ber_find_tag.pointer_dereference.6] line 95 dereference failure: invalid integer address in *p: SUCCESS
+[ber_find_tag.overflow.1] line 96 arithmetic overflow on signed + in offset + 1: SUCCESS
+[ber_find_tag.overflow.2] line 103 arithmetic overflow on signed + in offset + len_bytes: SUCCESS
+[ber_find_tag.pointer_dereference.7] line 106 dereference failure: pointer NULL in *value_len: SUCCESS
+[ber_find_tag.pointer_dereference.8] line 106 dereference failure: pointer invalid in *value_len: SUCCESS
+[ber_find_tag.pointer_dereference.9] line 106 dereference failure: deallocated dynamic object in *value_len: SUCCESS
+[ber_find_tag.pointer_dereference.10] line 106 dereference failure: dead object in *value_len: SUCCESS
+[ber_find_tag.pointer_dereference.11] line 106 dereference failure: pointer outside object bounds in *value_len: SUCCESS
+[ber_find_tag.pointer_dereference.12] line 106 dereference failure: invalid integer address in *value_len: SUCCESS
 
 verification/cbmc/../../src/bpf/ber_shallow.bpf.h function ber_parse_length
-[ber_parse_length.pointer_dereference.1] line 30 dereference failure: pointer NULL in data[(signed long int)offset]: SUCCESS
-[ber_parse_length.pointer_dereference.2] line 30 dereference failure: pointer invalid in data[(signed long int)offset]: SUCCESS
-[ber_parse_length.pointer_dereference.3] line 30 dereference failure: deallocated dynamic object in data[(signed long int)offset]: SUCCESS
-[ber_parse_length.pointer_dereference.4] line 30 dereference failure: dead object in data[(signed long int)offset]: SUCCESS
-[ber_parse_length.pointer_dereference.5] line 30 dereference failure: pointer outside object bounds in data[(signed long int)offset]: SUCCESS
-[ber_parse_length.pointer_dereference.6] line 30 dereference failure: invalid integer address in data[(signed long int)offset]: SUCCESS
-[ber_parse_length.pointer_dereference.7] line 34 dereference failure: pointer NULL in *length: SUCCESS
-[ber_parse_length.pointer_dereference.8] line 34 dereference failure: pointer invalid in *length: SUCCESS
-[ber_parse_length.pointer_dereference.9] line 34 dereference failure: deallocated dynamic object in *length: SUCCESS
-[ber_parse_length.pointer_dereference.10] line 34 dereference failure: dead object in *length: SUCCESS
-[ber_parse_length.pointer_dereference.11] line 34 dereference failure: pointer outside object bounds in *length: SUCCESS
-[ber_parse_length.pointer_dereference.12] line 34 dereference failure: invalid integer address in *length: SUCCESS
-[ber_parse_length.overflow.1] line 42 arithmetic overflow on signed + in offset + 1: SUCCESS
-[ber_parse_length.overflow.2] line 42 arithmetic overflow on signed + in offset + 1 + (signed int)num_bytes: SUCCESS
-[ber_parse_length.pointer_dereference.13] line 45 dereference failure: pointer NULL in *length: SUCCESS
-[ber_parse_length.pointer_dereference.14] line 45 dereference failure: pointer invalid in *length: SUCCESS
-[ber_parse_length.pointer_dereference.15] line 45 dereference failure: deallocated dynamic object in *length: SUCCESS
-[ber_parse_length.pointer_dereference.16] line 45 dereference failure: dead object in *length: SUCCESS
-[ber_parse_length.pointer_dereference.17] line 45 dereference failure: pointer outside object bounds in *length: SUCCESS
-[ber_parse_length.pointer_dereference.18] line 45 dereference failure: invalid integer address in *length: SUCCESS
-[ber_parse_length.overflow.3] line 47 arithmetic overflow on signed + in offset + 1: SUCCESS
-[ber_parse_length.overflow.4] line 47 arithmetic overflow on signed + in offset + 1 + (signed int)i: SUCCESS
-[ber_parse_length.pointer_dereference.19] line 47 dereference failure: pointer NULL in *length: SUCCESS
-[ber_parse_length.pointer_dereference.20] line 47 dereference failure: pointer invalid in *length: SUCCESS
-[ber_parse_length.pointer_dereference.21] line 47 dereference failure: deallocated dynamic object in *length: SUCCESS
-[ber_parse_length.pointer_dereference.22] line 47 dereference failure: dead object in *length: SUCCESS
-[ber_parse_length.pointer_dereference.23] line 47 dereference failure: pointer outside object bounds in *length: SUCCESS
-[ber_parse_length.pointer_dereference.24] line 47 dereference failure: invalid integer address in *length: SUCCESS
-[ber_parse_length.pointer_dereference.25] line 47 dereference failure: pointer NULL in data[(signed long int)(offset + 1 + (signed int)i)]: SUCCESS
-[ber_parse_length.pointer_dereference.26] line 47 dereference failure: pointer invalid in data[(signed long int)(offset + 1 + (signed int)i)]: SUCCESS
-[ber_parse_length.pointer_dereference.27] line 47 dereference failure: deallocated dynamic object in data[(signed long int)(offset + 1 + (signed int)i)]: SUCCESS
-[ber_parse_length.pointer_dereference.28] line 47 dereference failure: dead object in data[(signed long int)(offset + 1 + (signed int)i)]: SUCCESS
-[ber_parse_length.pointer_dereference.29] line 47 dereference failure: pointer outside object bounds in data[(signed long int)(offset + 1 + (signed int)i)]: SUCCESS
-[ber_parse_length.pointer_dereference.30] line 47 dereference failure: invalid integer address in data[(signed long int)(offset + 1 + (signed int)i)]: SUCCESS
-[ber_parse_length.overflow.5] line 50 arithmetic overflow on signed + in 1 + (signed int)num_bytes: SUCCESS
+[ber_parse_length.pointer_dereference.1] line 51 dereference failure: pointer NULL in *p: SUCCESS
+[ber_parse_length.pointer_dereference.2] line 51 dereference failure: pointer invalid in *p: SUCCESS
+[ber_parse_length.pointer_dereference.3] line 51 dereference failure: deallocated dynamic object in *p: SUCCESS
+[ber_parse_length.pointer_dereference.4] line 51 dereference failure: dead object in *p: SUCCESS
+[ber_parse_length.pointer_dereference.5] line 51 dereference failure: pointer outside object bounds in *p: SUCCESS
+[ber_parse_length.pointer_dereference.6] line 51 dereference failure: invalid integer address in *p: SUCCESS
+[ber_parse_length.pointer_dereference.7] line 55 dereference failure: pointer NULL in *length: SUCCESS
+[ber_parse_length.pointer_dereference.8] line 55 dereference failure: pointer invalid in *length: SUCCESS
+[ber_parse_length.pointer_dereference.9] line 55 dereference failure: deallocated dynamic object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.10] line 55 dereference failure: dead object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.11] line 55 dereference failure: pointer outside object bounds in *length: SUCCESS
+[ber_parse_length.pointer_dereference.12] line 55 dereference failure: invalid integer address in *length: SUCCESS
+[ber_parse_length.pointer_dereference.13] line 63 dereference failure: pointer NULL in *length: SUCCESS
+[ber_parse_length.pointer_dereference.14] line 63 dereference failure: pointer invalid in *length: SUCCESS
+[ber_parse_length.pointer_dereference.15] line 63 dereference failure: deallocated dynamic object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.16] line 63 dereference failure: dead object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.17] line 63 dereference failure: pointer outside object bounds in *length: SUCCESS
+[ber_parse_length.pointer_dereference.18] line 63 dereference failure: invalid integer address in *length: SUCCESS
+[ber_parse_length.pointer_dereference.19] line 63 dereference failure: pointer NULL in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.20] line 63 dereference failure: pointer invalid in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.21] line 63 dereference failure: deallocated dynamic object in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.22] line 63 dereference failure: dead object in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.23] line 63 dereference failure: pointer outside object bounds in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.24] line 63 dereference failure: invalid integer address in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.25] line 68 dereference failure: pointer NULL in *length: SUCCESS
+[ber_parse_length.pointer_dereference.26] line 68 dereference failure: pointer invalid in *length: SUCCESS
+[ber_parse_length.pointer_dereference.27] line 68 dereference failure: deallocated dynamic object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.28] line 68 dereference failure: dead object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.29] line 68 dereference failure: pointer outside object bounds in *length: SUCCESS
+[ber_parse_length.pointer_dereference.30] line 68 dereference failure: invalid integer address in *length: SUCCESS
+[ber_parse_length.pointer_dereference.31] line 68 dereference failure: pointer NULL in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.32] line 68 dereference failure: pointer invalid in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.33] line 68 dereference failure: deallocated dynamic object in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.34] line 68 dereference failure: dead object in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.35] line 68 dereference failure: pointer outside object bounds in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.36] line 68 dereference failure: invalid integer address in p[(signed long int)1]: SUCCESS
+[ber_parse_length.pointer_dereference.37] line 68 dereference failure: pointer NULL in p[(signed long int)2]: SUCCESS
+[ber_parse_length.pointer_dereference.38] line 68 dereference failure: pointer invalid in p[(signed long int)2]: SUCCESS
+[ber_parse_length.pointer_dereference.39] line 68 dereference failure: deallocated dynamic object in p[(signed long int)2]: SUCCESS
+[ber_parse_length.pointer_dereference.40] line 68 dereference failure: dead object in p[(signed long int)2]: SUCCESS
+[ber_parse_length.pointer_dereference.41] line 68 dereference failure: pointer outside object bounds in p[(signed long int)2]: SUCCESS
+[ber_parse_length.pointer_dereference.42] line 68 dereference failure: invalid integer address in p[(signed long int)2]: SUCCESS
+[ber_parse_length.pointer_dereference.43] line 70 dereference failure: pointer NULL in *length: SUCCESS
+[ber_parse_length.pointer_dereference.44] line 70 dereference failure: pointer invalid in *length: SUCCESS
+[ber_parse_length.pointer_dereference.45] line 70 dereference failure: deallocated dynamic object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.46] line 70 dereference failure: dead object in *length: SUCCESS
+[ber_parse_length.pointer_dereference.47] line 70 dereference failure: pointer outside object bounds in *length: SUCCESS
+[ber_parse_length.pointer_dereference.48] line 70 dereference failure: invalid integer address in *length: SUCCESS
 
 verification/cbmc/shallow_ber_harness.c function main
-[main.assertion.1] line 47 assertion result == -1 || result >= start_offset: SUCCESS
-[main.assertion.2] line 48 assertion result == -1 || result <= data_len: SUCCESS
-[main.assertion.3] line 55 assertion len_result == -1 || (len_result >= 1 && len_result <= 3): SUCCESS
-[main.assertion.4] line 65 assertion ext_ret == 0 || ext_ret == -1: SUCCESS
+[main.assertion.1] line 49 assertion result == -1 || result >= start_offset: SUCCESS
+[main.assertion.2] line 50 assertion result == -1 || result <= data_len: SUCCESS
+[main.assertion.3] line 57 assertion len_result == -1 || (len_result >= 1 && len_result <= 3): SUCCESS
+[main.assertion.4] line 67 assertion ext_ret == 0 || ext_ret == -1: SUCCESS
 
-** 0 of 72 failed (1 iterations)
+** 0 of 121 failed (1 iterations)
 VERIFICATION SUCCESSFUL

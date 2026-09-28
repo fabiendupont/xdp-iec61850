@@ -20,6 +20,21 @@
 #define BER_MAX_ITERATIONS  15
 
 /*
+ * BER_PTR_PAST(p, n, end) — true if (p + n) is past end.
+ *
+ * In BPF context: cast to void* so the verifier tracks packet pointer
+ * ranges correctly.  In CBMC context: cast to uintptr_t so the model
+ * checker uses integer arithmetic instead of pointer arithmetic, avoiding
+ * spurious pointer-arithmetic assertions introduced in CBMC 6.7+.
+ */
+#ifdef __CPROVER__
+#  define BER_PTR_PAST(p, n, end) \
+    ((uintptr_t)(p) + (uintptr_t)(n) > (uintptr_t)(end))
+#else
+#  define BER_PTR_PAST(p, n, end) ((void *)((p) + (n)) > (end))
+#endif
+
+/*
  * Parse BER length at data[offset].
  * Returns number of bytes consumed by the length field, or -1 on error.
  * Sets *length to the decoded length value.
@@ -30,7 +45,7 @@ static __always_inline int ber_parse_length(const __u8 *data, void *data_end,
                                              int offset, __u32 *length)
 {
     const __u8 *p = data + offset;
-    if ((void *)(p + 1) > data_end)
+    if (BER_PTR_PAST(p, 1, data_end))
         return -1;
 
     __u8 first = *p;
@@ -44,12 +59,12 @@ static __always_inline int ber_parse_length(const __u8 *data, void *data_end,
     __u8 num_bytes = first & 0x7F;
 
     if (num_bytes == 1) {
-        if ((void *)(p + 2) > data_end) return -1;
+        if (BER_PTR_PAST(p, 2, data_end)) return -1;
         *length = p[1];
         return 2;
     }
     if (num_bytes == 2) {
-        if ((void *)(p + 3) > data_end) return -1;
+        if (BER_PTR_PAST(p, 3, data_end)) return -1;
         *length = ((__u32)p[1] << 8) | p[2];
         /* Cap to MTU to keep verifier offset tracking bounded */
         if (*length > 1500) *length = 1500;
@@ -74,7 +89,7 @@ static __always_inline int ber_find_tag(const __u8 *data, void *data_end,
 {
     for (int i = 0; i < BER_MAX_ITERATIONS; i++) {
         const __u8 *p = data + offset;
-        if ((void *)(p + 1) > data_end)
+        if (BER_PTR_PAST(p, 1, data_end))
             return -1;
 
         __u8 tag = *p;
@@ -127,7 +142,7 @@ static __always_inline int ber_find_two_tags(const __u8 *data, void *data_end,
      * causes the verifier to exceed 1M instructions from state explosion. */
     for (int i = 0; i < 8; i++) {
         const __u8 *p = data + offset;
-        if ((void *)(p + 1) > data_end)
+        if (BER_PTR_PAST(p, 1, data_end))
             return -1;
 
         __u8 tag = *p;
@@ -136,14 +151,14 @@ static __always_inline int ber_find_two_tags(const __u8 *data, void *data_end,
         /* Simplified length: short form or 1-byte long form only.
          * Avoids 2-byte (0x82) branch that causes verifier explosion. */
         const __u8 *lp = data + offset;
-        if ((void *)(lp + 1) > data_end)
+        if (BER_PTR_PAST(lp, 1, data_end))
             return -1;
         __u32 length;
         if (*lp < 0x80) {
             length = *lp;
             offset++;
         } else if (*lp == 0x81) {
-            if ((void *)(lp + 2) > data_end)
+            if (BER_PTR_PAST(lp, 2, data_end))
                 return -1;
             length = lp[1];
             offset += 2;
@@ -182,24 +197,24 @@ static __always_inline int ber_extract_uint32(const __u8 *data, void *data_end,
         return -1;
 
     const __u8 *p = data + offset;
-    if ((void *)(p + value_len) > data_end)
+    if (BER_PTR_PAST(p, value_len, data_end))
         return -1;
 
     *result = 0;
     if (value_len >= 1) {
-        if ((void *)(p + 1) > data_end) return -1;
+        if (BER_PTR_PAST(p, 1, data_end)) return -1;
         *result = p[0];
     }
     if (value_len >= 2) {
-        if ((void *)(p + 2) > data_end) return -1;
+        if (BER_PTR_PAST(p, 2, data_end)) return -1;
         *result = (*result << 8) | p[1];
     }
     if (value_len >= 3) {
-        if ((void *)(p + 3) > data_end) return -1;
+        if (BER_PTR_PAST(p, 3, data_end)) return -1;
         *result = (*result << 8) | p[2];
     }
     if (value_len >= 4) {
-        if ((void *)(p + 4) > data_end) return -1;
+        if (BER_PTR_PAST(p, 4, data_end)) return -1;
         *result = (*result << 8) | p[3];
     }
 
