@@ -159,10 +159,10 @@ const char *iec61850_log_level_to_string(iec61850_log_level_t level)
 
 iec61850_log_level_t iec61850_log_level_from_string(const char *str)
 {
-    iec61850_log_level_t result;
+    iec61850_log_level_t result = IEC61850_LOG_INFO; /* default for NULL or unknown */
 
     if (str == NULL) {
-        result = IEC61850_LOG_INFO;
+        return result;
     } else if (strcasecmp(str, "trace") == 0) {
         result = IEC61850_LOG_TRACE;
     } else if (strcasecmp(str, "debug") == 0) {

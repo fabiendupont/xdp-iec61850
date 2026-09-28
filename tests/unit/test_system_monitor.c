@@ -57,8 +57,8 @@ static void test_health_healthy(void)
     iec61850_system_monitor_t mon;
     iec61850_monitor_init(&mon);
     iec61850_monitor_set_mempool(&mon, 1000, 900);
-    iec61850_monitor_update_pub(&mon, 100, 0);
-    iec61850_monitor_update_sub(&mon, 200, 0, 0);
+    iec61850_monitor_update_pub(&mon, &(iec61850_pub_stats_t){.sent=100, .errors=0});
+    iec61850_monitor_update_sub(&mon, &(iec61850_sub_stats_t){.received=200, .duplicates=0, .timeouts=0});
 
     iec61850_system_health_t h = iec61850_monitor_get_health(&mon);
     ASSERT_EQ((int)h.status, (int)IEC61850_HEALTH_HEALTHY);
@@ -87,8 +87,8 @@ static void test_health_warning(void)
     iec61850_system_monitor_t mon;
     iec61850_monitor_init(&mon);
     iec61850_monitor_set_mempool(&mon, 1000, 350);  /* 65% usage */
-    iec61850_monitor_update_pub(&mon, 100, 0);
-    iec61850_monitor_update_sub(&mon, 200, 0, 0);
+    iec61850_monitor_update_pub(&mon, &(iec61850_pub_stats_t){.sent=100, .errors=0});
+    iec61850_monitor_update_sub(&mon, &(iec61850_sub_stats_t){.received=200, .duplicates=0, .timeouts=0});
 
     iec61850_system_health_t h = iec61850_monitor_get_health(&mon);
     ASSERT_EQ((int)h.status, (int)IEC61850_HEALTH_WARNING);
@@ -120,8 +120,8 @@ static void test_metrics_json(void)
     iec61850_system_monitor_t mon;
     iec61850_monitor_init(&mon);
     iec61850_monitor_set_mempool(&mon, 1000, 800);
-    iec61850_monitor_update_pub(&mon, 50, 2);
-    iec61850_monitor_update_sub(&mon, 100, 5, 3);
+    iec61850_monitor_update_pub(&mon, &(iec61850_pub_stats_t){.sent=50, .errors=2});
+    iec61850_monitor_update_sub(&mon, &(iec61850_sub_stats_t){.received=100, .duplicates=5, .timeouts=3});
 
     iec61850_system_health_t h = iec61850_monitor_get_health(&mon);
 
@@ -145,7 +145,7 @@ static void test_metrics_csv(void)
     TEST("metrics_csv");
     iec61850_system_monitor_t mon;
     iec61850_monitor_init(&mon);
-    iec61850_monitor_update_pub(&mon, 10, 0);
+    iec61850_monitor_update_pub(&mon, &(iec61850_pub_stats_t){.sent=10, .errors=0});
 
     iec61850_system_health_t h = iec61850_monitor_get_health(&mon);
 
@@ -177,8 +177,8 @@ static void test_update_null(void)
 {
     TEST("update_null");
     /* Should not crash */
-    iec61850_monitor_update_pub(NULL, 0, 0);
-    iec61850_monitor_update_sub(NULL, 0, 0, 0);
+    iec61850_monitor_update_pub(NULL, &(iec61850_pub_stats_t){.sent=0, .errors=0});
+    iec61850_monitor_update_sub(NULL, &(iec61850_sub_stats_t){.received=0, .duplicates=0, .timeouts=0});
     PASS();
 }
 
@@ -194,7 +194,7 @@ static void test_health_degraded_pub(void)
     (void)h1;
 
     /* Simulate a burst of publisher errors */
-    iec61850_monitor_update_pub(&mon, 100, 50000);
+    iec61850_monitor_update_pub(&mon, &(iec61850_pub_stats_t){.sent=100, .errors=50000});
 
     /* Small sleep to get a non-zero elapsed time */
     struct timespec ts = {0, 10000000L};  /* 10ms */
@@ -218,7 +218,7 @@ static void test_health_degraded_sub(void)
     (void)iec61850_monitor_get_health(&mon);
 
     /* Simulate a burst of subscriber timeouts */
-    iec61850_monitor_update_sub(&mon, 100, 0, 50000);
+    iec61850_monitor_update_sub(&mon, &(iec61850_sub_stats_t){.received=100, .duplicates=0, .timeouts=50000});
 
     struct timespec ts = {0, 10000000L};  /* 10ms */
     (void)nanosleep(&ts, NULL);
@@ -235,8 +235,8 @@ static void test_health_warning_with_errors(void)
     iec61850_system_monitor_t mon;
     iec61850_monitor_init(&mon);
     iec61850_monitor_set_mempool(&mon, 1000, 900);  /* Low memory usage */
-    iec61850_monitor_update_pub(&mon, 100, 1);
-    iec61850_monitor_update_sub(&mon, 200, 0, 1);
+    iec61850_monitor_update_pub(&mon, &(iec61850_pub_stats_t){.sent=100, .errors=1});
+    iec61850_monitor_update_sub(&mon, &(iec61850_sub_stats_t){.received=200, .duplicates=0, .timeouts=1});
 
     /* Wait so the first health check enters rate calculation block */
     struct timespec ts = {0, 5000000L};  /* 5ms */

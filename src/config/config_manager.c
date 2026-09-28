@@ -132,13 +132,13 @@ static void apply_yaml(const iec61850_yaml_doc_t *doc,
     const char **list;
 
     /* SCL */
-    val = iec61850_yaml_get_string(doc, "scl.file", NULL);
+    val = iec61850_yaml_get_string(doc, "scl.file");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->scl.file, val, IEC61850_MAX_PATH_LEN - 1);
         cfg->scl.file[IEC61850_MAX_PATH_LEN - 1] = '\0';
     }
 
-    val = iec61850_yaml_get_string(doc, "scl.ied", NULL);
+    val = iec61850_yaml_get_string(doc, "scl.ied");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->scl.ied_name, val, IEC61850_MAX_PATH_LEN - 1);
         cfg->scl.ied_name[IEC61850_MAX_PATH_LEN - 1] = '\0';
@@ -161,36 +161,36 @@ static void apply_yaml(const iec61850_yaml_doc_t *doc,
         cfg->dpdk.memory_mb = (unsigned)mem;
     }
 
-    val = iec61850_yaml_get_string(doc, "dpdk.no_huge", NULL);
+    val = iec61850_yaml_get_string(doc, "dpdk.no_huge");
     if (val != NULL) {
         cfg->dpdk.no_huge = iec61850_yaml_get_bool(doc, "dpdk.no_huge", false);
     }
 
-    val = iec61850_yaml_get_string(doc, "dpdk.file_prefix", NULL);
+    val = iec61850_yaml_get_string(doc, "dpdk.file_prefix");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->dpdk.file_prefix, val, sizeof(cfg->dpdk.file_prefix) - 1);
         cfg->dpdk.file_prefix[sizeof(cfg->dpdk.file_prefix) - 1] = '\0';
     }
 
     /* Logging */
-    val = iec61850_yaml_get_string(doc, "logging.level", NULL);
+    val = iec61850_yaml_get_string(doc, "logging.level");
     if (val != NULL && val[0] != '\0') {
         cfg->logging.level = iec61850_log_level_from_string(val);
     }
 
-    val = iec61850_yaml_get_string(doc, "logging.output", NULL);
+    val = iec61850_yaml_get_string(doc, "logging.output");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->logging.output, val, IEC61850_MAX_PATH_LEN - 1);
         cfg->logging.output[IEC61850_MAX_PATH_LEN - 1] = '\0';
     }
 
-    val = iec61850_yaml_get_string(doc, "logging.use_syslog", NULL);
+    val = iec61850_yaml_get_string(doc, "logging.use_syslog");
     if (val != NULL) {
         cfg->logging.use_syslog = iec61850_yaml_get_bool(doc, "logging.use_syslog", false);
     }
 
     /* Metrics */
-    val = iec61850_yaml_get_string(doc, "metrics.enabled", NULL);
+    val = iec61850_yaml_get_string(doc, "metrics.enabled");
     if (val != NULL) {
         cfg->metrics.enabled = iec61850_yaml_get_bool(doc, "metrics.enabled", false);
     }
@@ -200,31 +200,31 @@ static void apply_yaml(const iec61850_yaml_doc_t *doc,
         cfg->metrics.export_interval_sec = (unsigned)interval;
     }
 
-    val = iec61850_yaml_get_string(doc, "metrics.output", NULL);
+    val = iec61850_yaml_get_string(doc, "metrics.output");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->metrics.output, val, IEC61850_MAX_PATH_LEN - 1);
         cfg->metrics.output[IEC61850_MAX_PATH_LEN - 1] = '\0';
     }
 
     /* Security */
-    val = iec61850_yaml_get_string(doc, "security.enabled", NULL);
+    val = iec61850_yaml_get_string(doc, "security.enabled");
     if (val != NULL) {
         cfg->security.enabled = iec61850_yaml_get_bool(doc, "security.enabled", false);
     }
 
-    val = iec61850_yaml_get_string(doc, "security.private_key", NULL);
+    val = iec61850_yaml_get_string(doc, "security.private_key");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->security.private_key, val, IEC61850_MAX_PATH_LEN - 1);
         cfg->security.private_key[IEC61850_MAX_PATH_LEN - 1] = '\0';
     }
 
-    val = iec61850_yaml_get_string(doc, "security.certificate", NULL);
+    val = iec61850_yaml_get_string(doc, "security.certificate");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->security.certificate, val, IEC61850_MAX_PATH_LEN - 1);
         cfg->security.certificate[IEC61850_MAX_PATH_LEN - 1] = '\0';
     }
 
-    val = iec61850_yaml_get_string(doc, "security.trusted_certs", NULL);
+    val = iec61850_yaml_get_string(doc, "security.trusted_certs");
     if (val != NULL && val[0] != '\0') {
         (void)strncpy(cfg->security.trusted_certs, val, IEC61850_MAX_PATH_LEN - 1);
         cfg->security.trusted_certs[IEC61850_MAX_PATH_LEN - 1] = '\0';

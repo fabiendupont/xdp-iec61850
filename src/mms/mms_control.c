@@ -196,7 +196,7 @@ int iec61850_control_select_with_value(iec61850_control_manager_t *mgr,
 
 int iec61850_control_operate(iec61850_control_manager_t *mgr,
                                const char *domain, const char *item_id,
-                               uint32_t session_id, uint32_t selection_id,
+                               iec61850_control_ids_t ids,
                                mms_operate_response_t *resp)
 {
     if (mgr == NULL || resp == NULL) { return -EINVAL; }
@@ -220,14 +220,14 @@ int iec61850_control_operate(iec61850_control_manager_t *mgr,
         return MMS_CONTROL_ERROR_NOT_SELECTED;
     }
 
-    if (obj->selection_id != selection_id) {
+    if (obj->selection_id != ids.selection_id) {
         resp->state = obj->state;
         resp->success = false;
         (void)pthread_mutex_unlock(&obj->mutex);
         return MMS_CONTROL_ERROR_INVALID_SELECTION_ID;
     }
 
-    if (obj->owner_session_id != session_id) {
+    if (obj->owner_session_id != ids.session_id) {
         resp->state = obj->state;
         resp->success = false;
         (void)pthread_mutex_unlock(&obj->mutex);
@@ -280,7 +280,7 @@ int iec61850_control_operate(iec61850_control_manager_t *mgr,
 
 int iec61850_control_cancel(iec61850_control_manager_t *mgr,
                               const char *domain, const char *item_id,
-                              uint32_t session_id, uint32_t selection_id)
+                              iec61850_control_ids_t ids)
 {
     if (mgr == NULL) { return -EINVAL; }
 
@@ -294,8 +294,8 @@ int iec61850_control_cancel(iec61850_control_manager_t *mgr,
     (void)pthread_mutex_lock(&obj->mutex);
     (void)pthread_mutex_unlock(&mgr->mutex);
 
-    if (obj->selection_id != selection_id ||
-        obj->owner_session_id != session_id) {
+    if (obj->selection_id != ids.selection_id ||
+        obj->owner_session_id != ids.session_id) {
         (void)pthread_mutex_unlock(&obj->mutex);
         return MMS_CONTROL_ERROR_INVALID_SELECTION_ID;
     }

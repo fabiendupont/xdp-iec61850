@@ -92,19 +92,30 @@ void iec61850_monitor_init(iec61850_system_monitor_t *mon);
 void iec61850_monitor_set_mempool(iec61850_system_monitor_t *mon,
                                    uint64_t total, uint64_t available);
 
+/** Publisher statistics passed to iec61850_monitor_update_pub(). */
+typedef struct {
+    uint64_t sent;
+    uint64_t errors;
+} iec61850_pub_stats_t;
+
+/** Subscriber statistics passed to iec61850_monitor_update_sub(). */
+typedef struct {
+    uint64_t received;
+    uint64_t duplicates;
+    uint64_t timeouts;
+} iec61850_sub_stats_t;
+
 /**
  * Update publisher statistics.
  */
 void iec61850_monitor_update_pub(iec61850_system_monitor_t *mon,
-                                  uint64_t total_sent, uint64_t total_errors);
+                                  const iec61850_pub_stats_t *stats);
 
 /**
  * Update subscriber statistics.
  */
 void iec61850_monitor_update_sub(iec61850_system_monitor_t *mon,
-                                  uint64_t total_received,
-                                  uint64_t total_duplicates,
-                                  uint64_t total_timeouts);
+                                  const iec61850_sub_stats_t *stats);
 
 /**
  * Get current system health assessment.

@@ -38,22 +38,20 @@ void iec61850_monitor_set_mempool(iec61850_system_monitor_t *mon,
 }
 
 void iec61850_monitor_update_pub(iec61850_system_monitor_t *mon,
-                                  uint64_t total_sent, uint64_t total_errors)
+                                  const iec61850_pub_stats_t *stats)
 {
-    if (mon == NULL) { return; }
-    mon->pub_sent = total_sent;
-    mon->pub_errors = total_errors;
+    if (mon == NULL || stats == NULL) { return; }
+    mon->pub_sent = stats->sent;
+    mon->pub_errors = stats->errors;
 }
 
 void iec61850_monitor_update_sub(iec61850_system_monitor_t *mon,
-                                  uint64_t total_received,
-                                  uint64_t total_duplicates,
-                                  uint64_t total_timeouts)
+                                  const iec61850_sub_stats_t *stats)
 {
-    if (mon == NULL) { return; }
-    mon->sub_received = total_received;
-    mon->sub_duplicates = total_duplicates;
-    mon->sub_timeouts = total_timeouts;
+    if (mon == NULL || stats == NULL) { return; }
+    mon->sub_received = stats->received;
+    mon->sub_duplicates = stats->duplicates;
+    mon->sub_timeouts = stats->timeouts;
 }
 
 iec61850_system_health_t iec61850_monitor_get_health(

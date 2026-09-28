@@ -328,12 +328,12 @@ static void test_monitor_update(void)
     iec61850_monitor_init(&mon);
 
     /* Update publisher stats */
-    iec61850_monitor_update_pub(&mon, 1000, 0);
+    iec61850_monitor_update_pub(&mon, &(iec61850_pub_stats_t){.sent=1000, .errors=0});
     ASSERT_EQ((int)mon.pub_sent, 1000);
     ASSERT_EQ((int)mon.pub_errors, 0);
 
     /* Update subscriber stats */
-    iec61850_monitor_update_sub(&mon, 500, 2, 1);
+    iec61850_monitor_update_sub(&mon, &(iec61850_sub_stats_t){.received=500, .duplicates=2, .timeouts=1});
     ASSERT_EQ((int)mon.sub_received, 500);
     ASSERT_EQ((int)mon.sub_duplicates, 2);
     ASSERT_EQ((int)mon.sub_timeouts, 1);

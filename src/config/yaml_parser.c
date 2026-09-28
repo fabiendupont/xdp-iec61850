@@ -261,12 +261,11 @@ static const iec61850_yaml_entry_t *find_entry(const iec61850_yaml_doc_t *doc,
 }
 
 const char *iec61850_yaml_get_string(const iec61850_yaml_doc_t *doc,
-                                      const char *key,
-                                      const char *default_val)
+                                      const char *key)
 {
     const iec61850_yaml_entry_t *entry = find_entry(doc, key);
     if (entry == NULL || entry->type != IEC61850_YAML_STRING) {
-        return default_val;
+        return NULL;
     }
     return entry->value;
 }

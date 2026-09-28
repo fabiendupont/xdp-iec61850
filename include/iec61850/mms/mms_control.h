@@ -86,14 +86,20 @@ int iec61850_control_select_with_value(iec61850_control_manager_t *mgr,
                                          const mms_value_t *value,
                                          mms_select_with_value_response_t *resp);
 
+/** Session and selection identifiers for control operations. */
+typedef struct {
+    uint32_t session_id;
+    uint32_t selection_id;
+} iec61850_control_ids_t;
+
 int iec61850_control_operate(iec61850_control_manager_t *mgr,
                                const char *domain, const char *item_id,
-                               uint32_t session_id, uint32_t selection_id,
+                               iec61850_control_ids_t ids,
                                mms_operate_response_t *resp);
 
 int iec61850_control_cancel(iec61850_control_manager_t *mgr,
                               const char *domain, const char *item_id,
-                              uint32_t session_id, uint32_t selection_id);
+                              iec61850_control_ids_t ids);
 
 void iec61850_control_cleanup_expired(iec61850_control_manager_t *mgr);
 

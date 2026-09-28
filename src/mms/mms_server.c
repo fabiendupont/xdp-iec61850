@@ -279,8 +279,10 @@ static int process_request(iec61850_mms_session_t *session,
                 session->control_manager,
                 req->params.operate.control_object.domain,
                 req->params.operate.control_object.item_id,
-                session->session_id,
-                req->params.operate.selection_id,
+                (iec61850_control_ids_t){
+                    .session_id   = session->session_id,
+                    .selection_id = req->params.operate.selection_id,
+                },
                 &resp->params.operate);
             if (ds_ret != 0) {
                 err->error.error_class = MMS_ERROR_CLASS_ACCESS;
@@ -300,8 +302,10 @@ static int process_request(iec61850_mms_session_t *session,
                 session->control_manager,
                 req->params.cancel.control_object.domain,
                 req->params.cancel.control_object.item_id,
-                session->session_id,
-                req->params.cancel.selection_id);
+                (iec61850_control_ids_t){
+                    .session_id   = session->session_id,
+                    .selection_id = req->params.cancel.selection_id,
+                });
             if (ds_ret != 0) {
                 err->error.error_class = MMS_ERROR_CLASS_ACCESS;
                 err->error.error_code = MMS_ACCESS_ERROR_OBJECT_NON_EXISTENT;

@@ -75,11 +75,10 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc);
 
 /**
  * Get a string value by dotted key (e.g., "logging.level").
- * Returns default_val if key not found.
+ * Returns NULL if key not found.
  */
 const char *iec61850_yaml_get_string(const iec61850_yaml_doc_t *doc,
-                                      const char *key,
-                                      const char *default_val);
+                                      const char *key);
 
 /**
  * Get an integer value by dotted key.

@@ -115,20 +115,21 @@ static void test_get_string(void)
     iec61850_yaml_doc_init(&doc);
     iec61850_yaml_parse_file(test_yaml_path, &doc);
 
-    const char *val = iec61850_yaml_get_string(&doc, "scl.file", NULL);
+    const char *val = iec61850_yaml_get_string(&doc, "scl.file");
     ASSERT_TRUE(val != NULL);
     ASSERT_TRUE(strcmp(val, "/etc/iec61850/test.scd") == 0);
 
-    val = iec61850_yaml_get_string(&doc, "scl.ied", NULL);
+    val = iec61850_yaml_get_string(&doc, "scl.ied");
     ASSERT_TRUE(val != NULL);
     ASSERT_TRUE(strcmp(val, "IED1") == 0);
 
-    val = iec61850_yaml_get_string(&doc, "logging.level", NULL);
+    val = iec61850_yaml_get_string(&doc, "logging.level");
     ASSERT_TRUE(val != NULL);
     ASSERT_TRUE(strcmp(val, "DEBUG") == 0);
 
     /* Non-existent key returns default */
-    val = iec61850_yaml_get_string(&doc, "nonexistent.key", "fallback");
+    val = iec61850_yaml_get_string(&doc, "nonexistent.key");
+    val = (val != NULL) ? val : "fallback";
     ASSERT_TRUE(val != NULL);
     ASSERT_TRUE(strcmp(val, "fallback") == 0);
 
@@ -212,7 +213,8 @@ static void test_get_string_empty_doc(void)
     iec61850_yaml_doc_t doc;
     iec61850_yaml_doc_init(&doc);
     /* Empty doc, key not found — should return default */
-    const char *val = iec61850_yaml_get_string(&doc, "nonexistent", "default");
+    const char *raw = iec61850_yaml_get_string(&doc, "nonexistent");
+    const char *val = (raw != NULL) ? raw : "default";
     ASSERT_TRUE(val != NULL);
     ASSERT_TRUE(strcmp(val, "default") == 0);
 
