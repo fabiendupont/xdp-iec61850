@@ -50,8 +50,9 @@ int main(int argc, char *argv[])
     int ret, attempts;
 
     if (argc < 3) {
-        fprintf(stderr, "Usage: %s <tx_interface> <rx_interface>\n", argv[0]);
-        return 1;
+        fprintf(stderr, "SKIP: %s requires <tx_interface> <rx_interface> — run via test_goose_loopback.sh\n",
+                argv[0]);
+        return 77;
     }
     tx_if = argv[1];
     rx_if = argv[2];
