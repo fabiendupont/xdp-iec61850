@@ -53,8 +53,8 @@ static void test_select_operate_cancel(void)
 
     /* Operate */
     mms_operate_response_t op_resp;
-    ret = iec61850_control_operate(&mgr, "LD0", "CSWI1$CO$Pos", 1,
-                                     sel_resp.selection_id, &op_resp);
+    ret = iec61850_control_operate(&mgr, "LD0", "CSWI1$CO$Pos",
+                                     (iec61850_control_ids_t){1, sel_resp.selection_id}, &op_resp);
     ASSERT_EQ(ret, 0);
     ASSERT_TRUE(op_resp.success);
     ASSERT_EQ((int)op_resp.state, (int)MMS_CONTROL_STATE_READY);
@@ -78,8 +78,8 @@ static void test_select_already_selected(void)
 
     /* Verify the object state by attempting operate from same session */
     mms_operate_response_t op;
-    ret = iec61850_control_operate(&mgr, "LD0", "XCBR", 100,
-                                     resp.selection_id, &op);
+    ret = iec61850_control_operate(&mgr, "LD0", "XCBR",
+                                     (iec61850_control_ids_t){100, resp.selection_id}, &op);
     ASSERT_EQ(ret, 0);
     ASSERT_TRUE(op.success);
 
@@ -104,8 +104,7 @@ static void test_operate_wrong_session(void)
 
     /* Operate from different session */
     mms_operate_response_t op;
-    int ret = iec61850_control_operate(&mgr, "LD0", "CB1", 2,
-                                         sel.selection_id, &op);
+    int ret = iec61850_control_operate(&mgr, "LD0", "CB1", (iec61850_control_ids_t){2, sel.selection_id}, &op);
     ASSERT_TRUE(ret != 0);
     ASSERT_TRUE(!op.success);
 
@@ -124,7 +123,7 @@ static void test_operate_wrong_selection_id(void)
     iec61850_control_select(&mgr, "LD0", "CB1", 1, &sel);
 
     mms_operate_response_t op;
-    int ret = iec61850_control_operate(&mgr, "LD0", "CB1", 1, 9999, &op);
+    int ret = iec61850_control_operate(&mgr, "LD0", "CB1", (iec61850_control_ids_t){1, 9999}, &op);
     ASSERT_EQ(ret, MMS_CONTROL_ERROR_INVALID_SELECTION_ID);
 
     iec61850_control_manager_destroy(&mgr);
@@ -141,7 +140,7 @@ static void test_cancel(void)
     mms_select_response_t sel;
     iec61850_control_select(&mgr, "LD0", "CB1", 1, &sel);
 
-    int ret = iec61850_control_cancel(&mgr, "LD0", "CB1", 1, sel.selection_id);
+    int ret = iec61850_control_cancel(&mgr, "LD0", "CB1", (iec61850_control_ids_t){1, sel.selection_id});
     ASSERT_EQ(ret, 0);
 
     /* Now another session can select */
@@ -182,7 +181,7 @@ static void test_operate_not_selected(void)
     iec61850_control_register(&mgr, "LD0", "CB1");
 
     mms_operate_response_t op;
-    int ret = iec61850_control_operate(&mgr, "LD0", "CB1", 1, 1, &op);
+    int ret = iec61850_control_operate(&mgr, "LD0", "CB1", (iec61850_control_ids_t){1, 1}, &op);
     ASSERT_EQ(ret, MMS_CONTROL_ERROR_NOT_SELECTED);
 
     iec61850_control_manager_destroy(&mgr);
@@ -226,8 +225,7 @@ static void test_operate_with_action_callback(void)
     ASSERT_EQ(ret, 0);
 
     mms_operate_response_t op;
-    ret = iec61850_control_operate(&mgr, "LD0", "CSWI$CO$Pos", 1,
-                                     sel.selection_id, &op);
+    ret = iec61850_control_operate(&mgr, "LD0", "CSWI$CO$Pos", (iec61850_control_ids_t){1, sel.selection_id}, &op);
     ASSERT_EQ(ret, 0);
     ASSERT_TRUE(op.success);
     ASSERT_EQ(action_cb_called, 1);
@@ -255,8 +253,7 @@ static void test_operate_action_callback_failure(void)
     iec61850_control_select(&mgr, "LD0", "CB2", 1, &sel);
 
     mms_operate_response_t op;
-    int ret = iec61850_control_operate(&mgr, "LD0", "CB2", 1,
-                                         sel.selection_id, &op);
+    int ret = iec61850_control_operate(&mgr, "LD0", "CB2", (iec61850_control_ids_t){1, sel.selection_id}, &op);
     ASSERT_TRUE(ret != 0);
     ASSERT_TRUE(!op.success);
     ASSERT_EQ(action_cb_called, 1);
@@ -341,7 +338,7 @@ static void test_operate_not_found(void)
     iec61850_control_manager_init(&mgr);
 
     mms_operate_response_t op;
-    int ret = iec61850_control_operate(&mgr, "LD0", "NONEXIST", 1, 1, &op);
+    int ret = iec61850_control_operate(&mgr, "LD0", "NONEXIST", (iec61850_control_ids_t){1, 1}, &op);
     ASSERT_EQ(ret, MMS_CONTROL_ERROR_NOT_SELECTED);
 
     iec61850_control_manager_destroy(&mgr);
@@ -354,7 +351,7 @@ static void test_cancel_not_found(void)
     iec61850_control_manager_t mgr;
     iec61850_control_manager_init(&mgr);
 
-    int ret = iec61850_control_cancel(&mgr, "LD0", "NONEXIST", 1, 1);
+    int ret = iec61850_control_cancel(&mgr, "LD0", "NONEXIST", (iec61850_control_ids_t){1, 1});
     ASSERT_EQ(ret, MMS_CONTROL_ERROR_NOT_SELECTED);
 
     iec61850_control_manager_destroy(&mgr);
@@ -396,7 +393,7 @@ static void test_operate_null_resp(void)
     TEST("operate_null_resp");
     iec61850_control_manager_t mgr;
     iec61850_control_manager_init(&mgr);
-    ASSERT_TRUE(iec61850_control_operate(&mgr, "LD0", "CB", 1, 1, NULL) != 0);
+    ASSERT_TRUE(iec61850_control_operate(&mgr, "LD0", "CB", (iec61850_control_ids_t){1, 1}, NULL) != 0);
     iec61850_control_manager_destroy(&mgr);
     PASS();
 }
@@ -404,7 +401,7 @@ static void test_operate_null_resp(void)
 static void test_cancel_null_mgr(void)
 {
     TEST("cancel_null_mgr");
-    ASSERT_TRUE(iec61850_control_cancel(NULL, "LD0", "CB", 1, 1) != 0);
+    ASSERT_TRUE(iec61850_control_cancel(NULL, "LD0", "CB", (iec61850_control_ids_t){1, 1}) != 0);
     PASS();
 }
 
@@ -419,11 +416,11 @@ static void test_cancel_wrong_ids(void)
     iec61850_control_select(&mgr, "LD0", "CB1", 1, &sel);
 
     /* Wrong selection_id */
-    int ret = iec61850_control_cancel(&mgr, "LD0", "CB1", 1, 9999);
+    int ret = iec61850_control_cancel(&mgr, "LD0", "CB1", (iec61850_control_ids_t){1, 9999});
     ASSERT_EQ(ret, MMS_CONTROL_ERROR_INVALID_SELECTION_ID);
 
     /* Wrong session_id */
-    ret = iec61850_control_cancel(&mgr, "LD0", "CB1", 2, sel.selection_id);
+    ret = iec61850_control_cancel(&mgr, "LD0", "CB1", (iec61850_control_ids_t){2, sel.selection_id});
     ASSERT_EQ(ret, MMS_CONTROL_ERROR_INVALID_SELECTION_ID);
 
     iec61850_control_manager_destroy(&mgr);
@@ -518,8 +515,8 @@ static void test_operate_with_preloaded_value(void)
 
     /* Operate — should pass preloaded value to callback */
     mms_operate_response_t op;
-    ret = iec61850_control_operate(&mgr, "LD0", "CB1", 1,
-                                     swv_resp.selection_id, &op);
+    ret = iec61850_control_operate(&mgr, "LD0", "CB1",
+                                     (iec61850_control_ids_t){1, swv_resp.selection_id}, &op);
     ASSERT_EQ(ret, 0);
     ASSERT_TRUE(op.success);
     ASSERT_EQ(action_cb_called, 1);
@@ -570,7 +567,7 @@ static void test_operate_null_mgr(void)
 {
     TEST("operate_null_mgr");
     mms_operate_response_t op;
-    ASSERT_TRUE(iec61850_control_operate(NULL, "LD0", "CB", 1, 1, &op) != 0);
+    ASSERT_TRUE(iec61850_control_operate(NULL, "LD0", "CB", (iec61850_control_ids_t){1, 1}, &op) != 0);
     PASS();
 }
 
