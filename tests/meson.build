@@ -228,18 +228,17 @@ test_subscriber_timeout = executable('test_subscriber_timeout',
 
 test('subscriber_timeout', test_subscriber_timeout, suite: 'integration')
 
-# Integration test — TCP Listener (always built, loopback sockets)
-test_transport_listener = executable('test_transport_listener',
-    'integration/test_transport_listener.c',
-    include_directories: [inc_dirs, test_inc],
-    link_with: [iec61850_lib] + mms_lib,
-    dependencies: [thread_dep],
-)
-
-test('transport_listener', test_transport_listener, suite: 'integration')
-
 # MMS-dependent tests (only if MMS is enabled)
 if get_option('enable_mms')
+    # Integration test — TCP Listener (requires MMS tcp_socket.c)
+    test_transport_listener = executable('test_transport_listener',
+        'integration/test_transport_listener.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: [thread_dep],
+    )
+    test('transport_listener', test_transport_listener, suite: 'integration')
+
     test_mms_file_service = executable('test_mms_file_service',
         'unit/test_mms_file_service.c',
         include_directories: [inc_dirs, test_inc],
