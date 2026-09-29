@@ -87,13 +87,6 @@ typedef enum {
     IEC61850_CDC_DEL3 = 61
 } iec61850_cdc_t;
 
-/* Trigger conditions (bitmask) */
-#define IEC61850_TRG_DCHG   0x01U
-#define IEC61850_TRG_QCHG   0x02U
-#define IEC61850_TRG_DUPD   0x04U
-#define IEC61850_TRG_PERIOD 0x08U
-#define IEC61850_TRG_GI     0x10U
-
 const char *iec61850_fc_to_string(iec61850_fc_t fc);
 iec61850_fc_t iec61850_string_to_fc(const char *str);
 const char *iec61850_btype_to_string(iec61850_btype_t btype);

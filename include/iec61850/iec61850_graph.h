@@ -22,7 +22,6 @@ struct xgl_graph;
 #define IEC61850_ROLE_GOOSE_PARSE   1
 #define IEC61850_ROLE_SV_FILTER     2
 #define IEC61850_ROLE_SV_PARSE      3
-#define IEC61850_ROLE_COUNT         4
 
 /**
  * Dynamically allocated PROG_ARRAY indices for IEC 61850 nodes.

@@ -85,49 +85,6 @@ const char *iec61850_log_level_to_string(iec61850_log_level_t level);
  */
 iec61850_log_level_t iec61850_log_level_from_string(const char *str);
 
-/* Convenience macros */
-#define IEC61850_LOG_TRACE_MSG(component, msg) \
-    do { \
-        if (iec61850_logger_is_enabled(IEC61850_LOG_TRACE)) { \
-            iec61850_logger_log(IEC61850_LOG_TRACE, component, msg); \
-        } \
-    } while (0)
-
-#define IEC61850_LOG_DEBUG_MSG(component, msg) \
-    do { \
-        if (iec61850_logger_is_enabled(IEC61850_LOG_DEBUG)) { \
-            iec61850_logger_log(IEC61850_LOG_DEBUG, component, msg); \
-        } \
-    } while (0)
-
-#define IEC61850_LOG_INFO_MSG(component, msg) \
-    do { \
-        if (iec61850_logger_is_enabled(IEC61850_LOG_INFO)) { \
-            iec61850_logger_log(IEC61850_LOG_INFO, component, msg); \
-        } \
-    } while (0)
-
-#define IEC61850_LOG_WARNING_MSG(component, msg) \
-    do { \
-        if (iec61850_logger_is_enabled(IEC61850_LOG_WARNING)) { \
-            iec61850_logger_log(IEC61850_LOG_WARNING, component, msg); \
-        } \
-    } while (0)
-
-#define IEC61850_LOG_ERROR_MSG(component, msg) \
-    do { \
-        if (iec61850_logger_is_enabled(IEC61850_LOG_ERROR)) { \
-            iec61850_logger_log(IEC61850_LOG_ERROR, component, msg); \
-        } \
-    } while (0)
-
-#define IEC61850_LOG_CRITICAL_MSG(component, msg) \
-    do { \
-        if (iec61850_logger_is_enabled(IEC61850_LOG_CRITICAL)) { \
-            iec61850_logger_log(IEC61850_LOG_CRITICAL, component, msg); \
-        } \
-    } while (0)
-
 #ifdef __cplusplus
 }
 #endif
