@@ -58,22 +58,22 @@ extern "C" {
 #define MMS_OK 0
 
 /** Buffer too small */
-#define MMS_ERROR_BUFFER_TOO_SMALL -1
+#define MMS_ERROR_BUFFER_TOO_SMALL (-1)
 
 /** Invalid parameter */
-#define MMS_ERROR_INVALID_PARAM -2
+#define MMS_ERROR_INVALID_PARAM (-2)
 
 /** Invalid encoding */
-#define MMS_ERROR_INVALID_ENCODING -3
+#define MMS_ERROR_INVALID_ENCODING (-3)
 
 /** Service not supported */
-#define MMS_ERROR_NOT_SUPPORTED -4
+#define MMS_ERROR_NOT_SUPPORTED (-4)
 
 /** Service error response */
-#define MMS_ERROR_SERVICE_ERROR -5
+#define MMS_ERROR_SERVICE_ERROR (-5)
 
 /** Out of memory */
-#define MMS_ERROR_OUT_OF_MEMORY -6
+#define MMS_ERROR_OUT_OF_MEMORY (-6)
 
 /* ============================================================================
  * ASN.1 Tags (ISO 9506-2)
