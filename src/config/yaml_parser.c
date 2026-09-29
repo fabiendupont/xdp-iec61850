@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <strings.h>
 
 void iec61850_yaml_doc_init(iec61850_yaml_doc_t *doc)
