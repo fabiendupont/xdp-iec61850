@@ -202,7 +202,7 @@ static const struct packet_io_ops xsk_inherited_ops = {
 
 struct packet_io *packet_io_create_xsk_inherited(int control_sock_fd)
 {
-    struct xsk_handoff_msg msg;
+    struct xsk_handoff_msg msg = {0};
     int fds[XSK_HANDOFF_NUM_FDS] = { -1, -1 };
     char cmsgbuf[CMSG_SPACE(sizeof(fds))];
     struct iovec iov = { .iov_base = &msg, .iov_len = sizeof(msg) };

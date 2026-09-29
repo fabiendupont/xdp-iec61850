@@ -25,15 +25,19 @@ extern "C" {
  * Macro to define a ring buffer type and its functions.
  *
  * Usage:
- *   IEC61850_DEFINE_RING_BUFFER(iec61850_uint64_ring8, uint64_t, 8)
+ *   IEC61850_DEFINE_RING_BUFFER(iec61850_uint64_ring8, uint64_t, 8U)
  *
  * Generates:
  *   - typedef struct { uint64_t data[8]; size_t head, tail, count; }
  *   - init, enqueue, dequeue, peek, at, clear, size, capacity, empty, full
  *
- * MISRA-C Advisory Deviation: Rule 20.10 (## token pasting)
+ * MISRA-C Advisory Deviation: Rules 20.7/20.10/20.12 (## token pasting;
+ * type-name parameters cannot be parenthesized).
  * ======================================================================== */
 
+/* cppcheck-suppress misra-c2012-20.7 -- NAME/ELEM_TYPE are type names, not expressions */
+/* cppcheck-suppress misra-c2012-20.10 -- ## required for typed container macro pattern */
+/* cppcheck-suppress misra-c2012-20.12 -- ## required for typed container macro pattern */
 #define IEC61850_DEFINE_RING_BUFFER(NAME, ELEM_TYPE, CAPACITY)                \
                                                                                \
 typedef struct NAME {                                                          \
@@ -142,8 +146,8 @@ static inline bool NAME##_full(const NAME##_t *rb)                             \
  * Concrete type instantiations
  * ======================================================================== */
 
-IEC61850_DEFINE_RING_BUFFER(iec61850_uint64_ring8, uint64_t, 8)
-IEC61850_DEFINE_RING_BUFFER(iec61850_uint64_ring1000, uint64_t, 1000)
+IEC61850_DEFINE_RING_BUFFER(iec61850_uint64_ring8, uint64_t, 8U)
+IEC61850_DEFINE_RING_BUFFER(iec61850_uint64_ring1000, uint64_t, 1000U)
 
 #ifdef __cplusplus
 }

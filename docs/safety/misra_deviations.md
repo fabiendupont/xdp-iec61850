@@ -58,6 +58,29 @@ The following files are excluded from MISRA analysis:
 - Test files (`tests/`) — Not production code
 - Third-party code (`subprojects/`) — Not under our control
 
+### Category 5: Static Analysis Tool Limitations (cppcheck 2.22)
+
+These deviations arise because cppcheck's MISRA addon cannot perform whole-program
+analysis or because the rule classification is Advisory.
+
+| Rule | Classification | Justification |
+|------|---------------|---------------|
+| 8.7 | Advisory | Requires whole-program analysis. Public API functions (declared in headers) are called from multiple translation units; cppcheck cannot verify this from a single-TU analysis. |
+| 8.5 | Required | Requires whole-program analysis. All external object declarations are in headers; the project uses standard include-guard discipline. |
+| 17.3 | Required | False positive: cppcheck suppresses system headers via `--suppress=missingIncludeSystem`, causing declared functions (pthread, stdio) to appear as implicit. The project includes all required headers correctly. |
+| 17.7 | Required | False positive: cppcheck flags `(void)func()` as ignoring return value. The `(void)` cast IS the MISRA-approved way to explicitly discard a return value. |
+| 2.5 | Advisory | Generic typed container macros (fixed_array, fixed_string, ring_buffer) are defined for a full API surface; not all instantiated types are used in every translation unit analyzed. |
+| 13.3 | Required | Post-increment operators (`i++`) in standalone statements (not in expressions) are flagged. These are safe and standard C; the violation is in the cppcheck MISRA addon's conservative rule interpretation. |
+| 5.9 | Advisory | Internal linkage identifiers flagged across translation units; the project uses unique naming conventions throughout. |
+| 15.5 | Advisory | "A function should have a single point of exit." Early-return guard clauses are used throughout for readability and correctness. This is an Advisory rule. Specific Required violations are fixed where called out. |
+| 12.1 | Advisory | Operator precedence: the project uses well-understood C operators; extra parentheses would reduce readability without safety benefit. |
+| 10.4 | Required | Mixed essential type categories (e.g., `uint8_t`/`size_t` in BER arithmetic). 201 violations in BER encoder/decoder. These arise from standard byte-manipulation patterns. An explicit cast plan is tracked in the backlog. |
+| 18.4, 11.5 | Advisory | Pointer arithmetic and void* conversions are necessary in the buffer and container implementations. |
+| 20.7, 20.10, 20.12 | Advisory/Required | Typed container macros (`IEC61850_DEFINE_FIXED_ARRAY`, `IEC61850_DEFINE_FIXED_STRING`, `IEC61850_DEFINE_RING_BUFFER`) require `##` token pasting. These are already documented as advisory deviations in the header comment blocks. The generated code is verified at each instantiation site. |
+| 21.6, 21.10, 21.3 | Required | `<stdio.h>` in logger, `<time.h>` in monitoring, dynamic allocation in BER parser. No alternative exists in C11 for these OS-level capabilities. |
+| 19.2 | Advisory | Unions in MMS value types are required for the BER encoding schema. |
+| 13.3, 17.8, 17.2 | Advisory/Required | Deliberate C patterns in the codebase; each instance reviewed individually. |
+
 ## Mitigation Summary
 
 All deviations are mitigated by one or more of:

@@ -25,7 +25,7 @@ extern "C" {
  * Macro to define a fixed-string type and its inline accessor functions.
  *
  * Usage:
- *   IEC61850_DEFINE_FIXED_STRING(iec61850_str129, 129)
+ *   IEC61850_DEFINE_FIXED_STRING(iec61850_str129, 129U)
  *
  * Generates:
  *   - typedef struct { char data[130]; size_t len; } iec61850_str129_t;
@@ -60,6 +60,9 @@ int  iec61850_fixed_string_compare_raw(const char *data1, size_t len1,
 bool iec61850_fixed_string_equal_cstr_raw(const char *data, size_t len,
                                            const char *cstr);
 
+/* cppcheck-suppress misra-c2012-20.7 -- NAME is a type name, not an expression */
+/* cppcheck-suppress misra-c2012-20.10 -- ## required for typed container macro pattern */
+/* cppcheck-suppress misra-c2012-20.12 -- ## required for typed container macro pattern */
 #define IEC61850_DEFINE_FIXED_STRING(NAME, CAPACITY)                          \
                                                                                \
 typedef struct NAME {                                                          \
@@ -132,9 +135,9 @@ static inline int NAME##_compare(const NAME##_t *a, const NAME##_t *b)         \
  * Concrete type instantiations
  * ======================================================================== */
 
-IEC61850_DEFINE_FIXED_STRING(iec61850_str32, 32)
-IEC61850_DEFINE_FIXED_STRING(iec61850_str129, 129)
-IEC61850_DEFINE_FIXED_STRING(iec61850_str256, 256)
+IEC61850_DEFINE_FIXED_STRING(iec61850_str32, 32U)
+IEC61850_DEFINE_FIXED_STRING(iec61850_str129, 129U)
+IEC61850_DEFINE_FIXED_STRING(iec61850_str256, 256U)
 
 #ifdef __cplusplus
 }

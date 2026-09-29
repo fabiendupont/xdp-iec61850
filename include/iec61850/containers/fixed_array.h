@@ -31,9 +31,14 @@ extern "C" {
  *   - typedef struct { int32_t data[64]; size_t size; } iec61850_int32_array64_t;
  *   - init, push, pop, get, clear, size, capacity, empty, full, data
  *
- * MISRA-C Advisory Deviation: Rule 20.10 (## token pasting)
+ * MISRA-C Advisory Deviation: Rules 20.7/20.10/20.12 (macro ## operator,
+ * type-name parameters cannot be parenthesized). The typed container pattern
+ * requires ## token pasting; verified safe in all instantiations.
  * ======================================================================== */
 
+/* cppcheck-suppress misra-c2012-20.7 -- NAME/ELEM_TYPE are type names, not expressions */
+/* cppcheck-suppress misra-c2012-20.10 -- ## required for typed container macro pattern */
+/* cppcheck-suppress misra-c2012-20.12 -- ## required for typed container macro pattern */
 #define IEC61850_DEFINE_FIXED_ARRAY(NAME, ELEM_TYPE, CAPACITY)                \
                                                                                \
 typedef struct NAME {                                                          \

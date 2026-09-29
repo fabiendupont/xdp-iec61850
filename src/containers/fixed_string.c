@@ -35,17 +35,15 @@ int iec61850_fixed_string_assign_raw(char *data, size_t *len, size_t capacity,
     if (str == NULL) {
         data[0] = '\0';
         *len = 0;
-        return 0;
+    } else {
+        size_t slen = strlen(str);
+        if (slen > capacity) {
+            slen = capacity;
+        }
+        (void)memcpy(data, str, slen);
+        data[slen] = '\0';
+        *len = slen;
     }
-
-    size_t slen = strlen(str);
-    if (slen > capacity) {
-        slen = capacity;
-    }
-
-    (void)memcpy(data, str, slen);
-    data[slen] = '\0';
-    *len = slen;
 
     return 0;
 }
@@ -66,17 +64,15 @@ int iec61850_fixed_string_assign_n_raw(char *data, size_t *len, size_t capacity,
     if (str == NULL) {
         data[0] = '\0';
         *len = 0;
-        return 0;
+    } else {
+        size_t copy_len = n;
+        if (copy_len > capacity) {
+            copy_len = capacity;
+        }
+        (void)memcpy(data, str, copy_len);
+        data[copy_len] = '\0';
+        *len = copy_len;
     }
-
-    size_t copy_len = n;
-    if (copy_len > capacity) {
-        copy_len = capacity;
-    }
-
-    (void)memcpy(data, str, copy_len);
-    data[copy_len] = '\0';
-    *len = copy_len;
 
     return 0;
 }
@@ -100,10 +96,13 @@ void iec61850_fixed_string_clear_raw(char *data, size_t *len)
 bool iec61850_fixed_string_equal_raw(const char *data1, size_t len1,
                                       const char *data2, size_t len2)
 {
+    bool result;
     if (len1 != len2) {
-        return false;
+        result = false;
+    } else {
+        result = (memcmp(data1, data2, len1) == 0);
     }
-    return memcmp(data1, data2, len1) == 0;
+    return result;
 }
 
 /*@ requires \valid_read(data1 + (0..len1));
@@ -114,17 +113,17 @@ int iec61850_fixed_string_compare_raw(const char *data1, size_t len1,
                                        const char *data2, size_t len2)
 {
     size_t min_len = (len1 < len2) ? len1 : len2;
-    int r = memcmp(data1, data2, min_len);
-    if (r != 0) {
-        return r;
+    int result = memcmp(data1, data2, min_len);
+    if (result == 0) {
+        if (len1 < len2) {
+            result = -1;
+        } else if (len1 > len2) {
+            result = 1;
+        } else {
+            /* equal lengths — result stays 0 */
+        }
     }
-    if (len1 < len2) {
-        return -1;
-    }
-    if (len1 > len2) {
-        return 1;
-    }
-    return 0;
+    return result;
 }
 
 /*@ requires \valid_read(data + (0..len));
@@ -133,12 +132,16 @@ int iec61850_fixed_string_compare_raw(const char *data1, size_t len1,
 bool iec61850_fixed_string_equal_cstr_raw(const char *data, size_t len,
                                            const char *cstr)
 {
+    bool result;
     if (cstr == NULL) {
-        return len == 0U;
+        result = (len == 0U);
+    } else {
+        size_t clen = strlen(cstr);
+        if (len != clen) {
+            result = false;
+        } else {
+            result = (memcmp(data, cstr, len) == 0);
+        }
     }
-    size_t clen = strlen(cstr);
-    if (len != clen) {
-        return false;
-    }
-    return memcmp(data, cstr, len) == 0;
+    return result;
 }
