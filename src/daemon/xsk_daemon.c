@@ -137,7 +137,9 @@ static int create_xsk(const char *ifname, int queue_id,
         return -1;
     }
 
-    /* MISRA 11.5/18.4: mmap returns void*; byte arithmetic via char* cast is required here */
+    /* mmap succeeded (MAP_FAILED checked above); cppcheck cannot distinguish
+     * MAP_FAILED from NULL so it reports nullPointerOutOfMemory here. */
+    /* cppcheck-suppress nullPointerOutOfMemory */
     uint32_t *prod = (uint32_t *)&((uint8_t *)fill_map)[off.fr.producer];
     uint64_t *ring = (uint64_t *)&((uint8_t *)fill_map)[off.fr.desc];
     for (uint32_t i = 0; i < RING_SIZE; i++)
