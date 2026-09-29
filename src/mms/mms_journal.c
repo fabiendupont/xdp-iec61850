@@ -32,7 +32,7 @@ uint64_t iec61850_journal_add_entry(iec61850_journal_t *journal,
     if (journal == NULL) { return 0; }
 
     entry = &journal->entries[journal->head];
-    entry->entry_id = journal->next_entry_id++;
+    entry->entry_id = journal->next_entry_id; journal->next_entry_id++;
     entry->timestamp_ms = timestamp_ms;
     entry->valid = true;
 
@@ -93,7 +93,7 @@ int iec61850_journal_read_by_time(const iec61850_journal_t *journal,
         if ((start_ms > 0ULL) && (e->timestamp_ms < start_ms)) { continue; }
         if ((end_ms > 0ULL) && (e->timestamp_ms > end_ms)) { continue; }
 
-        out[found++] = *e;
+        out[found] = *e; found++;
     }
 
     *count = found;
@@ -131,7 +131,7 @@ int iec61850_journal_read_by_id(const iec61850_journal_t *journal,
         if (!e->valid) { continue; }
         if (e->entry_id <= after_id) { continue; }
 
-        out[found++] = *e;
+        out[found] = *e; found++;
     }
 
     *count = found;

@@ -149,7 +149,7 @@ int iec61850_control_select(iec61850_control_manager_t *mgr,
     }
 
     obj->state = MMS_CONTROL_STATE_SELECTED;
-    obj->selection_id = mgr->next_selection_id++;
+    obj->selection_id = mgr->next_selection_id; mgr->next_selection_id++;
     obj->owner_session_id = session_id;
     obj->selection_expires_at_ms = now_ms() + (uint64_t)IEC61850_CONTROL_DEFAULT_TIMEOUT_MS;
     obj->has_preloaded_value = false;

@@ -344,13 +344,13 @@ static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
 
     /* Connect/Accept Item PGI (0x05) containing Protocol Options + Version */
     if ((offset + 2U + ca_inner) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x05;  /* PGI Connect/Accept Item */
-    buf[offset++] = (uint8_t)ca_inner;
+    buf[offset] = 0x05; offset++;  /* PGI Connect/Accept Item */
+    buf[offset] = (uint8_t)ca_inner; offset++;
 
     /* Protocol Options PI (0x13): value 0x00 */
-    buf[offset++] = 0x13;
-    buf[offset++] = 0x01;
-    buf[offset++] = 0x00;
+    buf[offset] = 0x13; offset++;
+    buf[offset] = 0x01; offset++;
+    buf[offset] = 0x00; offset++;
 
     /* Protocol Version PI (0x16) inside PGI 0x05 */
     ver_buf[0] = params->version;
@@ -429,12 +429,12 @@ int iec61850_session_encode_data(uint8_t *buf, size_t buf_size,
     if ((4U + user_data_len) > buf_size) { return -ENOSPC; }
 
     /* GIVE_TOKENS */
-    buf[offset++] = IEC61850_SI_DATA;  /* SI=0x01 */
-    buf[offset++] = 0x00;
+    buf[offset] = IEC61850_SI_DATA; offset++;  /* SI=0x01 */
+    buf[offset] = 0x00; offset++;
 
     /* DATA */
-    buf[offset++] = IEC61850_SI_DATA;  /* SI=0x01 */
-    buf[offset++] = 0x00;
+    buf[offset] = IEC61850_SI_DATA; offset++;  /* SI=0x01 */
+    buf[offset] = 0x00; offset++;
 
     (void)memcpy(&buf[offset],user_data, user_data_len);
     offset += user_data_len;
@@ -631,36 +631,36 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
 
     /* Mode selector [0] IMPLICIT SET { [0] INTEGER = 1 (normal mode) } */
     if ((offset + 8U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0xA0;  /* [0] CONSTRUCTED */
-    buf[offset++] = 0x03;  /* length 3 */
-    buf[offset++] = 0x80;  /* [0] IMPLICIT */
-    buf[offset++] = 0x01;  /* length 1 */
-    buf[offset++] = 0x01;  /* normal-mode = 1 */
+    buf[offset] = 0xA0; offset++;  /* [0] CONSTRUCTED */
+    buf[offset] = 0x03; offset++;  /* length 3 */
+    buf[offset] = 0x80; offset++;  /* [0] IMPLICIT */
+    buf[offset] = 0x01; offset++;  /* length 1 */
+    buf[offset] = 0x01; offset++;  /* normal-mode = 1 */
 
     /* Normal-mode-parameters [2] IMPLICIT SEQUENCE */
     if ((offset + 3U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0xA2;  /* [2] CONSTRUCTED */
+    buf[offset] = 0xA2; offset++;  /* [2] CONSTRUCTED */
     size_t nmp_len_offset = offset;
     offset += 2U;  /* length placeholder (0x81 NN) */
     size_t nmp_start = offset;
 
     /* Calling presentation selector [1] IMPLICIT OCTET STRING */
     if ((offset + 6U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x81;  /* [1] IMPLICIT */
-    buf[offset++] = 0x04;  /* length 4 */
-    buf[offset++] = 0x00; buf[offset++] = 0x00;
-    buf[offset++] = 0x00; buf[offset++] = 0x01;  /* P-selector = 1 */
+    buf[offset] = 0x81; offset++;  /* [1] IMPLICIT */
+    buf[offset] = 0x04; offset++;  /* length 4 */
+    buf[offset] = 0x00; offset++; buf[offset] = 0x00; offset++;
+    buf[offset] = 0x00; offset++; buf[offset] = 0x01; offset++;  /* P-selector = 1 */
 
     /* Called presentation selector [2] IMPLICIT OCTET STRING */
     if ((offset + 6U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x82;  /* [2] IMPLICIT */
-    buf[offset++] = 0x04;  /* length 4 */
-    buf[offset++] = 0x00; buf[offset++] = 0x00;
-    buf[offset++] = 0x00; buf[offset++] = 0x01;  /* P-selector = 1 */
+    buf[offset] = 0x82; offset++;  /* [2] IMPLICIT */
+    buf[offset] = 0x04; offset++;  /* length 4 */
+    buf[offset] = 0x00; offset++; buf[offset] = 0x00; offset++;
+    buf[offset] = 0x00; offset++; buf[offset] = 0x01; offset++;  /* P-selector = 1 */
 
     /* Definition Context List [4] IMPLICIT SEQUENCE OF */
     if ((offset + 4U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0xA4;  /* [4] CONSTRUCTED */
+    buf[offset] = 0xA4; offset++;  /* [4] CONSTRUCTED */
     size_t dcl_len_offset = offset;
     offset += 2U;  /* length placeholder */
 
@@ -668,37 +668,37 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
 
     /* Context entry 1: ACSE (pcid=1) */
     if ((offset + 20U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x30;  /* SEQUENCE */
-    buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_ACSE_LEN +
-                               2U + 2U + (size_t)IEC61850_OID_BER_LEN);
-    buf[offset++] = 0x02; buf[offset++] = 0x01;
-    buf[offset++] = IEC61850_PCID_ACSE;  /* pcid = 1 */
-    buf[offset++] = 0x06;
-    buf[offset++] = (uint8_t)IEC61850_OID_ACSE_LEN;
+    buf[offset] = 0x30; offset++;  /* SEQUENCE */
+    buf[offset] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_ACSE_LEN +
+                               2U + 2U + (size_t)IEC61850_OID_BER_LEN); offset++;
+    buf[offset] = 0x02; offset++; buf[offset] = 0x01; offset++;
+    buf[offset] = IEC61850_PCID_ACSE; offset++;  /* pcid = 1 */
+    buf[offset] = 0x06; offset++;
+    buf[offset] = (uint8_t)IEC61850_OID_ACSE_LEN; offset++;
     (void)memcpy(&buf[offset],IEC61850_OID_ACSE, (size_t)IEC61850_OID_ACSE_LEN);
     offset += (size_t)IEC61850_OID_ACSE_LEN;
-    buf[offset++] = 0x30;
-    buf[offset++] = (uint8_t)(2U + (size_t)IEC61850_OID_BER_LEN);
-    buf[offset++] = 0x06;
-    buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
+    buf[offset] = 0x30; offset++;
+    buf[offset] = (uint8_t)(2U + (size_t)IEC61850_OID_BER_LEN); offset++;
+    buf[offset] = 0x06; offset++;
+    buf[offset] = (uint8_t)IEC61850_OID_BER_LEN; offset++;
     (void)memcpy(&buf[offset],IEC61850_OID_BER, (size_t)IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Context entry 2: MMS (pcid=3) */
     if ((offset + 20U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x30;
-    buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_MMS_LEN +
-                               2U + 2U + (size_t)IEC61850_OID_BER_LEN);
-    buf[offset++] = 0x02; buf[offset++] = 0x01;
-    buf[offset++] = IEC61850_PCID_MMS;  /* pcid = 3 */
-    buf[offset++] = 0x06;
-    buf[offset++] = (uint8_t)IEC61850_OID_MMS_LEN;
+    buf[offset] = 0x30; offset++;
+    buf[offset] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_MMS_LEN +
+                               2U + 2U + (size_t)IEC61850_OID_BER_LEN); offset++;
+    buf[offset] = 0x02; offset++; buf[offset] = 0x01; offset++;
+    buf[offset] = IEC61850_PCID_MMS; offset++;  /* pcid = 3 */
+    buf[offset] = 0x06; offset++;
+    buf[offset] = (uint8_t)IEC61850_OID_MMS_LEN; offset++;
     (void)memcpy(&buf[offset],IEC61850_OID_MMS, (size_t)IEC61850_OID_MMS_LEN);
     offset += (size_t)IEC61850_OID_MMS_LEN;
-    buf[offset++] = 0x30;
-    buf[offset++] = (uint8_t)(2U + (size_t)IEC61850_OID_BER_LEN);
-    buf[offset++] = 0x06;
-    buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
+    buf[offset] = 0x30; offset++;
+    buf[offset] = (uint8_t)(2U + (size_t)IEC61850_OID_BER_LEN); offset++;
+    buf[offset] = 0x06; offset++;
+    buf[offset] = (uint8_t)IEC61850_OID_BER_LEN; offset++;
     (void)memcpy(&buf[offset],IEC61850_OID_BER, (size_t)IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
@@ -719,19 +719,19 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     size_t fed_inner = pdv_total;
 
     if ((offset + 10U + acse_len) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x61;  /* [APPLICATION 1] fully-encoded-data */
+    buf[offset] = 0x61; offset++;  /* [APPLICATION 1] fully-encoded-data */
     int lret = ber_write_length(buf, buf_size, &offset, fed_inner);
     if (lret != 0) { return lret; }
 
     /* PDV-list: SEQUENCE */
-    buf[offset++] = 0x30;
+    buf[offset] = 0x30; offset++;
     lret = ber_write_length(buf, buf_size, &offset, pdv_inner);
     if (lret != 0) { return lret; }
-    buf[offset++] = 0x02; buf[offset++] = 0x01;
-    buf[offset++] = IEC61850_PCID_ACSE;
+    buf[offset] = 0x02; offset++; buf[offset] = 0x01; offset++;
+    buf[offset] = IEC61850_PCID_ACSE; offset++;
 
     /* Single-ASN1-type [0] CONSTRUCTED wrapper */
-    buf[offset++] = 0xA0;
+    buf[offset] = 0xA0; offset++;
     lret = ber_write_length(buf, buf_size, &offset, acse_len);
     if (lret != 0) { return lret; }
     (void)memcpy(&buf[offset],acse_pdu, acse_len);
@@ -773,7 +773,7 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
 
     /* CPA SET tag (same as CP: 0x31) */
     if (offset >= buf_size) { return -ENOSPC; }
-    buf[offset++] = PRES_TAG_CPA;
+    buf[offset] = PRES_TAG_CPA; offset++;
 
     /* Reserve length (3 bytes for BER long form) */
     size_t cp_len_offset = offset;
@@ -781,44 +781,44 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
 
     /* Mode selector [0] IMPLICIT SET { [0] INTEGER = 1 (normal mode) } */
     if ((offset + 8U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0xA0; buf[offset++] = 0x03;
-    buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x01;
+    buf[offset] = 0xA0; offset++; buf[offset] = 0x03; offset++;
+    buf[offset] = 0x80; offset++; buf[offset] = 0x01; offset++; buf[offset] = 0x01; offset++;
 
     /* Normal-mode-parameters [2] IMPLICIT SEQUENCE */
     if ((offset + 3U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0xA2;
+    buf[offset] = 0xA2; offset++;
     size_t nmp_len_offset = offset;
     offset += 2U;  /* 0x81 NN placeholder */
     size_t nmp_start = offset;
 
     /* Responding presentation selector [3] IMPLICIT OCTET STRING */
     if ((offset + 6U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x83; buf[offset++] = 0x04;
-    buf[offset++] = 0x00; buf[offset++] = 0x00;
-    buf[offset++] = 0x00; buf[offset++] = 0x01;
+    buf[offset] = 0x83; offset++; buf[offset] = 0x04; offset++;
+    buf[offset] = 0x00; offset++; buf[offset] = 0x00; offset++;
+    buf[offset] = 0x00; offset++; buf[offset] = 0x01; offset++;
 
     /* Presentation context definition result list [5] IMPLICIT SEQUENCE OF */
     if ((offset + 4U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0xA5;
+    buf[offset] = 0xA5; offset++;
     size_t rl_len_offset = offset;
     offset++;  /* length placeholder (short form) */
     size_t rl_start = offset;
 
     /* Result entry 1: ACSE context accepted */
     if ((offset + 12U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x30;  /* SEQUENCE */
-    buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN);
-    buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x00;  /* result = acceptance */
-    buf[offset++] = 0x81; buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
+    buf[offset] = 0x30; offset++;  /* SEQUENCE */
+    buf[offset] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN); offset++;
+    buf[offset] = 0x80; offset++; buf[offset] = 0x01; offset++; buf[offset] = 0x00; offset++;  /* result = acceptance */
+    buf[offset] = 0x81; offset++; buf[offset] = (uint8_t)IEC61850_OID_BER_LEN; offset++;
     (void)memcpy(&buf[offset],IEC61850_OID_BER, IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Result entry 2: MMS context accepted */
     if ((offset + 12U) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x30;
-    buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN);
-    buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x00;
-    buf[offset++] = 0x81; buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
+    buf[offset] = 0x30; offset++;
+    buf[offset] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN); offset++;
+    buf[offset] = 0x80; offset++; buf[offset] = 0x01; offset++; buf[offset] = 0x00; offset++;
+    buf[offset] = 0x81; offset++; buf[offset] = (uint8_t)IEC61850_OID_BER_LEN; offset++;
     (void)memcpy(&buf[offset],IEC61850_OID_BER, IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
@@ -835,17 +835,17 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     size_t pdv_total = 1U + pdv_len_sz + pdv_inner;
 
     if ((offset + 10U + acse_len) > buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x61;  /* [APPLICATION 1] */
+    buf[offset] = 0x61; offset++;  /* [APPLICATION 1] */
     lret = ber_write_length(buf, buf_size, &offset, pdv_total);
     if (lret != 0) { return lret; }
 
-    buf[offset++] = 0x30;  /* PDV-list SEQUENCE */
+    buf[offset] = 0x30; offset++;  /* PDV-list SEQUENCE */
     lret = ber_write_length(buf, buf_size, &offset, pdv_inner);
     if (lret != 0) { return lret; }
-    buf[offset++] = 0x02; buf[offset++] = 0x01;
-    buf[offset++] = IEC61850_PCID_ACSE;
+    buf[offset] = 0x02; offset++; buf[offset] = 0x01; offset++;
+    buf[offset] = IEC61850_PCID_ACSE; offset++;
 
-    buf[offset++] = 0xA0;  /* single-ASN1-type [0] */
+    buf[offset] = 0xA0; offset++;  /* single-ASN1-type [0] */
     lret = ber_write_length(buf, buf_size, &offset, acse_len);
     if (lret != 0) { return lret; }
     (void)memcpy(&buf[offset],acse_pdu, acse_len);
@@ -881,7 +881,7 @@ int iec61850_pres_encode_pdata(uint8_t *buf, size_t buf_size,
 
     /* Fully-encoded-data [APPLICATION 1] */
     if (offset >= buf_size) { return -ENOSPC; }
-    buf[offset++] = 0x61;
+    buf[offset] = 0x61; offset++;
 
     /* Length of PDV-list SEQUENCE */
     size_t seq_len_size = (pdv_inner < 128U) ? 1U : ((pdv_inner < 256U) ? 2U : 3U);
@@ -890,17 +890,17 @@ int iec61850_pres_encode_pdata(uint8_t *buf, size_t buf_size,
     if (ret != 0) { return ret; }
 
     /* PDV-list: SEQUENCE */
-    buf[offset++] = 0x30;
+    buf[offset] = 0x30; offset++;
     ret = ber_write_length(buf, buf_size, &offset, pdv_inner);
     if (ret != 0) { return ret; }
 
     /* Context ID */
-    buf[offset++] = 0x02;
-    buf[offset++] = 0x01;
-    buf[offset++] = pcid;
+    buf[offset] = 0x02; offset++;
+    buf[offset] = 0x01; offset++;
+    buf[offset] = pcid; offset++;
 
     /* Single-ASN1-type [0] CONSTRUCTED wrapper */
-    buf[offset++] = 0xA0;
+    buf[offset] = 0xA0; offset++;
     ret = ber_write_length(buf, buf_size, &offset, app_len);
     if (ret != 0) { return ret; }
     (void)memcpy(&buf[offset],app_pdu, app_len);
@@ -1065,7 +1065,7 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
     if ((buf == NULL) || (params == NULL)) { return -EINVAL; }
 
     /* AARQ tag [APPLICATION 0] CONSTRUCTED */
-    buf[offset++] = IEC61850_ACSE_TAG_AARQ;
+    buf[offset] = IEC61850_ACSE_TAG_AARQ; offset++;
 
     /* Length placeholder */
     size_t len_offset = offset;
@@ -1073,10 +1073,10 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
 
     /* Application Context Name [1] */
     if (params->app_context_oid_len > 0U) {
-        buf[offset++] = 0xA1;  /* [1] CONSTRUCTED */
-        buf[offset++] = (uint8_t)(2U + params->app_context_oid_len);
-        buf[offset++] = 0x06;  /* OBJECT IDENTIFIER */
-        buf[offset++] = (uint8_t)params->app_context_oid_len;
+        buf[offset] = 0xA1; offset++;  /* [1] CONSTRUCTED */
+        buf[offset] = (uint8_t)(2U + params->app_context_oid_len); offset++;
+        buf[offset] = 0x06; offset++;  /* OBJECT IDENTIFIER */
+        buf[offset] = (uint8_t)params->app_context_oid_len; offset++;
         (void)memcpy(&buf[offset],params->app_context_oid,
                      params->app_context_oid_len);
         offset += params->app_context_oid_len;
@@ -1084,10 +1084,10 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
 
     /* Called AP Title [2] — wraps an OID */
     if (params->called_ap_title_len > 0U) {
-        buf[offset++] = 0xA2;
-        buf[offset++] = (uint8_t)(2U + params->called_ap_title_len);
-        buf[offset++] = 0x06;  /* OID tag */
-        buf[offset++] = (uint8_t)(params->called_ap_title_len);
+        buf[offset] = 0xA2; offset++;
+        buf[offset] = (uint8_t)(2U + params->called_ap_title_len); offset++;
+        buf[offset] = 0x06; offset++;  /* OID tag */
+        buf[offset] = (uint8_t)(params->called_ap_title_len); offset++;
         (void)memcpy(&buf[offset],params->called_ap_title,
                      params->called_ap_title_len);
         offset += params->called_ap_title_len;
@@ -1095,19 +1095,19 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
 
     /* Called AE Qualifier [3] — wraps an INTEGER */
     if (params->called_ae_qualifier >= 0) {
-        buf[offset++] = 0xA3;
-        buf[offset++] = 0x03;
-        buf[offset++] = 0x02;  /* INTEGER tag */
-        buf[offset++] = 0x01;
-        buf[offset++] = (uint8_t)params->called_ae_qualifier;
+        buf[offset] = 0xA3; offset++;
+        buf[offset] = 0x03; offset++;
+        buf[offset] = 0x02; offset++;  /* INTEGER tag */
+        buf[offset] = 0x01; offset++;
+        buf[offset] = (uint8_t)params->called_ae_qualifier; offset++;
     }
 
     /* Calling AP Title [6] — wraps an OID */
     if (params->calling_ap_title_len > 0U) {
-        buf[offset++] = 0xA6;
-        buf[offset++] = (uint8_t)(2U + params->calling_ap_title_len);
-        buf[offset++] = 0x06;  /* OID tag */
-        buf[offset++] = (uint8_t)(params->calling_ap_title_len);
+        buf[offset] = 0xA6; offset++;
+        buf[offset] = (uint8_t)(2U + params->calling_ap_title_len); offset++;
+        buf[offset] = 0x06; offset++;  /* OID tag */
+        buf[offset] = (uint8_t)(params->calling_ap_title_len); offset++;
         (void)memcpy(&buf[offset],params->calling_ap_title,
                      params->calling_ap_title_len);
         offset += params->calling_ap_title_len;
@@ -1115,11 +1115,11 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
 
     /* Calling AE Qualifier [7] — wraps an INTEGER */
     if (params->calling_ae_qualifier >= 0) {
-        buf[offset++] = 0xA7;
-        buf[offset++] = 0x03;
-        buf[offset++] = 0x02;  /* INTEGER tag */
-        buf[offset++] = 0x01;
-        buf[offset++] = (uint8_t)params->calling_ae_qualifier;
+        buf[offset] = 0xA7; offset++;
+        buf[offset] = 0x03; offset++;
+        buf[offset] = 0x02; offset++;  /* INTEGER tag */
+        buf[offset] = 0x01; offset++;
+        buf[offset] = (uint8_t)params->calling_ae_qualifier; offset++;
     }
 
     /* User Information [30] — contains the MMS InitiateRequest
@@ -1137,22 +1137,22 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
                             : ((ext_inner < 256U) ? (size_t)2U : (size_t)3U);
         size_t be_inner = 1U + ext_len_sz + ext_inner;
 
-        buf[offset++] = 0xBE;  /* [30] CONSTRUCTED */
+        buf[offset] = 0xBE; offset++;  /* [30] CONSTRUCTED */
         ret = ber_write_length(buf, buf_size, &offset, be_inner);
         if (ret != 0) { return ret; }
 
         /* EXTERNAL [8] IMPLICIT SEQUENCE */
-        buf[offset++] = 0x28;  /* [8] CONSTRUCTED */
+        buf[offset] = 0x28; offset++;  /* [8] CONSTRUCTED */
         ret = ber_write_length(buf, buf_size, &offset, ext_inner);
         if (ret != 0) { return ret; }
 
         /* direct-reference: INTEGER pcid=3 (MMS context) */
-        buf[offset++] = 0x02;
-        buf[offset++] = 0x01;
-        buf[offset++] = IEC61850_PCID_MMS;
+        buf[offset] = 0x02; offset++;
+        buf[offset] = 0x01; offset++;
+        buf[offset] = IEC61850_PCID_MMS; offset++;
 
         /* encoding [0] single-ASN1-type */
-        buf[offset++] = 0xA0;
+        buf[offset] = 0xA0; offset++;
         ret = ber_write_length(buf, buf_size, &offset, app_len);
         if (ret != 0) { return ret; }
 
@@ -1179,36 +1179,36 @@ int iec61850_acse_encode_aare(uint8_t *buf, size_t buf_size,
 
     if ((buf == NULL) || (params == NULL)) { return -EINVAL; }
 
-    buf[offset++] = IEC61850_ACSE_TAG_AARE;
+    buf[offset] = IEC61850_ACSE_TAG_AARE; offset++;
     size_t len_offset = offset;
     offset += 3U;
 
     /* Application Context Name [1] */
     if (params->app_context_oid_len > 0U) {
-        buf[offset++] = 0xA1;
-        buf[offset++] = (uint8_t)(2U + params->app_context_oid_len);
-        buf[offset++] = 0x06;
-        buf[offset++] = (uint8_t)params->app_context_oid_len;
+        buf[offset] = 0xA1; offset++;
+        buf[offset] = (uint8_t)(2U + params->app_context_oid_len); offset++;
+        buf[offset] = 0x06; offset++;
+        buf[offset] = (uint8_t)params->app_context_oid_len; offset++;
         (void)memcpy(&buf[offset],params->app_context_oid,
                      params->app_context_oid_len);
         offset += params->app_context_oid_len;
     }
 
     /* Result [2] */
-    buf[offset++] = 0xA2;
-    buf[offset++] = 0x03;
-    buf[offset++] = 0x02;  /* INTEGER */
-    buf[offset++] = 0x01;
-    buf[offset++] = (uint8_t)result;
+    buf[offset] = 0xA2; offset++;
+    buf[offset] = 0x03; offset++;
+    buf[offset] = 0x02; offset++;  /* INTEGER */
+    buf[offset] = 0x01; offset++;
+    buf[offset] = (uint8_t)result; offset++;
 
     /* Result Source Diagnostic [3] */
-    buf[offset++] = 0xA3;
-    buf[offset++] = 0x05;
-    buf[offset++] = 0xA1;  /* [1] acse-service-user */
-    buf[offset++] = 0x03;
-    buf[offset++] = 0x02;
-    buf[offset++] = 0x01;
-    buf[offset++] = 0x00;  /* null (no diagnostic) */
+    buf[offset] = 0xA3; offset++;
+    buf[offset] = 0x05; offset++;
+    buf[offset] = 0xA1; offset++;  /* [1] acse-service-user */
+    buf[offset] = 0x03; offset++;
+    buf[offset] = 0x02; offset++;
+    buf[offset] = 0x01; offset++;
+    buf[offset] = 0x00; offset++;  /* null (no diagnostic) */
 
     /* User Information [30] IMPLICIT SEQUENCE OF EXTERNAL */
     if ((app_pdu != NULL) && (app_len > 0U)) {
@@ -1217,21 +1217,21 @@ int iec61850_acse_encode_aare(uint8_t *buf, size_t buf_size,
         size_t ext_len_sz = (ext_content < 128U) ? (size_t)1U : (size_t)2U;
         size_t be_content = 1U + ext_len_sz + ext_content;  /* 0x28 + len + content */
 
-        buf[offset++] = 0xBE;
+        buf[offset] = 0xBE; offset++;
         ret = ber_write_length(buf, buf_size, &offset, be_content);
         if (ret != 0) { return ret; }
 
-        buf[offset++] = 0x28;  /* EXTERNAL (UNIVERSAL 8 CONSTRUCTED) */
+        buf[offset] = 0x28; offset++;  /* EXTERNAL (UNIVERSAL 8 CONSTRUCTED) */
         ret = ber_write_length(buf, buf_size, &offset, ext_content);
         if (ret != 0) { return ret; }
 
         /* indirect-reference INTEGER = 3 (MMS context) */
-        buf[offset++] = 0x02;
-        buf[offset++] = 0x01;
-        buf[offset++] = IEC61850_PCID_MMS;
+        buf[offset] = 0x02; offset++;
+        buf[offset] = 0x01; offset++;
+        buf[offset] = IEC61850_PCID_MMS; offset++;
 
         /* encoding: single-ASN1-type [0] */
-        buf[offset++] = 0xA0;
+        buf[offset] = 0xA0; offset++;
         ret = ber_write_length(buf, buf_size, &offset, app_len);
         if (ret != 0) { return ret; }
 

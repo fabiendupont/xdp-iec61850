@@ -676,7 +676,7 @@ static void *accept_thread(void *arg)
                 sess->journal = server->journal;
                 sess->max_pdu_size = server->config.max_pdu_size;
                 sess->invoke_id = 0;
-                sess->session_id = server->next_session_id++;
+                sess->session_id = server->next_session_id; server->next_session_id++;
                 atomic_store(&sess->active, true);
                 atomic_store(&sess->stop_requested, false);
                 atomic_fetch_add(&server->active_session_count, 1);

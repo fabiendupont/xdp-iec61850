@@ -135,7 +135,7 @@ int iec61850_do_add_sub_object(iec61850_data_object_t *dobj,
         return -1;
     }
 
-    dobj->sub_objects[dobj->sub_count++] = sub;
+    dobj->sub_objects[dobj->sub_count] = sub; dobj->sub_count++;
     return 0;
 }
 
@@ -210,7 +210,7 @@ int iec61850_ln_add_data_object(iec61850_logical_node_t *ln,
         return -1;
     }
 
-    ln->data_objects[ln->do_count++] = dobj;
+    ln->data_objects[ln->do_count] = dobj; ln->do_count++;
     return 0;
 }
 
@@ -308,7 +308,7 @@ int iec61850_ld_add_logical_node(iec61850_logical_device_t *ld,
         return -1;
     }
 
-    ld->logical_nodes[ld->ln_count++] = ln;
+    ld->logical_nodes[ld->ln_count] = ln; ld->ln_count++;
     return 0;
 }
 
@@ -367,7 +367,7 @@ int iec61850_ied_model_add_ld(iec61850_ied_model_t *model,
         return -1;
     }
 
-    model->logical_devices[model->ld_count++] = ld;
+    model->logical_devices[model->ld_count] = ld; model->ld_count++;
     return 0;
 }
 

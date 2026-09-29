@@ -315,41 +315,41 @@ static int append_security_extension(uint8_t *frame_buf, size_t frame_capacity,
      */
 
     /* [0] IMPLICIT UtcTime — tag 0x80, len 8 */
-    ext_buf[ext_pos++] = 0x80;
-    ext_buf[ext_pos++] = 8;
+    ext_buf[ext_pos] = 0x80; ext_pos++;
+    ext_buf[ext_pos] = 8; ext_pos++;
     {
         struct timespec ts;
         (void)clock_gettime(CLOCK_REALTIME, &ts);
         uint32_t secs = (uint32_t)ts.tv_sec;
         /* UtcTime: 4 bytes seconds, 3 bytes fraction, 1 byte quality */
-        ext_buf[ext_pos++] = (uint8_t)(secs >> 24);
-        ext_buf[ext_pos++] = (uint8_t)(secs >> 16);
-        ext_buf[ext_pos++] = (uint8_t)(secs >> 8);
-        ext_buf[ext_pos++] = (uint8_t)(secs);
+        ext_buf[ext_pos] = (uint8_t)(secs >> 24); ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)(secs >> 16); ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)(secs >> 8); ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)(secs); ext_pos++;
         uint32_t frac = (uint32_t)((uint64_t)ts.tv_nsec * 16777216ULL / 1000000000ULL);
-        ext_buf[ext_pos++] = (uint8_t)(frac >> 16);
-        ext_buf[ext_pos++] = (uint8_t)(frac >> 8);
-        ext_buf[ext_pos++] = (uint8_t)(frac);
-        ext_buf[ext_pos++] = 0x18;  /* quality: clockNotSynchronized=false, leapSecond=1, timeAccuracy=8 */
+        ext_buf[ext_pos] = (uint8_t)(frac >> 16); ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)(frac >> 8); ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)(frac); ext_pos++;
+        ext_buf[ext_pos] = 0x18; ext_pos++;  /* quality: clockNotSynchronized=false, leapSecond=1, timeAccuracy=8 */
     }
 
     /* [1] IMPLICIT OCTET STRING keyID — tag 0x81, 4 bytes per IEC 62351-6 */
-    ext_buf[ext_pos++] = 0x81;
-    ext_buf[ext_pos++] = (uint8_t)IEC61850_CERT_KEYID_LEN;
+    ext_buf[ext_pos] = 0x81; ext_pos++;
+    ext_buf[ext_pos] = (uint8_t)IEC61850_CERT_KEYID_LEN; ext_pos++;
     (void)memcpy(&ext_buf[ext_pos], key_id, (size_t)IEC61850_CERT_KEYID_LEN);
     ext_pos += (size_t)IEC61850_CERT_KEYID_LEN;
 
     /* [2] IMPLICIT OCTET STRING signature — tag 0x82 */
-    ext_buf[ext_pos++] = 0x82;
+    ext_buf[ext_pos] = 0x82; ext_pos++;
     if (sig_len < 128U) {
-        ext_buf[ext_pos++] = (uint8_t)sig_len;
+        ext_buf[ext_pos] = (uint8_t)sig_len; ext_pos++;
     } else if (sig_len < 256U) {
-        ext_buf[ext_pos++] = 0x81;
-        ext_buf[ext_pos++] = (uint8_t)sig_len;
+        ext_buf[ext_pos] = 0x81; ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)sig_len; ext_pos++;
     } else {
-        ext_buf[ext_pos++] = 0x82;
-        ext_buf[ext_pos++] = (uint8_t)(sig_len >> 8U);
-        ext_buf[ext_pos++] = (uint8_t)(sig_len);
+        ext_buf[ext_pos] = 0x82; ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)(sig_len >> 8U); ext_pos++;
+        ext_buf[ext_pos] = (uint8_t)(sig_len); ext_pos++;
     }
     if ((ext_pos + sig_len) > sizeof(ext_buf)) {
         return -1;
@@ -360,16 +360,16 @@ static int append_security_extension(uint8_t *frame_buf, size_t frame_capacity,
     /* Wrap in CONSTRUCTED [12] for GOOSE (tag 0xAC) */
     uint8_t outer[604];
     size_t outer_pos = 0;
-    outer[outer_pos++] = 0xAC;  /* [12] CONSTRUCTED */
+    outer[outer_pos] = 0xAC; outer_pos++;  /* [12] CONSTRUCTED */
     if (ext_pos < 128U) {
-        outer[outer_pos++] = (uint8_t)ext_pos;
+        outer[outer_pos] = (uint8_t)ext_pos; outer_pos++;
     } else if (ext_pos < 256U) {
-        outer[outer_pos++] = 0x81;
-        outer[outer_pos++] = (uint8_t)ext_pos;
+        outer[outer_pos] = 0x81; outer_pos++;
+        outer[outer_pos] = (uint8_t)ext_pos; outer_pos++;
     } else {
-        outer[outer_pos++] = 0x82;
-        outer[outer_pos++] = (uint8_t)(ext_pos >> 8U);
-        outer[outer_pos++] = (uint8_t)(ext_pos);
+        outer[outer_pos] = 0x82; outer_pos++;
+        outer[outer_pos] = (uint8_t)(ext_pos >> 8U); outer_pos++;
+        outer[outer_pos] = (uint8_t)(ext_pos); outer_pos++;
     }
     if ((outer_pos + ext_pos) > sizeof(outer)) {
         return -1;

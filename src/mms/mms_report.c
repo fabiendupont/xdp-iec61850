@@ -399,7 +399,7 @@ uint64_t iec61850_report_buffer_add(iec61850_report_buffer_t *buf,
     }
 
     entry = &buf->entries[buf->head];
-    entry->entry_id = buf->next_entry_id++;
+    entry->entry_id = buf->next_entry_id; buf->next_entry_id++;
     entry->sq_num = 0;
     entry->timestamp_ms = timestamp_ms;
     entry->reason = reason;
@@ -458,7 +458,7 @@ int iec61850_report_buffer_get_entries(const iec61850_report_buffer_t *buf,
         if (!e->valid) { continue; }
         if (e->entry_id <= after_id) { continue; }
 
-        out[found++] = *e;
+        out[found] = *e; found++;
     }
 
     *count = found;

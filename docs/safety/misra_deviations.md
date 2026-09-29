@@ -70,7 +70,7 @@ analysis or because the rule classification is Advisory.
 | 17.3 | Required | **FIXED**: `--library=posix` added to cppcheck command provides POSIX function signatures without requiring system header parsing. All 47 prior violations were false positives; Rule 17.3 count is now 0. |
 | 17.7 | Required | False positive: cppcheck flags `(void)func()` as ignoring return value. The `(void)` cast IS the MISRA-approved way to explicitly discard a return value. |
 | 2.5 | Advisory | Macros defined in public headers as part of the library API surface are retained even when not used in any production translation unit analyzed. This covers: (1) ASN.1 BER tag/class constants (`ASN1_CLASS_*`, `ASN1_TAG_*`) in `goose_ber.h` — used by tests and required by API callers constructing custom PDUs; (2) SV size constants (`SV_MAX_APDU_SIZE`) in `sv_ber.h`; (3) Ethernet frame size constants (`IEC61850_ETH_HEADER_LEN`) in `eth_frame.h`; (4) MMS BER tags, service tags, and error codes in `mms_ber.h`; (5) Session SPDU type constants (`IEC61850_SI_DISCONNECT`, `IEC61850_SI_ABORT`) in `iso_stack.h`. Confirmed zero-usage macros deleted: `IEC61850_ROLE_COUNT` (`iec61850_graph.h`), `IEC61850_LOG_*_MSG` ×6 (`logger.h`), `IEC61850_TRG_*` ×5 (`ied_types.h`). Earlier internal macros also deleted: PRES_TAG_* in iso_stack.c, IEC61850_RCB_MAX_REFS, MMS_BINDING_KEY_LEN, IEC61850_MMS_INIT_LIST_VARS, IEC61850_MMS_FILE_MAX_ENTRIES. |
-| 13.3 | Required | Post-increment operators (`i++`) in standalone statements (not in expressions) are flagged. These are safe and standard C; the violation is in the cppcheck MISRA addon's conservative rule interpretation. |
+| 13.3 | Advisory | **FIXED**: All violations were `buf[pos++] = val` compound expressions with two side effects (array write + post-increment). Split into `buf[pos] = val; pos++;` across 11 files. Count: 66+ → 0. |
 | 5.9 | Advisory | Internal linkage identifiers flagged across translation units; the project uses unique naming conventions throughout. |
 | 15.5 | Advisory | "A function should have a single point of exit." Early-return guard clauses are used throughout for readability and correctness. This is an Advisory rule. Specific Required violations are fixed where called out. |
 | 12.1 | Advisory | Operator precedence: the project uses well-understood C operators; extra parentheses would reduce readability without safety benefit. |
@@ -80,7 +80,7 @@ analysis or because the rule classification is Advisory.
 | 20.7, 20.10, 20.12 | Advisory/Required | Typed container macros (`IEC61850_DEFINE_FIXED_ARRAY`, `IEC61850_DEFINE_FIXED_STRING`, `IEC61850_DEFINE_RING_BUFFER`) require `##` token pasting. These are already documented as advisory deviations in the header comment blocks. The generated code is verified at each instantiation site. |
 | 21.6, 21.10, 21.3 | Required | `<stdio.h>` in logger, `<time.h>` in monitoring, dynamic allocation in BER parser. No alternative exists in C11 for these OS-level capabilities. |
 | 19.2 | Advisory | Unions in MMS value types are required for the BER encoding schema. |
-| 13.3, 17.8, 17.2 | Advisory/Required | Deliberate C patterns in the codebase; each instance reviewed individually. |
+| 17.8, 17.2 | Advisory/Required | Deliberate C patterns in the codebase; each instance reviewed individually. |
 
 ## Mitigation Summary
 
@@ -127,7 +127,7 @@ XDP/AF_XDP rootless transport work added in this release.
 | 17.7 | 104 | Required | Add `(void)` casts to all unchecked return values |
 | 2.5  | ~89 | Advisory | Remaining are API-surface macros in public headers; see Category 5 deviation entry |
 | 8.7  | 0   | Advisory | **FIXED**: All ~220 violations confirmed as false positives (public API functions in headers). Suppressed via `.cppcheck-suppressions` with deviation justification in Category 5. |
-| 13.3 | 66  | Advisory | Split compound expressions with side effects |
+| 13.3 | 0   | Advisory | **FIXED**: Split all `buf[pos++] = val` compound expressions into `buf[pos] = val; pos++;` across goose_publisher.c, goose_subscriber.c, sv_publisher.c, sv_subscriber.c, ied_data_model.c, mms_client.c, mms_journal.c, mms_control.c, mms_server.c, mms_report.c, iso_stack.c. Prior deviation justification ('standalone i++') was factually incorrect about what cppcheck was flagging. |
 | 17.3 | 0   | Mandatory | **FIXED**: added `--library=posix` to cppcheck; all 47 were false positives |
 | 18.4 | 1   | Advisory | **REDUCED 30→1**: All `ptr + n` sites replaced with `&ptr[n]`. 2 subscriber subtraction violations fixed by threading `apdu_offset` from `iec61850_eth_frame_parse`. Remaining 1 is `yaml_parser.c:186` (`strchr` distance from array base — genuinely irreducible, accepted deviation) |
 | 11.5 | ~46 | Advisory | All casts commented with deviation rationale. Calloc/malloc implicit conversions unavoidable in C11; opaque handles (cert_manager, key_manager, pthread arg, io->priv) documented in Category 3 |
