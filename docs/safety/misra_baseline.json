@@ -1,0 +1,39 @@
+{
+  "_comment": "MISRA CI baseline — generated 2026-09-29. Per-rule violation counts for the cppcheck MISRA scan defined in analysis:misra CI job. Update this file when violations are fixed (counts go down) or when a new deviation is accepted (counts go up, must be accompanied by misra_deviations.md update). See scripts/misra_check.py for the enforcement logic.",
+  "generated": "2026-09-29",
+  "cppcheck_scope": [
+    "src/containers/",
+    "src/logging/",
+    "src/goose/",
+    "src/sv/",
+    "src/ied/",
+    "src/transport/eth_frame.c",
+    "src/asn1/goose_ber.c",
+    "src/asn1/sv_ber.c"
+  ],
+  "rules": {
+    "15.5":  { "count": 401, "classification": "Advisory",   "note": "Single exit — DISPATCH/GUARD accepted; PARSER refactor pending" },
+    "2.5":   { "count":  98, "classification": "Advisory",   "note": "API-surface macros in public headers" },
+    "11.5":  { "count":  17, "classification": "Advisory",   "note": "void* opaque handles and malloc returns" },
+    "8.5":   { "count":  14, "classification": "Required",   "note": "cppcheck single-TU false positive; whole-program analysis needed" },
+    "21.6":  { "count":   9, "classification": "Required",   "note": "stdio in logger — no C11 alternative" },
+    "19.2":  { "count":   8, "classification": "Advisory",   "note": "Unions in BER/MMS value types" },
+    "21.10": { "count":   8, "classification": "Advisory",   "note": "time.h functions for timestamps" },
+    "21.3":  { "count":   6, "classification": "Advisory",   "note": "malloc/free in ied_data_model init path" },
+    "20.7":  { "count":   3, "classification": "Advisory",   "note": "Typed container macros require ## token pasting" },
+    "20.10": { "count":   3, "classification": "Required",   "note": "Typed container macros require ## token pasting" },
+    "20.12": { "count":   3, "classification": "Advisory",   "note": "Typed container macros require ## token pasting" },
+    "21.16": { "count":   3, "classification": "Advisory",   "note": "memcmp with non-character pointer in fixed_string.c" },
+    "11.8":  { "count":   3, "classification": "Required",   "note": "Cast removes const/volatile qualifier — review pending" },
+    "5.9":   { "count":   2, "classification": "Advisory",   "note": "Internal linkage identifier clash — cppcheck cross-TU false positive" },
+    "17.2":  { "count":   2, "classification": "Advisory",   "note": "Recursive function — reviewed individually" },
+    "17.8":  { "count":   2, "classification": "Advisory",   "note": "Function parameter modified — reviewed individually" },
+    "15.7":  { "count":   2, "classification": "Required",   "note": "else after return in switch — review pending" },
+    "21.14": { "count":   1, "classification": "Advisory",   "note": "memcmp result used in boolean context" },
+    "21.15": { "count":   1, "classification": "Advisory",   "note": "memcpy/memcmp pointer type mismatch" },
+    "20.5":  { "count":   1, "classification": "Advisory",   "note": "#undef in source file" },
+    "15.4":  { "count":   1, "classification": "Advisory",   "note": "break outside switch — reviewed" },
+    "10.6":  { "count":   1, "classification": "Required",   "note": "Composite expression assigned to wider type — review pending" },
+    "10.8":  { "count":   1, "classification": "Required",   "note": "Composite expression cast to wider type — review pending" }
+  }
+}
