@@ -32,7 +32,6 @@ extern "C" {
 #define IEC61850_MMS_INIT_DOMAINS    4
 #define IEC61850_MMS_INIT_VARS      32
 #define IEC61850_MMS_INIT_LISTS      4
-#define IEC61850_MMS_INIT_LIST_VARS  8
 
 /* Result codes */
 typedef enum {

@@ -69,7 +69,7 @@ analysis or because the rule classification is Advisory.
 | 8.5 | Required | Requires whole-program analysis. All external object declarations are in headers; the project uses standard include-guard discipline. |
 | 17.3 | Required | **FIXED**: `--library=posix` added to cppcheck command provides POSIX function signatures without requiring system header parsing. All 47 prior violations were false positives; Rule 17.3 count is now 0. |
 | 17.7 | Required | False positive: cppcheck flags `(void)func()` as ignoring return value. The `(void)` cast IS the MISRA-approved way to explicitly discard a return value. |
-| 2.5 | Advisory | Generic typed container macros (fixed_array, fixed_string, ring_buffer) are defined for a full API surface; not all instantiated types are used in every translation unit analyzed. |
+| 2.5 | Advisory | Macros defined in public headers as part of the library API surface are retained even when not used in any production translation unit analyzed. This covers: (1) ASN.1 BER tag/class constants (`ASN1_CLASS_*`, `ASN1_TAG_*`) in `goose_ber.h` — used by tests and required by API callers constructing custom PDUs; (2) SV size constants (`SV_MAX_APDU_SIZE`) in `sv_ber.h`; (3) Logging convenience macros (`IEC61850_LOG_*_MSG`) in `logger.h`; (4) Ethernet frame size constants (`IEC61850_ETH_HEADER_LEN`) in `eth_frame.h`; (5) Trigger condition bitmasks (`IEC61850_TRG_*`) in `ied_types.h`; (6) MMS BER tags, service tags, and error codes in `mms_ber.h`; (7) Session SPDU type constants (`IEC61850_SI_DISCONNECT`, `IEC61850_SI_ABORT`) in `iso_stack.h`; (8) Role count constant (`IEC61850_ROLE_COUNT`) in `iec61850_graph.h`. Removable internal macros (PRES_TAG_* in iso_stack.c, IEC61850_RCB_MAX_REFS, MMS_BINDING_KEY_LEN, IEC61850_MMS_INIT_LIST_VARS, IEC61850_MMS_FILE_MAX_ENTRIES) were deleted. |
 | 13.3 | Required | Post-increment operators (`i++`) in standalone statements (not in expressions) are flagged. These are safe and standard C; the violation is in the cppcheck MISRA addon's conservative rule interpretation. |
 | 5.9 | Advisory | Internal linkage identifiers flagged across translation units; the project uses unique naming conventions throughout. |
 | 15.5 | Advisory | "A function should have a single point of exit." Early-return guard clauses are used throughout for readability and correctness. This is an Advisory rule. Specific Required violations are fixed where called out. |
@@ -122,7 +122,7 @@ XDP/AF_XDP rootless transport work added in this release.
 | 10.4 | 201 | Required | Explicit `(int)` casts for enum arithmetic; tracked in backlog |
 | 12.1 | 163 | Advisory | Add explicit parentheses; tracked in backlog |
 | 17.7 | 104 | Required | Add `(void)` casts to all unchecked return values |
-| 2.5  | 109 | Advisory | Remove unused macros from public headers |
+| 2.5  | ~89 | Advisory | Remaining are API-surface macros in public headers; see Category 5 deviation entry |
 | 8.7  | 105 | Advisory | Move internal-only functions to `.c` files or mark `static` |
 | 13.3 | 66  | Advisory | Split compound expressions with side effects |
 | 17.3 | 0   | Mandatory | **FIXED**: added `--library=posix` to cppcheck; all 47 were false positives |

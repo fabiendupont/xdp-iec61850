@@ -201,7 +201,7 @@ int iec61850_tpkt_encode(uint8_t *buf, size_t buf_size,
     buf[5] = COTP_DT_TYPE;   /* Data TPDU */
     buf[6] = COTP_DT_EOT;    /* EOT + TPDU-NR=0 */
 
-    (void)memcpy(buf + 7, data, data_len);
+    (void)memcpy(&buf[7], data, data_len);
 
     return (int)total;
 }
@@ -229,7 +229,7 @@ int iec61850_tpkt_decode(const uint8_t *buf, size_t buf_len,
     header_len = (size_t)IEC61850_TPKT_HEADER_LEN + 1U + cotp_li;
     if (header_len > total_len) { return -EBADMSG; }
 
-    *payload = buf + header_len;
+    *payload = &buf[header_len];
     *payload_len = (size_t)(total_len - header_len);
     return 0;
 }
@@ -262,7 +262,7 @@ static int session_encode_param(uint8_t *buf, size_t buf_size, size_t *offset,
     buf[*offset] = pi;
     buf[*offset + 1U] = (uint8_t)val_len;
     if (val_len > 0U) {
-        (void)memcpy(buf + *offset + 2U, value, val_len);
+        (void)memcpy(&buf[*offset + 2U], value, val_len);
     }
     *offset += 2U + val_len;
     return 0;
@@ -392,7 +392,7 @@ static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
         ret = write_session_length(buf, buf_size, &offset, user_data_len);
         if (ret != 0) { return ret; }
         if (offset + user_data_len > buf_size) { return -ENOSPC; }
-        (void)memcpy(buf + offset, user_data, user_data_len);
+        (void)memcpy(&buf[offset],user_data, user_data_len);
         offset += user_data_len;
     }
 
@@ -436,7 +436,7 @@ int iec61850_session_encode_data(uint8_t *buf, size_t buf_size,
     buf[offset++] = IEC61850_SI_DATA;  /* SI=0x01 */
     buf[offset++] = 0x00;
 
-    (void)memcpy(buf + offset, user_data, user_data_len);
+    (void)memcpy(&buf[offset],user_data, user_data_len);
     offset += user_data_len;
 
     return (int)offset;
@@ -470,7 +470,7 @@ int iec61850_session_encode_finish(uint8_t *buf, size_t buf_size,
         ret = write_session_length(buf, buf_size, &offset, user_data_len);
         if (ret != 0) { return ret; }
         if (offset + user_data_len > buf_size) { return -ENOSPC; }
-        (void)memcpy(buf + offset, user_data, user_data_len);
+        (void)memcpy(&buf[offset],user_data, user_data_len);
         offset += user_data_len;
     }
 
@@ -530,7 +530,7 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
             /* GIVE_TOKENS prefix present — skip it */
             offset += 2U;
         }
-        *user_data = buf + offset;
+        *user_data = &buf[offset];
         *user_data_len = buf_len - offset;
         return 0;
     }
@@ -558,7 +558,7 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
                 plen = buf[offset];
                 offset++;
             }
-            *user_data = buf + offset;
+            *user_data = &buf[offset];
             *user_data_len = plen;
             break;  /* User data is always last */
         }
@@ -581,13 +581,13 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
                     break;
                 case IEC61850_SPI_CALLING_SSEL:
                     if (plen <= (size_t)IEC61850_ISO_MAX_SSEL) {
-                        (void)memcpy(params->calling_ssel, buf + offset, plen);
+                        (void)memcpy(params->calling_ssel, &buf[offset], plen);
                         params->calling_ssel_len = plen;
                     }
                     break;
                 case IEC61850_SPI_CALLED_SSEL:
                     if (plen <= (size_t)IEC61850_ISO_MAX_SSEL) {
-                        (void)memcpy(params->called_ssel, buf + offset, plen);
+                        (void)memcpy(params->called_ssel, &buf[offset], plen);
                         params->called_ssel_len = plen;
                     }
                     break;
@@ -609,16 +609,6 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
 /* BER tags for presentation PDU construction */
 #define PRES_TAG_CP         0x31U  /* SET */
 #define PRES_TAG_CPA        0x31U  /* SET */
-#define PRES_TAG_MODE       0xA0U  /* [0] */
-#define PRES_TAG_NORMAL_MODE 0xA0U /* [0] */
-#define PRES_TAG_DCS_LIST   0xA4U  /* [4] - Definition Context List */
-#define PRES_TAG_DCS_ENTRY  0x30U  /* SEQUENCE */
-#define PRES_TAG_PCID       0x02U  /* INTEGER */
-#define PRES_TAG_ABS_SYNTAX 0x06U  /* OBJECT IDENTIFIER */
-#define PRES_TAG_TRF_SYNTAX 0x30U  /* SEQUENCE */
-#define PRES_TAG_USER_DATA  0x61U  /* [APPLICATION 1] */
-#define PRES_TAG_PDATA      0x61U  /* fully-encoded-data [APPLICATION 1] */
-#define PRES_TAG_PDV_LIST   0x30U  /* SEQUENCE */
 
 int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
                               const uint8_t *acse_pdu, size_t acse_len)
@@ -685,13 +675,13 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     buf[offset++] = IEC61850_PCID_ACSE;  /* pcid = 1 */
     buf[offset++] = 0x06;
     buf[offset++] = (uint8_t)IEC61850_OID_ACSE_LEN;
-    (void)memcpy(buf + offset, IEC61850_OID_ACSE, (size_t)IEC61850_OID_ACSE_LEN);
+    (void)memcpy(&buf[offset],IEC61850_OID_ACSE, (size_t)IEC61850_OID_ACSE_LEN);
     offset += (size_t)IEC61850_OID_ACSE_LEN;
     buf[offset++] = 0x30;
     buf[offset++] = (uint8_t)(2U + (size_t)IEC61850_OID_BER_LEN);
     buf[offset++] = 0x06;
     buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
-    (void)memcpy(buf + offset, IEC61850_OID_BER, (size_t)IEC61850_OID_BER_LEN);
+    (void)memcpy(&buf[offset],IEC61850_OID_BER, (size_t)IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Context entry 2: MMS (pcid=3) */
@@ -703,13 +693,13 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     buf[offset++] = IEC61850_PCID_MMS;  /* pcid = 3 */
     buf[offset++] = 0x06;
     buf[offset++] = (uint8_t)IEC61850_OID_MMS_LEN;
-    (void)memcpy(buf + offset, IEC61850_OID_MMS, (size_t)IEC61850_OID_MMS_LEN);
+    (void)memcpy(&buf[offset],IEC61850_OID_MMS, (size_t)IEC61850_OID_MMS_LEN);
     offset += (size_t)IEC61850_OID_MMS_LEN;
     buf[offset++] = 0x30;
     buf[offset++] = (uint8_t)(2U + (size_t)IEC61850_OID_BER_LEN);
     buf[offset++] = 0x06;
     buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
-    (void)memcpy(buf + offset, IEC61850_OID_BER, (size_t)IEC61850_OID_BER_LEN);
+    (void)memcpy(&buf[offset],IEC61850_OID_BER, (size_t)IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Update DCL length */
@@ -744,7 +734,7 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     buf[offset++] = 0xA0;
     lret = ber_write_length(buf, buf_size, &offset, acse_len);
     if (lret != 0) { return lret; }
-    (void)memcpy(buf + offset, acse_pdu, acse_len);
+    (void)memcpy(&buf[offset],acse_pdu, acse_len);
     offset += acse_len;
 
     /* Update normal-mode-parameters [2] length */
@@ -820,7 +810,7 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN);
     buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x00;  /* result = acceptance */
     buf[offset++] = 0x81; buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
-    (void)memcpy(buf + offset, IEC61850_OID_BER, IEC61850_OID_BER_LEN);
+    (void)memcpy(&buf[offset],IEC61850_OID_BER, IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Result entry 2: MMS context accepted */
@@ -829,7 +819,7 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN);
     buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x00;
     buf[offset++] = 0x81; buf[offset++] = (uint8_t)IEC61850_OID_BER_LEN;
-    (void)memcpy(buf + offset, IEC61850_OID_BER, IEC61850_OID_BER_LEN);
+    (void)memcpy(&buf[offset],IEC61850_OID_BER, IEC61850_OID_BER_LEN);
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Update result list length */
@@ -858,7 +848,7 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     buf[offset++] = 0xA0;  /* single-ASN1-type [0] */
     lret = ber_write_length(buf, buf_size, &offset, acse_len);
     if (lret != 0) { return lret; }
-    (void)memcpy(buf + offset, acse_pdu, acse_len);
+    (void)memcpy(&buf[offset],acse_pdu, acse_len);
     offset += acse_len;
 
     /* Update normal-mode-parameters length */
@@ -913,7 +903,7 @@ int iec61850_pres_encode_pdata(uint8_t *buf, size_t buf_size,
     buf[offset++] = 0xA0;
     ret = ber_write_length(buf, buf_size, &offset, app_len);
     if (ret != 0) { return ret; }
-    (void)memcpy(buf + offset, app_pdu, app_len);
+    (void)memcpy(&buf[offset],app_pdu, app_len);
     offset += app_len;
 
     return (int)offset;
@@ -1008,10 +998,10 @@ int iec61850_pres_decode(const uint8_t *buf, size_t buf_len,
                     size_t a0_len;
                     ret = ber_read_length(buf, buf_len, &offset, &a0_len);
                     if (ret != 0) { return ret; }
-                    *app_pdu = buf + offset;
+                    *app_pdu = &buf[offset];
                     *app_len = a0_len;
                 } else {
-                    *app_pdu = buf + offset;
+                    *app_pdu = &buf[offset];
                     *app_len = seq_end - offset;
                 }
                 return 0;
@@ -1087,7 +1077,7 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
         buf[offset++] = (uint8_t)(2U + params->app_context_oid_len);
         buf[offset++] = 0x06;  /* OBJECT IDENTIFIER */
         buf[offset++] = (uint8_t)params->app_context_oid_len;
-        (void)memcpy(buf + offset, params->app_context_oid,
+        (void)memcpy(&buf[offset],params->app_context_oid,
                      params->app_context_oid_len);
         offset += params->app_context_oid_len;
     }
@@ -1098,7 +1088,7 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
         buf[offset++] = (uint8_t)(2U + params->called_ap_title_len);
         buf[offset++] = 0x06;  /* OID tag */
         buf[offset++] = (uint8_t)(params->called_ap_title_len);
-        (void)memcpy(buf + offset, params->called_ap_title,
+        (void)memcpy(&buf[offset],params->called_ap_title,
                      params->called_ap_title_len);
         offset += params->called_ap_title_len;
     }
@@ -1118,7 +1108,7 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
         buf[offset++] = (uint8_t)(2U + params->calling_ap_title_len);
         buf[offset++] = 0x06;  /* OID tag */
         buf[offset++] = (uint8_t)(params->calling_ap_title_len);
-        (void)memcpy(buf + offset, params->calling_ap_title,
+        (void)memcpy(&buf[offset],params->calling_ap_title,
                      params->calling_ap_title_len);
         offset += params->calling_ap_title_len;
     }
@@ -1166,7 +1156,7 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
         ret = ber_write_length(buf, buf_size, &offset, app_len);
         if (ret != 0) { return ret; }
 
-        (void)memcpy(buf + offset, app_pdu, app_len);
+        (void)memcpy(&buf[offset],app_pdu, app_len);
         offset += app_len;
     }
 
@@ -1199,7 +1189,7 @@ int iec61850_acse_encode_aare(uint8_t *buf, size_t buf_size,
         buf[offset++] = (uint8_t)(2U + params->app_context_oid_len);
         buf[offset++] = 0x06;
         buf[offset++] = (uint8_t)params->app_context_oid_len;
-        (void)memcpy(buf + offset, params->app_context_oid,
+        (void)memcpy(&buf[offset],params->app_context_oid,
                      params->app_context_oid_len);
         offset += params->app_context_oid_len;
     }
@@ -1245,7 +1235,7 @@ int iec61850_acse_encode_aare(uint8_t *buf, size_t buf_size,
         ret = ber_write_length(buf, buf_size, &offset, app_len);
         if (ret != 0) { return ret; }
 
-        (void)memcpy(buf + offset, app_pdu, app_len);
+        (void)memcpy(&buf[offset],app_pdu, app_len);
         offset += app_len;
     }
 
@@ -1323,7 +1313,7 @@ int iec61850_acse_decode(const uint8_t *buf, size_t buf_len,
                 if (params != NULL && elem_len > 2U && buf[offset] == 0x06U) {
                     size_t oid_len = buf[offset + 1U];
                     if (oid_len <= (size_t)IEC61850_ISO_MAX_OID && offset + 2U + oid_len <= elem_end) {
-                        (void)memcpy(params->app_context_oid, buf + offset + 2U, oid_len);
+                        (void)memcpy(params->app_context_oid, &buf[offset + 2U], oid_len);
                         params->app_context_oid_len = oid_len;
                     }
                 }
@@ -1363,7 +1353,7 @@ int iec61850_acse_decode(const uint8_t *buf, size_t buf_len,
                             size_t enc_len;
                             ret = ber_read_length(buf, buf_len, &inner, &enc_len);
                             if (ret == 0 && inner + enc_len <= ext_end) {
-                                *app_pdu = buf + inner;
+                                *app_pdu = &buf[inner];
                                 *app_len = enc_len;
                             }
                         }

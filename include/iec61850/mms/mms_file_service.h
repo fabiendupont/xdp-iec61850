@@ -19,7 +19,6 @@ extern "C" {
 
 /* Limits */
 #define IEC61850_MMS_FILE_MAX_NAME     256
-#define IEC61850_MMS_FILE_MAX_ENTRIES   64
 #define IEC61850_MMS_FILE_MAX_CHUNK   4096
 #define IEC61850_MMS_FILE_MAX_OPEN       8
 

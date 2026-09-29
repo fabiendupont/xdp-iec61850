@@ -23,7 +23,6 @@ extern "C" {
 
 /* Limits */
 #define IEC61850_RCB_MAX_NAME   64
-#define IEC61850_RCB_MAX_REFS   64
 #define IEC61850_RCB_MAX_BUFFER 256
 
 /* Trigger reason codes */

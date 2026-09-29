@@ -28,7 +28,6 @@ extern "C" {
 
 /* Limits */
 #define MMS_MAX_BINDINGS    512
-#define MMS_BINDING_KEY_LEN 512
 
 /* Result codes */
 typedef enum {
