@@ -138,7 +138,7 @@ int iec61850_mms_ds_create_domain(iec61850_mms_data_store_t *ds,
 {
     int result;
 
-    if (ds == NULL || domain == NULL) { return IEC61850_MMS_DS_ERR_ARGS; }
+    if ((ds == NULL) || (domain == NULL)) { return IEC61850_MMS_DS_ERR_ARGS; }
 
     (void)pthread_mutex_lock(&ds->mutex);
 
@@ -172,7 +172,7 @@ done:
 bool iec61850_mms_ds_domain_exists(const iec61850_mms_data_store_t *ds,
                                     const char *domain)
 {
-    if (ds == NULL || domain == NULL) { return false; }
+    if ((ds == NULL) || (domain == NULL)) { return false; }
     return find_domain_const(ds, domain) != NULL;
 }
 
@@ -184,7 +184,7 @@ int iec61850_mms_ds_create_variable(iec61850_mms_data_store_t *ds,
     int result;
     iec61850_mms_domain_t *dom;
 
-    if (ds == NULL || domain == NULL || item_id == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (item_id == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -234,7 +234,7 @@ int iec61850_mms_ds_read_variable(iec61850_mms_data_store_t *ds,
 {
     int result;
 
-    if (ds == NULL || domain == NULL || item_id == NULL || value == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (item_id == NULL) || (value == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -263,7 +263,7 @@ int iec61850_mms_ds_write_variable(iec61850_mms_data_store_t *ds,
 {
     int result;
 
-    if (ds == NULL || domain == NULL || item_id == NULL || value == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (item_id == NULL) || (value == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -290,7 +290,7 @@ int iec61850_mms_ds_get_variable_attrs(const iec61850_mms_data_store_t *ds,
                                         const char *domain, const char *item_id,
                                         mms_variable_access_attrs_t *attrs)
 {
-    if (ds == NULL || domain == NULL || item_id == NULL || attrs == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (item_id == NULL) || (attrs == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -310,7 +310,7 @@ int iec61850_mms_ds_get_variable_attrs(const iec61850_mms_data_store_t *ds,
 bool iec61850_mms_ds_variable_exists(const iec61850_mms_data_store_t *ds,
                                       const char *domain, const char *item_id)
 {
-    if (ds == NULL || domain == NULL || item_id == NULL) { return false; }
+    if ((ds == NULL) || (domain == NULL) || (item_id == NULL)) { return false; }
 
     const iec61850_mms_domain_t *dom = find_domain_const(ds, domain);
     if (dom == NULL) { return false; }
@@ -322,11 +322,11 @@ int iec61850_mms_ds_get_domain_names(const iec61850_mms_data_store_t *ds,
                                       char names[][MMS_MAX_DOMAIN_NAME],
                                       uint32_t *count, uint32_t max_count)
 {
-    if (ds == NULL || names == NULL || count == NULL) {
+    if ((ds == NULL) || (names == NULL) || (count == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
     *count = 0;
-    for (size_t i = 0; i < ds->domain_count && *count < max_count; i++) {
+    for (size_t i = 0; (i < ds->domain_count) && (*count < max_count); i++) {
         (void)strncpy(names[*count], ds->domains[i].name, MMS_MAX_DOMAIN_NAME - 1);
         names[*count][MMS_MAX_DOMAIN_NAME - 1] = '\0';
         (*count)++;
@@ -339,7 +339,7 @@ int iec61850_mms_ds_get_var_names(const iec61850_mms_data_store_t *ds,
                                    char names[][MMS_MAX_VARIABLE_NAME],
                                    uint32_t *count, uint32_t max_count)
 {
-    if (ds == NULL || domain == NULL || names == NULL || count == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (names == NULL) || (count == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -347,7 +347,7 @@ int iec61850_mms_ds_get_var_names(const iec61850_mms_data_store_t *ds,
     if (dom == NULL) { return IEC61850_MMS_DS_ERR_NOT_FOUND; }
 
     *count = 0;
-    for (size_t i = 0; i < dom->var_count && *count < max_count; i++) {
+    for (size_t i = 0; (i < dom->var_count) && (*count < max_count); i++) {
         (void)strncpy(names[*count], dom->vars[i].item_id,
                       MMS_MAX_VARIABLE_NAME - 1);
         names[*count][MMS_MAX_VARIABLE_NAME - 1] = '\0';
@@ -369,7 +369,7 @@ int iec61850_mms_ds_define_list(iec61850_mms_data_store_t *ds,
     int result;
     iec61850_mms_domain_t *dom;
 
-    if (ds == NULL || domain == NULL || list_name == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (list_name == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -405,7 +405,7 @@ int iec61850_mms_ds_define_list(iec61850_mms_data_store_t *ds,
     list->deletable = true;
 
     /* Copy variables into heap-allocated array */
-    if (variables != NULL && num_variables > 0U) {
+    if ((variables != NULL) && (num_variables > 0U)) {
         /* MISRA 11.5: malloc returns void*, deviation Cat. 3 */
         list->variables = malloc(num_variables * sizeof(mms_variable_spec_t));
         if (list->variables == NULL) {
@@ -431,7 +431,7 @@ int iec61850_mms_ds_delete_list(iec61850_mms_data_store_t *ds,
 {
     int result = IEC61850_MMS_DS_ERR_NOT_FOUND;
 
-    if (ds == NULL || domain == NULL || list_name == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (list_name == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -445,7 +445,7 @@ int iec61850_mms_ds_delete_list(iec61850_mms_data_store_t *ds,
                 free(dom->lists[i].variables);
 
                 /* Shift remaining lists down */
-                for (size_t j = i; j + 1U < dom->list_count; j++) {
+                for (size_t j = i; (j + 1U) < dom->list_count; j++) {
                     dom->lists[j] = dom->lists[j + 1U];
                 }
                 dom->list_count--;
@@ -470,8 +470,8 @@ int iec61850_mms_ds_get_list_attrs(const iec61850_mms_data_store_t *ds,
                                     uint32_t *num_variables,
                                     uint32_t max_variables)
 {
-    if (ds == NULL || domain == NULL || list_name == NULL ||
-        variables == NULL || num_variables == NULL) {
+    if ((ds == NULL) || (domain == NULL) || (list_name == NULL) ||
+        (variables == NULL) || (num_variables == NULL)) {
         return IEC61850_MMS_DS_ERR_ARGS;
     }
 
@@ -482,7 +482,7 @@ int iec61850_mms_ds_get_list_attrs(const iec61850_mms_data_store_t *ds,
         if (strcmp(dom->lists[i].list_name, list_name) == 0) {
             uint32_t copy = dom->lists[i].num_variables;
             if (copy > max_variables) { copy = max_variables; }
-            if (dom->lists[i].variables != NULL && copy > 0U) {
+            if ((dom->lists[i].variables != NULL) && (copy > 0U)) {
                 (void)memcpy(variables, dom->lists[i].variables,
                               copy * sizeof(mms_variable_spec_t));
             }

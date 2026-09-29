@@ -66,7 +66,7 @@ int iec61850_journal_read_by_time(const iec61850_journal_t *journal,
     uint32_t found = 0;
     uint32_t start;
 
-    if (journal == NULL || out == NULL || count == NULL) {
+    if ((journal == NULL) || (out == NULL) || (count == NULL)) {
         return -EINVAL;
     }
 
@@ -83,15 +83,15 @@ int iec61850_journal_read_by_time(const iec61850_journal_t *journal,
         start = journal->head;
     }
 
-    for (uint32_t i = 0U; i < journal->count && found < max_count; i++) {
+    for (uint32_t i = 0U; (i < journal->count) && (found < max_count); i++) {
         uint32_t idx = (start + i) % (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES;
         const iec61850_journal_entry_t *e = &journal->entries[idx];
 
         if (!e->valid) { continue; }
 
         /* Time range filter */
-        if (start_ms > 0ULL && e->timestamp_ms < start_ms) { continue; }
-        if (end_ms > 0ULL && e->timestamp_ms > end_ms) { continue; }
+        if ((start_ms > 0ULL) && (e->timestamp_ms < start_ms)) { continue; }
+        if ((end_ms > 0ULL) && (e->timestamp_ms > end_ms)) { continue; }
 
         out[found++] = *e;
     }
@@ -108,7 +108,7 @@ int iec61850_journal_read_by_id(const iec61850_journal_t *journal,
     uint32_t found = 0;
     uint32_t start;
 
-    if (journal == NULL || out == NULL || count == NULL) {
+    if ((journal == NULL) || (out == NULL) || (count == NULL)) {
         return -EINVAL;
     }
 
@@ -124,7 +124,7 @@ int iec61850_journal_read_by_id(const iec61850_journal_t *journal,
         start = journal->head;
     }
 
-    for (uint32_t i = 0U; i < journal->count && found < max_count; i++) {
+    for (uint32_t i = 0U; (i < journal->count) && (found < max_count); i++) {
         uint32_t idx = (start + i) % (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES;
         const iec61850_journal_entry_t *e = &journal->entries[idx];
 

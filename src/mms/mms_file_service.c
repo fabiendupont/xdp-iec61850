@@ -23,7 +23,7 @@
 /* Validate filename: reject path traversal */
 static bool validate_filename(const char *name)
 {
-    if (name == NULL || name[0] == '\0') {
+    if ((name == NULL) || (name[0] == '\0')) {
         return false;
     }
     /* Reject absolute paths */
@@ -42,7 +42,7 @@ static int build_path(const iec61850_mms_file_service_t *fs,
                         const char *filename, char *out, size_t out_size)
 {
     int n = snprintf(out, out_size, "%s/%s", fs->base_directory, filename);
-    if (n < 0 || (size_t)n >= out_size) {
+    if ((n < 0) || ((size_t)n >= out_size)) {
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
     return IEC61850_MMS_FILE_OK;
@@ -73,7 +73,7 @@ void iec61850_mms_file_service_destroy(iec61850_mms_file_service_t *fs)
     if (fs == NULL) { return; }
 
     for (int i = 0; i < IEC61850_MMS_FILE_MAX_OPEN; i++) {
-        if (fs->handles[i].in_use && fs->handles[i].fd >= 0) {
+        if ((fs->handles[i].in_use) && (fs->handles[i].fd >= 0)) {
             (void)close(fs->handles[i].fd);
             fs->handles[i].fd = -1;
             fs->handles[i].in_use = false;
@@ -91,7 +91,7 @@ int iec61850_mms_file_get_directory(iec61850_mms_file_service_t *fs,
     struct stat st;
     char fullpath[IEC61850_MMS_FILE_MAX_NAME * 2];
 
-    if (fs == NULL || entries == NULL || count == NULL) {
+    if ((fs == NULL) || (entries == NULL) || (count == NULL)) {
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
 
@@ -102,16 +102,16 @@ int iec61850_mms_file_get_directory(iec61850_mms_file_service_t *fs,
         return IEC61850_MMS_FILE_ERR_IO;
     }
 
-    while ((de = readdir(dir)) != NULL && *count < max_count) {
+    while (((de = readdir(dir)) != NULL) && (*count < max_count)) {
         /* Skip . and .. */
-        if (de->d_name[0] == '.' &&
-            (de->d_name[1] == '\0' ||
-             (de->d_name[1] == '.' && de->d_name[2] == '\0'))) {
+        if ((de->d_name[0] == '.') &&
+            ((de->d_name[1] == '\0') ||
+             ((de->d_name[1] == '.') && (de->d_name[2] == '\0')))) {
             continue;
         }
 
         /* Apply pattern filter */
-        if (pattern != NULL && pattern[0] != '\0') {
+        if ((pattern != NULL) && (pattern[0] != '\0')) {
             if (fnmatch(pattern, de->d_name, 0) != 0) {
                 continue;
             }
@@ -120,7 +120,7 @@ int iec61850_mms_file_get_directory(iec61850_mms_file_service_t *fs,
         /* Get file info */
         int n = snprintf(fullpath, sizeof(fullpath), "%s/%s",
                           fs->base_directory, de->d_name);
-        if (n < 0 || (size_t)n >= sizeof(fullpath)) {
+        if ((n < 0) || ((size_t)n >= sizeof(fullpath))) {
             continue;
         }
 
@@ -154,7 +154,7 @@ int iec61850_mms_file_open(iec61850_mms_file_service_t *fs,
     int fd;
     int ret;
 
-    if (fs == NULL || filename == NULL || file_size == NULL) {
+    if ((fs == NULL) || (filename == NULL) || (file_size == NULL)) {
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
 
@@ -209,12 +209,12 @@ int iec61850_mms_file_read(iec61850_mms_file_service_t *fs,
 {
     ssize_t n;
 
-    if (fs == NULL || buf == NULL || read_len == NULL || more == NULL) {
+    if ((fs == NULL) || (buf == NULL) || (read_len == NULL) || (more == NULL)) {
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
 
-    if (handle < 0 || handle >= IEC61850_MMS_FILE_MAX_OPEN ||
-        !fs->handles[handle].in_use) {
+    if ((handle < 0) || (handle >= IEC61850_MMS_FILE_MAX_OPEN) ||
+        (!fs->handles[handle].in_use)) {
         return IEC61850_MMS_FILE_ERR_INVALID_HANDLE;
     }
 
@@ -246,8 +246,8 @@ int iec61850_mms_file_close(iec61850_mms_file_service_t *fs, int handle)
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
 
-    if (handle < 0 || handle >= IEC61850_MMS_FILE_MAX_OPEN ||
-        !fs->handles[handle].in_use) {
+    if ((handle < 0) || (handle >= IEC61850_MMS_FILE_MAX_OPEN) ||
+        (!fs->handles[handle].in_use)) {
         return IEC61850_MMS_FILE_ERR_INVALID_HANDLE;
     }
 
@@ -266,7 +266,7 @@ int iec61850_mms_file_delete(iec61850_mms_file_service_t *fs,
     char fullpath[IEC61850_MMS_FILE_MAX_NAME * 2];
     int ret;
 
-    if (fs == NULL || filename == NULL) {
+    if ((fs == NULL) || (filename == NULL)) {
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
 
@@ -296,11 +296,11 @@ int iec61850_mms_file_rename(iec61850_mms_file_service_t *fs,
     char new_path[IEC61850_MMS_FILE_MAX_NAME * 2];
     int ret;
 
-    if (fs == NULL || old_name == NULL || new_name == NULL) {
+    if ((fs == NULL) || (old_name == NULL) || (new_name == NULL)) {
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
 
-    if (!validate_filename(old_name) || !validate_filename(new_name)) {
+    if ((!validate_filename(old_name)) || (!validate_filename(new_name))) {
         return IEC61850_MMS_FILE_ERR_ARGS;
     }
 

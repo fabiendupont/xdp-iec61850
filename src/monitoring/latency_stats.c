@@ -63,7 +63,7 @@ uint64_t iec61850_latency_compute_us(uint64_t send_time_ns,
 void iec61850_latency_stats_get_summary(const iec61850_latency_stats_t *stats,
                                           iec61850_latency_summary_t *summary)
 {
-    if (stats == NULL || summary == NULL) { return; }
+    if ((stats == NULL) || (summary == NULL)) { return; }
     (void)memset(summary, 0, sizeof(*summary));
 
     summary->count = stats->count;
@@ -77,7 +77,7 @@ void iec61850_latency_stats_get_summary(const iec61850_latency_stats_t *stats,
     summary->avg_us = stats->sum_us / stats->count;
 
     /* Compute p99 from histogram */
-    uint64_t p99_threshold = (stats->count * 99ULL + 99ULL) / 100ULL;
+    uint64_t p99_threshold = ((stats->count * 99ULL) + 99ULL) / 100ULL;
     uint64_t cumulative = 0;
 
     for (uint32_t i = 0U; i < (uint32_t)IEC61850_LATENCY_HIST_BUCKETS; i++) {

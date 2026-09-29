@@ -82,7 +82,7 @@ bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
     iec61850_sv_pub_state_t *ps;
     iec61850_sv_message_t msg;
 
-    if (sub == NULL || asdu == NULL) {
+    if ((sub == NULL) || (asdu == NULL)) {
         return false;
     }
 
@@ -139,7 +139,7 @@ bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
 
     sub->total_messages++;
 
-    if (sub->callback != NULL && !msg.is_duplicate) {
+    if ((sub->callback != NULL) && (!msg.is_duplicate)) {
         sub->callback(&msg, sub->callback_user_data);
     }
 
@@ -156,12 +156,12 @@ void iec61850_sv_subscriber_check_timeouts(iec61850_sv_subscriber_t *sub,
     timeout_ns = (uint64_t)sub->config.timeout_ms * 1000000ULL;
 
     for (size_t i = 0; i < sub->publisher_count; i++) {
-        if (!sub->publishers[i].valid || sub->publishers[i].timeout_detected) {
+        if ((!sub->publishers[i].valid) || (sub->publishers[i].timeout_detected)) {
             continue;
         }
-        if (sub->publishers[i].last_recv_time_ns > 0ULL &&
-            current_time_ns > sub->publishers[i].last_recv_time_ns &&
-            (current_time_ns - sub->publishers[i].last_recv_time_ns) > timeout_ns) {
+        if ((sub->publishers[i].last_recv_time_ns > 0ULL) &&
+            (current_time_ns > sub->publishers[i].last_recv_time_ns) &&
+            ((current_time_ns - sub->publishers[i].last_recv_time_ns) > timeout_ns)) {
             sub->publishers[i].timeout_detected = true;
             sub->total_timeouts++;
         }
@@ -171,7 +171,7 @@ void iec61850_sv_subscriber_check_timeouts(iec61850_sv_subscriber_t *sub,
 const iec61850_sv_pub_state_t *iec61850_sv_subscriber_get_pub_state(
     const iec61850_sv_subscriber_t *sub, const char *sv_id)
 {
-    if (sub == NULL || sv_id == NULL) { return NULL; }
+    if ((sub == NULL) || (sv_id == NULL)) { return NULL; }
 
     for (size_t i = 0; i < sub->publisher_count; i++) {
         if (sub->publishers[i].valid &&
@@ -185,7 +185,7 @@ const iec61850_sv_pub_state_t *iec61850_sv_subscriber_get_pub_state(
 int iec61850_sv_subscriber_enable_security(iec61850_sv_subscriber_t *sub,
                                              void *cert_manager)
 {
-    if (sub == NULL || cert_manager == NULL) {
+    if ((sub == NULL) || (cert_manager == NULL)) {
         return -EINVAL;
     }
 
@@ -245,7 +245,7 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
     const uint8_t *ext_data = &frame_data[after_apdu];
     size_t ext_remain = frame_len - after_apdu;
 
-    if (ext_remain < 4U || ext_data[0] != 0xA9U) {
+    if ((ext_remain < 4U) || (ext_data[0] != 0xA9U)) {
         sub->total_security_failures++;
         return -1;
     }
@@ -293,9 +293,9 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
         } else {
             break;
         }
-        if (pos + len > end) { break; }
+        if ((pos + len) > end) { break; }
 
-        if (tag == 0x80U && len == 8U) {
+        if ((tag == 0x80U) && (len == 8U)) {
             msg_timestamp = ((uint32_t)ext_data[pos] << 24U) |
                             ((uint32_t)ext_data[pos + 1U] << 16U) |
                             ((uint32_t)ext_data[pos + 2U] << 8U) |
@@ -330,7 +330,7 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
         struct timespec now_ts;
         (void)clock_gettime(CLOCK_REALTIME, &now_ts);
         uint64_t now_secs = (uint64_t)now_ts.tv_sec;
-        if (ts64 > now_secs + SV_SEC_MAX_FORWARD_DRIFT_S) {
+        if (ts64 > (now_secs + SV_SEC_MAX_FORWARD_DRIFT_S)) {
             sub->total_security_failures++;
             return -1;
         }
@@ -348,14 +348,14 @@ static int sv_verify_security_replay(iec61850_sv_subscriber_t *sub,
                                        iec61850_sv_pub_state_t *pub_state,
                                        uint32_t msg_timestamp)
 {
-    if (pub_state == NULL || msg_timestamp == 0U) { return 0; }
+    if ((pub_state == NULL) || (msg_timestamp == 0U)) { return 0; }
 
     uint64_t ts64 = (uint64_t)msg_timestamp;
 
     if (pub_state->last_msg_timestamp > 0ULL) {
         uint64_t last64 = pub_state->last_msg_timestamp;
-        if (ts64 < last64 &&
-            (last64 - ts64) > SV_SEC_MAX_BACKWARD_DRIFT_S) {
+        if ((ts64 < last64) &&
+            ((last64 - ts64) > SV_SEC_MAX_BACKWARD_DRIFT_S)) {
             sub->total_security_failures++;
             return -1;
         }
@@ -382,7 +382,7 @@ int iec61850_sv_subscriber_process_frame(
     uint32_t sec_timestamp = 0;
 #endif
 
-    if (sub == NULL || frame_data == NULL || frame_len == 0U) {
+    if ((sub == NULL) || (frame_data == NULL) || (frame_len == 0U)) {
         return 0;
     }
 
@@ -408,7 +408,7 @@ int iec61850_sv_subscriber_process_frame(
     }
 
     /* APPID filter */
-    if (sub->config.filter_appid != 0U && app_id != sub->config.filter_appid) {
+    if ((sub->config.filter_appid != 0U) && (app_id != sub->config.filter_appid)) {
         return 0;
     }
 
@@ -433,7 +433,7 @@ int iec61850_sv_subscriber_process_frame(
 
 #ifdef IEC61850_SECURITY_ENABLED
     /* Phase 2: Per-publisher replay check after decode */
-    if (sub->security_enabled && sec_timestamp > 0U && apdu.noASDU > 0U) {
+    if ((sub->security_enabled) && (sec_timestamp > 0U) && (apdu.noASDU > 0U)) {
         iec61850_sv_pub_state_t *ps = find_or_create_pub(sub, apdu.asdu[0].svID);
         if (ps != NULL) {
             ret = sv_verify_security_replay(sub, ps, sec_timestamp);
@@ -449,7 +449,7 @@ int iec61850_sv_subscriber_process_frame(
         (void)iec61850_sv_subscriber_process(sub, &apdu.asdu[i], recv_time_ns);
     }
 
-    return apdu.noASDU > 0U ? 1 : 0;
+    return (apdu.noASDU > 0U) ? 1 : 0;
 }
 
 int iec61850_sv_subscriber_poll(iec61850_sv_subscriber_t *sub,
@@ -461,7 +461,7 @@ int iec61850_sv_subscriber_poll(iec61850_sv_subscriber_t *sub,
     uint64_t recv_time_ns;
     int ret;
 
-    if (sub == NULL || io == NULL) {
+    if ((sub == NULL) || (io == NULL)) {
         return -EINVAL;
     }
 
@@ -471,7 +471,7 @@ int iec61850_sv_subscriber_poll(iec61850_sv_subscriber_t *sub,
     }
 
     (void)clock_gettime(CLOCK_REALTIME, &ts);
-    recv_time_ns = (uint64_t)ts.tv_sec * 1000000000ULL +
+    recv_time_ns = ((uint64_t)ts.tv_sec * 1000000000ULL) +
                    (uint64_t)ts.tv_nsec;
 
     ret = iec61850_sv_subscriber_process_frame(

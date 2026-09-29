@@ -126,7 +126,7 @@ static inline bool NAME##_equal_cstr(const NAME##_t *s, const char *cstr)      \
                                                                                \
 static inline int NAME##_compare(const NAME##_t *a, const NAME##_t *b)         \
 {                                                                              \
-    if (a == NULL || b == NULL) { return (a == b) ? 0 : (a == NULL) ? -1 : 1; }\
+    if ((a == NULL) || (b == NULL)) { return (a == b) ? 0 : (a == NULL) ? -1 : 1; }\
     return iec61850_fixed_string_compare_raw(a->data, a->len,                  \
                                               b->data, b->len);               \
 }

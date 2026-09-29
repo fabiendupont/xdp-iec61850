@@ -106,8 +106,8 @@ static bool parse_bool_attr(xmlNode *node, const char *attr)
 {
     xmlChar *val = xmlGetProp(node, (const xmlChar *)attr);
     if (val == NULL) { return false; }
-    bool result = (strcmp((const char *)val, "true") == 0 ||
-                   strcmp((const char *)val, "1") == 0);
+    bool result = ((strcmp((const char *)val, "true") == 0) ||
+                   (strcmp((const char *)val, "1") == 0));
     xmlFree(val);
     return result;
 }
@@ -321,7 +321,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
                  da_child = da_child->next) {
                 if (da_child->type != XML_ELEMENT_NODE) { continue; }
                 const char *da_name = (const char *)da_child->name;
-                if (strcmp(da_name, "DA") != 0 && strcmp(da_name, "SDO") != 0) {
+                if ((strcmp(da_name, "DA") != 0) && (strcmp(da_name, "SDO") != 0)) {
                     continue;
                 }
                 if (dt->da_count >= (size_t)IEC61850_SCL_MAX_TYPE_DAS) { break; }
@@ -423,7 +423,7 @@ int iec61850_scl_parse_file(const char *filename, const char *ied_name,
     const xmlNode *root = NULL;
     int result = -1;
 
-    if (filename == NULL || doc == NULL) {
+    if ((filename == NULL) || (doc == NULL)) {
         return -1;
     }
 
@@ -497,7 +497,7 @@ int iec61850_scl_parse_file(const char *filename, const char *ied_name,
                         const char *gse_name = (const char *)gse->name;
                         bool is_gse = (strcmp(gse_name, "GSE") == 0);
                         bool is_smv = (strcmp(gse_name, "SMV") == 0);
-                        if (!is_gse && !is_smv) { continue; }
+                        if ((!is_gse) && (!is_smv)) { continue; }
 
                         char ld_inst[IEC61850_SCL_MAX_NAME] = {0};
                         char cb_name[IEC61850_SCL_MAX_NAME] = {0};
@@ -520,7 +520,7 @@ int iec61850_scl_parse_file(const char *filename, const char *ied_name,
                                     if (strcmp((const char *)p->name, "P") != 0) { continue; }
                                     xmlChar *ptype = xmlGetProp(p, (const xmlChar *)"type");
                                     xmlChar *pval = xmlNodeGetContent(p);
-                                    if (ptype != NULL && pval != NULL) {
+                                    if ((ptype != NULL) && (pval != NULL)) {
                                         if (strcmp((const char *)ptype, "VLAN-ID") == 0) {
                                             vlan_id = (uint16_t)strtoul((const char *)pval, NULL, 0);
                                         } else if (strcmp((const char *)ptype, "VLAN-PRIORITY") == 0) {
@@ -587,7 +587,7 @@ done:
 const iec61850_scl_goose_cb_t *iec61850_scl_find_goose_cb(
     const iec61850_scl_doc_t *doc, const char *cb_name)
 {
-    if (doc == NULL || cb_name == NULL) { return NULL; }
+    if ((doc == NULL) || (cb_name == NULL)) { return NULL; }
 
     for (size_t i = 0; i < doc->goose_cb_count; i++) {
         if (strcmp(doc->goose_cbs[i].cb_name, cb_name) == 0) {
@@ -600,7 +600,7 @@ const iec61850_scl_goose_cb_t *iec61850_scl_find_goose_cb(
 const iec61850_scl_sv_cb_t *iec61850_scl_find_sv_cb(
     const iec61850_scl_doc_t *doc, const char *cb_name)
 {
-    if (doc == NULL || cb_name == NULL) { return NULL; }
+    if ((doc == NULL) || (cb_name == NULL)) { return NULL; }
 
     for (size_t i = 0; i < doc->sv_cb_count; i++) {
         if (strcmp(doc->sv_cbs[i].cb_name, cb_name) == 0) {
@@ -613,7 +613,7 @@ const iec61850_scl_sv_cb_t *iec61850_scl_find_sv_cb(
 const iec61850_scl_rcb_t *iec61850_scl_find_rcb(
     const iec61850_scl_doc_t *doc, const char *rpt_id)
 {
-    if (doc == NULL || rpt_id == NULL) { return NULL; }
+    if ((doc == NULL) || (rpt_id == NULL)) { return NULL; }
 
     for (size_t i = 0; i < doc->rcb_count; i++) {
         if (strcmp(doc->rcbs[i].rpt_id, rpt_id) == 0) {
@@ -626,7 +626,7 @@ const iec61850_scl_rcb_t *iec61850_scl_find_rcb(
 const iec61850_scl_dataset_t *iec61850_scl_find_dataset(
     const iec61850_scl_doc_t *doc, const char *name)
 {
-    if (doc == NULL || name == NULL) { return NULL; }
+    if ((doc == NULL) || (name == NULL)) { return NULL; }
 
     for (size_t i = 0; i < doc->dataset_count; i++) {
         if (strcmp(doc->datasets[i].name, name) == 0) {
@@ -639,7 +639,7 @@ const iec61850_scl_dataset_t *iec61850_scl_find_dataset(
 const iec61850_scl_lnode_type_t *iec61850_scl_find_lnode_type(
     const iec61850_scl_doc_t *doc, const char *id)
 {
-    if (doc == NULL || id == NULL) { return NULL; }
+    if ((doc == NULL) || (id == NULL)) { return NULL; }
     for (size_t i = 0; i < doc->lnode_type_count; i++) {
         if (strcmp(doc->lnode_types[i].id, id) == 0) {
             return &doc->lnode_types[i];
@@ -651,7 +651,7 @@ const iec61850_scl_lnode_type_t *iec61850_scl_find_lnode_type(
 const iec61850_scl_do_type_t *iec61850_scl_find_do_type(
     const iec61850_scl_doc_t *doc, const char *id)
 {
-    if (doc == NULL || id == NULL) { return NULL; }
+    if ((doc == NULL) || (id == NULL)) { return NULL; }
     for (size_t i = 0; i < doc->do_type_count; i++) {
         if (strcmp(doc->do_types[i].id, id) == 0) {
             return &doc->do_types[i];
@@ -663,7 +663,7 @@ const iec61850_scl_do_type_t *iec61850_scl_find_do_type(
 const iec61850_scl_da_type_t *iec61850_scl_find_da_type(
     const iec61850_scl_doc_t *doc, const char *id)
 {
-    if (doc == NULL || id == NULL) { return NULL; }
+    if ((doc == NULL) || (id == NULL)) { return NULL; }
     for (size_t i = 0; i < doc->da_type_count; i++) {
         if (strcmp(doc->da_types[i].id, id) == 0) {
             return &doc->da_types[i];
@@ -675,7 +675,7 @@ const iec61850_scl_da_type_t *iec61850_scl_find_da_type(
 const iec61850_scl_enum_type_t *iec61850_scl_find_enum_type(
     const iec61850_scl_doc_t *doc, const char *id)
 {
-    if (doc == NULL || id == NULL) { return NULL; }
+    if ((doc == NULL) || (id == NULL)) { return NULL; }
     for (size_t i = 0; i < doc->enum_type_count; i++) {
         if (strcmp(doc->enum_types[i].id, id) == 0) {
             return &doc->enum_types[i];

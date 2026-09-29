@@ -73,7 +73,7 @@ int iec61850_graph_register(struct xgl_graph *g, const char *bpf_dir,
     int indices[NUM_NODES];
     int ret;
 
-    if (g == NULL || bpf_dir == NULL) {
+    if ((g == NULL) || (bpf_dir == NULL)) {
         return -EINVAL;
     }
 
@@ -113,7 +113,7 @@ int iec61850_graph_setup_dispatch(int dispatch_map_fd,
 {
     int ret;
 
-    if (dispatch_map_fd < 0 || indices == NULL) {
+    if ((dispatch_map_fd < 0) || (indices == NULL)) {
         return -EINVAL;
     }
 
@@ -139,7 +139,7 @@ int iec61850_graph_setup_dispatch(int dispatch_map_fd,
 int iec61850_graph_get_filter_map_fd(struct xgl_graph *g,
                                       const char *map_name)
 {
-    if (g == NULL || map_name == NULL) {
+    if ((g == NULL) || (map_name == NULL)) {
         return -EINVAL;
     }
 

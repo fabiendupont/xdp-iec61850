@@ -20,7 +20,7 @@ int iec61850_eth_frame_build(uint8_t *frame_buf, size_t frame_size,
     uint16_t pdu_length;
     uint16_t tci;
 
-    if (frame_buf == NULL || cfg == NULL || apdu == NULL || frame_len == NULL) {
+    if ((frame_buf == NULL) || (cfg == NULL) || (apdu == NULL) || (frame_len == NULL)) {
         return -EINVAL;
     }
 
@@ -104,8 +104,8 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
     uint16_t et;
     uint16_t pdu_length;
 
-    if (frame_buf == NULL || ethertype == NULL || app_id == NULL ||
-        vlan_id == NULL || apdu == NULL || apdu_len == NULL) {
+    if ((frame_buf == NULL) || (ethertype == NULL) || (app_id == NULL) ||
+        (vlan_id == NULL) || (apdu == NULL) || (apdu_len == NULL)) {
         return -EINVAL;
     }
 
@@ -125,7 +125,7 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
     *vlan_id = 0;
     if (et == IEC61850_ETHERTYPE_VLAN) {
         /* VLAN tagged frame */
-        if (frame_len < offset + 4U) {
+        if (frame_len < (offset + 4U)) {
             return -EBADMSG;
         }
         uint16_t tci = (uint16_t)((uint16_t)frame_buf[offset] << 8U) |
@@ -142,12 +142,12 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
     *ethertype = et;
 
     /* Validate EtherType */
-    if (et != IEC61850_ETHERTYPE_GOOSE && et != IEC61850_ETHERTYPE_SV) {
+    if ((et != IEC61850_ETHERTYPE_GOOSE) && (et != IEC61850_ETHERTYPE_SV)) {
         return -EPROTONOSUPPORT;
     }
 
     /* Need PDU header (8 bytes minimum) */
-    if (frame_len < offset + IEC61850_PDU_HEADER_LEN) {
+    if (frame_len < (offset + IEC61850_PDU_HEADER_LEN)) {
         return -EBADMSG;
     }
 
@@ -170,7 +170,7 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
     }
 
     size_t apdu_data_len = (size_t)(pdu_length - IEC61850_PDU_HEADER_LEN);
-    if (offset + apdu_data_len > frame_len) {
+    if ((offset + apdu_data_len) > frame_len) {
         return -EBADMSG;
     }
 
@@ -193,7 +193,7 @@ int iec61850_eth_frame_update_pdu_length(uint8_t *frame_buf, size_t frame_len,
     size_t pdu_start_offset = 12U + (vlan ? IEC61850_VLAN_TAG_LEN : 0U) + 2U;
     size_t length_offset = pdu_start_offset + 2U;  /* skip APPID */
 
-    if (length_offset + 2U > frame_len) {
+    if ((length_offset + 2U) > frame_len) {
         return -EBADMSG;
     }
 
@@ -208,11 +208,11 @@ int iec61850_eth_frame_update_pdu_length(uint8_t *frame_buf, size_t frame_len,
 bool iec61850_eth_is_goose_multicast(const uint8_t *mac)
 {
     if (mac == NULL) { return false; }
-    return mac[0] == 0x01U && mac[1] == 0x0CU && mac[2] == 0xCDU && mac[3] == 0x01U;
+    return (mac[0] == 0x01U) && (mac[1] == 0x0CU) && (mac[2] == 0xCDU) && (mac[3] == 0x01U);
 }
 
 bool iec61850_eth_is_sv_multicast(const uint8_t *mac)
 {
     if (mac == NULL) { return false; }
-    return mac[0] == 0x01U && mac[1] == 0x0CU && mac[2] == 0xCDU && mac[3] == 0x04U;
+    return (mac[0] == 0x01U) && (mac[1] == 0x0CU) && (mac[2] == 0xCDU) && (mac[3] == 0x04U);
 }

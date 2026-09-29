@@ -20,7 +20,7 @@ int ber_encode_tag(uint8_t *buf, size_t buf_size, size_t *offset, uint8_t tag)
 {
     int result;
 
-    if (!buf || !offset) {
+    if ((!buf) || (!offset)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (*offset >= buf_size) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -37,7 +37,7 @@ int ber_encode_length(uint8_t *buf, size_t buf_size, size_t *offset, size_t leng
 {
     int result;
 
-    if (!buf || !offset) {
+    if ((!buf) || (!offset)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (length < 128U) {
         /* Short form: single byte */
@@ -82,7 +82,7 @@ int ber_encode_boolean(uint8_t *buf, size_t buf_size, size_t *offset,
     int result;
     int ret;
 
-    if (!buf || !offset) {
+    if ((!buf) || (!offset)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if ((*offset + 3U) > buf_size) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -117,7 +117,7 @@ int ber_encode_int32(uint8_t *buf, size_t buf_size, size_t *offset,
     size_t num_bytes;
     size_t i;
 
-    if (!buf || !offset) {
+    if ((!buf) || (!offset)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Convert to bytes (big-endian) */
@@ -187,7 +187,7 @@ int ber_encode_uint32(uint8_t *buf, size_t buf_size, size_t *offset,
     size_t num_bytes;
     size_t i;
 
-    if (!buf || !offset) {
+    if ((!buf) || (!offset)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Convert to bytes (big-endian) */
@@ -242,7 +242,7 @@ int ber_encode_visiblestring(uint8_t *buf, size_t buf_size, size_t *offset,
     size_t len;
     size_t i;
 
-    if (!buf || !offset || !str) {
+    if ((!buf) || (!offset) || (!str)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         len = strlen(str);
@@ -286,7 +286,7 @@ int ber_encode_utctime(uint8_t *buf, size_t buf_size, size_t *offset,
     uint32_t seconds;
     uint32_t fraction;
 
-    if (!buf || !offset) {
+    if ((!buf) || (!offset)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if ((*offset + 10U) > buf_size) {  /* Tag(1) + Len(1) + Value(8) */
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -357,7 +357,7 @@ static int goose_encode_data_elements(uint8_t *buf, size_t buf_size,
     int ret = GOOSE_BER_OK;
     size_t i;
 
-    for (i = 0U; i < count && ret == GOOSE_BER_OK; i++) {
+    for (i = 0U; (i < count) && (ret == GOOSE_BER_OK); i++) {
         switch (data[i].type) {
             case GOOSE_DATA_BOOLEAN:
                 ret = ber_encode_boolean(buf, buf_size, offset,
@@ -419,7 +419,7 @@ static int goose_encode_data_elements(uint8_t *buf, size_t buf_size,
             case GOOSE_DATA_VISIBLESTRING:
                 ret = ber_encode_visiblestring(buf, buf_size, offset,
                                               ASN1_CLASS_CONTEXT | 0x0AU,
-                                              data[i].value.visiblestring != NULL ?
+                                              (data[i].value.visiblestring != NULL) ?
                                                   data[i].value.visiblestring : "");
                 break;
 
@@ -478,7 +478,7 @@ int goose_encode_alldata(uint8_t *buf, size_t buf_size, size_t *offset,
     size_t alldata_content_start;
     size_t alldata_len;
 
-    if (!buf || !offset || !data) {
+    if ((!buf) || (!offset) || (!data)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (count > GOOSE_MAX_ALLDATA_ENTRIES) {
         result = GOOSE_BER_ERR_INVALID_ARG;
@@ -526,7 +526,7 @@ int goose_encode_apdu(uint8_t *buf, size_t buf_size,
     size_t apdu_content_start;
     size_t apdu_len;
 
-    if (!buf || !apdu || !encoded_len) {
+    if ((!buf) || (!apdu) || (!encoded_len)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* GOOSE APDU Tag: APPLICATION 1 | CONSTRUCTED */
@@ -678,7 +678,7 @@ int goose_set_gocbref(goose_apdu_t *apdu, const char *gocbRef)
     int result;
     size_t len;
 
-    if (!apdu || !gocbRef) {
+    if ((!apdu) || (!gocbRef)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         len = strlen(gocbRef);
@@ -699,7 +699,7 @@ int goose_set_datset(goose_apdu_t *apdu, const char *datSet)
     int result;
     size_t len;
 
-    if (!apdu || !datSet) {
+    if ((!apdu) || (!datSet)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         len = strlen(datSet);
@@ -720,7 +720,7 @@ int goose_set_goid(goose_apdu_t *apdu, const char *goID)
     int result;
     size_t len;
 
-    if (!apdu || !goID) {
+    if ((!apdu) || (!goID)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         len = strlen(goID);
@@ -813,7 +813,7 @@ int goose_add_bitstring(goose_apdu_t *apdu, const uint8_t *data, size_t len)
 {
     int result;
 
-    if (!apdu || !data) {
+    if ((!apdu) || (!data)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (apdu->numDatSetEntries >= GOOSE_MAX_ALLDATA_ENTRIES) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -832,7 +832,7 @@ int goose_add_octetstring(goose_apdu_t *apdu, const uint8_t *data, size_t len)
 {
     int result;
 
-    if (!apdu || !data) {
+    if ((!apdu) || (!data)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (apdu->numDatSetEntries >= GOOSE_MAX_ALLDATA_ENTRIES) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -851,7 +851,7 @@ int goose_add_visiblestring(goose_apdu_t *apdu, const char *str)
 {
     int result;
 
-    if (!apdu || !str) {
+    if ((!apdu) || (!str)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (apdu->numDatSetEntries >= GOOSE_MAX_ALLDATA_ENTRIES) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -889,7 +889,7 @@ int goose_add_structure(goose_apdu_t *apdu, goose_data_t *elements, size_t count
 {
     int result;
 
-    if (!apdu || !elements) {
+    if ((!apdu) || (!elements)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (apdu->numDatSetEntries >= GOOSE_MAX_ALLDATA_ENTRIES) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -918,7 +918,7 @@ static int ber_encode_octetstring(uint8_t *buf, size_t buf_size, size_t *offset,
     int ret;
     size_t i;
 
-    if (!buf || !offset || !data) {
+    if ((!buf) || (!offset) || (!data)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if ((*offset + 2U + data_len) > buf_size) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -960,7 +960,7 @@ int goose_set_security(goose_apdu_t *apdu,
     size_t i;
     struct timespec ts;
 
-    if (!apdu || !key_id || !signature) {
+    if ((!apdu) || (!key_id) || (!signature)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (signature_len > GOOSE_MAX_SIGNATURE_LEN) {
         result = GOOSE_BER_ERR_INVALID_ARG;
@@ -976,8 +976,8 @@ int goose_set_security(goose_apdu_t *apdu,
 
         /* Set security timestamp (current time) */
         if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
-            apdu->security_timestamp = (uint64_t)ts.tv_sec * 1000000ULL +
-                                      (uint64_t)ts.tv_nsec / 1000ULL;
+            apdu->security_timestamp = ((uint64_t)ts.tv_sec * 1000000ULL) +
+                                      ((uint64_t)ts.tv_nsec / 1000ULL);
         } else {
             apdu->security_timestamp = 0;
         }

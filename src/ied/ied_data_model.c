@@ -21,7 +21,7 @@
 int iec61850_da_init(iec61850_data_attribute_t *da, const char *name,
                       iec61850_fc_t fc, iec61850_btype_t btype)
 {
-    if (da == NULL || name == NULL) { return -1; }
+    if ((da == NULL) || (name == NULL)) { return -1; }
 
     (void)memset(da, 0, sizeof(*da));
     (void)strncpy(da->name, name, IEC61850_MAX_NAME_LEN - 1);
@@ -35,7 +35,7 @@ int iec61850_da_init(iec61850_data_attribute_t *da, const char *name,
 
 void iec61850_da_destroy(iec61850_data_attribute_t *da)
 {
-    if (da != NULL && da->valid) {
+    if ((da != NULL) && (da->valid)) {
         (void)pthread_mutex_destroy(&da->mutex);
         da->valid = false;
     }
@@ -46,7 +46,7 @@ mms_value_t iec61850_da_get_value(iec61850_data_attribute_t *da)
     mms_value_t val;
     (void)memset(&val, 0, sizeof(val));
 
-    if (da != NULL && da->valid) {
+    if ((da != NULL) && (da->valid)) {
         (void)pthread_mutex_lock(&da->mutex);
         val = da->value;
         (void)pthread_mutex_unlock(&da->mutex);
@@ -59,7 +59,7 @@ void iec61850_da_set_value(iec61850_data_attribute_t *da,
 {
     mms_value_t old_val;
 
-    if (da == NULL || value == NULL || !da->valid) { return; }
+    if ((da == NULL) || (value == NULL) || (!da->valid)) { return; }
 
     (void)pthread_mutex_lock(&da->mutex);
     old_val = da->value;
@@ -119,7 +119,7 @@ int iec61850_do_add_attribute(iec61850_data_object_t *dobj,
                                const char *name, iec61850_fc_t fc,
                                iec61850_btype_t btype)
 {
-    if (dobj == NULL || dobj->attr_count >= (size_t)IEC61850_MAX_DA_PER_DO) {
+    if ((dobj == NULL) || (dobj->attr_count >= (size_t)IEC61850_MAX_DA_PER_DO)) {
         return -1;
     }
 
@@ -130,8 +130,8 @@ int iec61850_do_add_attribute(iec61850_data_object_t *dobj,
 int iec61850_do_add_sub_object(iec61850_data_object_t *dobj,
                                 iec61850_data_object_t *sub)
 {
-    if (dobj == NULL || sub == NULL ||
-        dobj->sub_count >= (size_t)IEC61850_MAX_SUBDO_PER_DO) {
+    if ((dobj == NULL) || (sub == NULL) ||
+        (dobj->sub_count >= (size_t)IEC61850_MAX_SUBDO_PER_DO)) {
         return -1;
     }
 
@@ -142,12 +142,12 @@ int iec61850_do_add_sub_object(iec61850_data_object_t *dobj,
 iec61850_data_attribute_t *iec61850_do_find_attribute(
     iec61850_data_object_t *dobj, const char *name, iec61850_fc_t fc)
 {
-    if (dobj == NULL || name == NULL) { return NULL; }
+    if ((dobj == NULL) || (name == NULL)) { return NULL; }
 
     for (size_t i = 0; i < dobj->attr_count; i++) {
-        if (dobj->attributes[i].valid &&
-            strcmp(dobj->attributes[i].name, name) == 0 &&
-            dobj->attributes[i].fc == fc) {
+        if ((dobj->attributes[i].valid) &&
+            (strcmp(dobj->attributes[i].name, name) == 0) &&
+            (dobj->attributes[i].fc == fc)) {
             return &dobj->attributes[i];
         }
     }
@@ -157,11 +157,11 @@ iec61850_data_attribute_t *iec61850_do_find_attribute(
 iec61850_data_object_t *iec61850_do_find_sub_object(
     iec61850_data_object_t *dobj, const char *name)
 {
-    if (dobj == NULL || name == NULL) { return NULL; }
+    if ((dobj == NULL) || (name == NULL)) { return NULL; }
 
     for (size_t i = 0; i < dobj->sub_count; i++) {
-        if (dobj->sub_objects[i] != NULL &&
-            strcmp(dobj->sub_objects[i]->name, name) == 0) {
+        if ((dobj->sub_objects[i] != NULL) &&
+            (strcmp(dobj->sub_objects[i]->name, name) == 0)) {
             return dobj->sub_objects[i];
         }
     }
@@ -205,8 +205,8 @@ void iec61850_ln_destroy(iec61850_logical_node_t *ln)
 int iec61850_ln_add_data_object(iec61850_logical_node_t *ln,
                                  iec61850_data_object_t *dobj)
 {
-    if (ln == NULL || dobj == NULL ||
-        ln->do_count >= (size_t)IEC61850_MAX_DO_PER_LN) {
+    if ((ln == NULL) || (dobj == NULL) ||
+        (ln->do_count >= (size_t)IEC61850_MAX_DO_PER_LN)) {
         return -1;
     }
 
@@ -217,11 +217,11 @@ int iec61850_ln_add_data_object(iec61850_logical_node_t *ln,
 iec61850_data_object_t *iec61850_ln_find_do(
     const iec61850_logical_node_t *ln, const char *do_name)
 {
-    if (ln == NULL || do_name == NULL) { return NULL; }
+    if ((ln == NULL) || (do_name == NULL)) { return NULL; }
 
     for (size_t i = 0; i < ln->do_count; i++) {
-        if (ln->data_objects[i] != NULL &&
-            strcmp(ln->data_objects[i]->name, do_name) == 0) {
+        if ((ln->data_objects[i] != NULL) &&
+            (strcmp(ln->data_objects[i]->name, do_name) == 0)) {
             return ln->data_objects[i];
         }
     }
@@ -235,7 +235,7 @@ iec61850_data_attribute_t *iec61850_ln_find_attribute(
     char *dot;
     iec61850_data_object_t *dobj;
 
-    if (ln == NULL || path == NULL) { return NULL; }
+    if ((ln == NULL) || (path == NULL)) { return NULL; }
 
     (void)strncpy(buf, path, sizeof(buf) - 1U);
     buf[sizeof(buf) - 1U] = '\0';
@@ -303,8 +303,8 @@ void iec61850_ld_destroy(iec61850_logical_device_t *ld)
 int iec61850_ld_add_logical_node(iec61850_logical_device_t *ld,
                                   iec61850_logical_node_t *ln)
 {
-    if (ld == NULL || ln == NULL ||
-        ld->ln_count >= (size_t)IEC61850_MAX_LN_PER_LD) {
+    if ((ld == NULL) || (ln == NULL) ||
+        (ld->ln_count >= (size_t)IEC61850_MAX_LN_PER_LD)) {
         return -1;
     }
 
@@ -317,7 +317,7 @@ iec61850_logical_node_t *iec61850_ld_find_ln(
 {
     char combined[IEC61850_MAX_NAME_LEN * 2];
 
-    if (ld == NULL || ln_name == NULL) { return NULL; }
+    if ((ld == NULL) || (ln_name == NULL)) { return NULL; }
 
     for (size_t i = 0; i < ld->ln_count; i++) {
         iec61850_logical_node_t *ln = ld->logical_nodes[i];
@@ -327,8 +327,8 @@ iec61850_logical_node_t *iec61850_ld_find_ln(
         (void)snprintf(combined, sizeof(combined), "%s%s",
                        ln->ln_class, ln->ln_inst);
 
-        if (strcmp(combined, ln_name) == 0 ||
-            strcmp(ln->ln_class, ln_name) == 0) {
+        if ((strcmp(combined, ln_name) == 0) ||
+            (strcmp(ln->ln_class, ln_name) == 0)) {
             return ln;
         }
     }
@@ -362,8 +362,8 @@ void iec61850_ied_model_destroy(iec61850_ied_model_t *model)
 int iec61850_ied_model_add_ld(iec61850_ied_model_t *model,
                                iec61850_logical_device_t *ld)
 {
-    if (model == NULL || ld == NULL ||
-        model->ld_count >= (size_t)IEC61850_MAX_LD_PER_IED) {
+    if ((model == NULL) || (ld == NULL) ||
+        (model->ld_count >= (size_t)IEC61850_MAX_LD_PER_IED)) {
         return -1;
     }
 
@@ -374,11 +374,11 @@ int iec61850_ied_model_add_ld(iec61850_ied_model_t *model,
 iec61850_logical_device_t *iec61850_ied_model_find_ld(
     const iec61850_ied_model_t *model, const char *ld_inst)
 {
-    if (model == NULL || ld_inst == NULL) { return NULL; }
+    if ((model == NULL) || (ld_inst == NULL)) { return NULL; }
 
     for (size_t i = 0; i < model->ld_count; i++) {
-        if (model->logical_devices[i] != NULL &&
-            strcmp(model->logical_devices[i]->ld_inst, ld_inst) == 0) {
+        if ((model->logical_devices[i] != NULL) &&
+            (strcmp(model->logical_devices[i]->ld_inst, ld_inst) == 0)) {
             return model->logical_devices[i];
         }
     }
@@ -394,7 +394,7 @@ iec61850_data_attribute_t *iec61850_ied_model_find_attribute(
     const iec61850_logical_node_t *ln;
     char *dot;
 
-    if (model == NULL || path == NULL) { return NULL; }
+    if ((model == NULL) || (path == NULL)) { return NULL; }
 
     (void)strncpy(buf, path, sizeof(buf) - 1U);
     buf[sizeof(buf) - 1U] = '\0';

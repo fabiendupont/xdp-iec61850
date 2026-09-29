@@ -61,7 +61,7 @@ void iec61850_sv_publisher_destroy(iec61850_sv_publisher_t *pub)
 int iec61850_sv_publisher_set_sample(iec61850_sv_publisher_t *pub,
                                       size_t channel, int32_t value)
 {
-    if (pub == NULL || channel >= SV_MAX_SAMPLES) { return -1; }
+    if ((pub == NULL) || (channel >= SV_MAX_SAMPLES)) { return -1; }
 
     if (channel >= pub->sample_count) {
         pub->sample_count = (uint8_t)(channel + 1U);
@@ -74,7 +74,7 @@ int iec61850_sv_publisher_set_sample(iec61850_sv_publisher_t *pub,
 int iec61850_sv_publisher_set_quality(iec61850_sv_publisher_t *pub,
                                        size_t channel, sv_quality_t quality)
 {
-    if (pub == NULL || channel >= SV_MAX_SAMPLES) { return -1; }
+    if ((pub == NULL) || (channel >= SV_MAX_SAMPLES)) { return -1; }
 
     pub->quality[channel] = quality;
     return 0;
@@ -83,7 +83,7 @@ int iec61850_sv_publisher_set_quality(iec61850_sv_publisher_t *pub,
 int iec61850_sv_publisher_set_samples(iec61850_sv_publisher_t *pub,
                                        const int32_t *values, size_t count)
 {
-    if (pub == NULL || values == NULL || count > SV_MAX_SAMPLES) { return -1; }
+    if ((pub == NULL) || (values == NULL) || (count > SV_MAX_SAMPLES)) { return -1; }
 
     (void)memcpy(pub->samples, values, count * sizeof(int32_t));
     pub->sample_count = (uint8_t)count;
@@ -103,7 +103,7 @@ int iec61850_sv_publisher_prepare(iec61850_sv_publisher_t *pub,
     int result;
     sv_apdu_t apdu;
 
-    if (pub == NULL || buf == NULL || encoded == NULL) {
+    if ((pub == NULL) || (buf == NULL) || (encoded == NULL)) {
         return -1;
     }
 
@@ -136,7 +136,7 @@ int iec61850_sv_publisher_prepare(iec61850_sv_publisher_t *pub,
     pub->smp_cnt++;
     if (pub->config.smp_rate > 0U) {
         uint16_t wrap = (uint16_t)(pub->config.smp_rate * 50U);
-        if (wrap > 0U && pub->smp_cnt >= wrap) {
+        if ((wrap > 0U) && (pub->smp_cnt >= wrap)) {
             pub->smp_cnt = 0;
         }
     }
@@ -170,7 +170,7 @@ int iec61850_sv_publisher_enable_security(iec61850_sv_publisher_t *pub,
                                             void *key_manager,
                                             void *cert_manager)
 {
-    if (pub == NULL || key_manager == NULL || cert_manager == NULL) {
+    if ((pub == NULL) || (key_manager == NULL) || (cert_manager == NULL)) {
         return -EINVAL;
     }
 
@@ -262,7 +262,7 @@ static int sv_append_security_extension(uint8_t *frame_buf, size_t frame_capacit
         ext_buf[ext_pos++] = (uint8_t)(sig_len >> 8U);
         ext_buf[ext_pos++] = (uint8_t)(sig_len);
     }
-    if (ext_pos + sig_len > sizeof(ext_buf)) {
+    if ((ext_pos + sig_len) > sizeof(ext_buf)) {
         return -1;
     }
     (void)memcpy(&ext_buf[ext_pos], sig_buf, sig_len);
@@ -282,13 +282,13 @@ static int sv_append_security_extension(uint8_t *frame_buf, size_t frame_capacit
         outer[outer_pos++] = (uint8_t)(ext_pos >> 8U);
         outer[outer_pos++] = (uint8_t)(ext_pos);
     }
-    if (outer_pos + ext_pos > sizeof(outer)) {
+    if ((outer_pos + ext_pos) > sizeof(outer)) {
         return -1;
     }
     (void)memcpy(&outer[outer_pos], ext_buf, ext_pos);
     outer_pos += ext_pos;
 
-    if (*frame_len + outer_pos > frame_capacity) {
+    if ((*frame_len + outer_pos) > frame_capacity) {
         return -1;
     }
     (void)memcpy(&frame_buf[*frame_len], outer, outer_pos);
@@ -307,7 +307,7 @@ int iec61850_sv_publisher_build_frame(iec61850_sv_publisher_t *pub,
     iec61850_eth_frame_config_t fcfg;
     int ret;
 
-    if (pub == NULL || frame_buf == NULL || frame_len == NULL) {
+    if ((pub == NULL) || (frame_buf == NULL) || (frame_len == NULL)) {
         return -EINVAL;
     }
 
@@ -358,7 +358,7 @@ int iec61850_sv_publisher_publish(iec61850_sv_publisher_t *pub)
     size_t frame_len = 0;
     int ret;
 
-    if (pub == NULL || pub->io == NULL) {
+    if ((pub == NULL) || (pub->io == NULL)) {
         return -EINVAL;
     }
 

@@ -45,8 +45,8 @@ static size_t count_indent(const char *line)
 static void strip_trailing(char *s)
 {
     size_t len = strlen(s);
-    while (len > 0U && (s[len - 1U] == '\n' || s[len - 1U] == '\r' ||
-                        s[len - 1U] == ' ' || s[len - 1U] == '\t')) {
+    while ((len > 0U) && ((s[len - 1U] == '\n') || (s[len - 1U] == '\r') ||
+                        (s[len - 1U] == ' ') || (s[len - 1U] == '\t'))) {
         s[len - 1U] = '\0';
         len--;
     }
@@ -59,13 +59,13 @@ static void strip_comment(char *s)
     bool in_double = false;
 
     for (size_t i = 0; s[i] != '\0'; i++) {
-        if (s[i] == '\'' && !in_double) {
+        if ((s[i] == '\'') && (!in_double)) {
             in_single = !in_single;
-        } else if (s[i] == '"' && !in_single) {
+        } else if ((s[i] == '"') && (!in_single)) {
             in_double = !in_double;
-        } else if (s[i] == '#' && !in_single && !in_double) {
+        } else if ((s[i] == '#') && (!in_single) && (!in_double)) {
             /* Check that there's a space before # (YAML rule) */
-            if (i == 0U || s[i - 1U] == ' ') {
+            if ((i == 0U) || (s[i - 1U] == ' ')) {
                 s[i] = '\0';
                 strip_trailing(s);
                 return;
@@ -79,8 +79,8 @@ static void strip_quotes(char *s)
 {
     size_t len = strlen(s);
     if (len >= 2U) {
-        if ((s[0] == '"' && s[len - 1U] == '"') ||
-            (s[0] == '\'' && s[len - 1U] == '\'')) {
+        if (((s[0] == '"') && (s[len - 1U] == '"')) ||
+            ((s[0] == '\'') && (s[len - 1U] == '\''))) {
             (void)memmove(s, &s[1U], len - 2U);
             s[len - 2U] = '\0';
         }
@@ -126,7 +126,7 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
     size_t key_len;
     iec61850_yaml_entry_t *list_entry;
 
-    if (path == NULL || doc == NULL) {
+    if ((path == NULL) || (doc == NULL)) {
         return -1;
     }
 
@@ -155,9 +155,9 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
         }
 
         /* List item: "  - value" */
-        if (line[indent] == '-' && line[indent + 1U] == ' ') {
-            if (list_entry != NULL &&
-                list_entry->list_count < (size_t)IEC61850_YAML_MAX_LIST_ITEMS) {
+        if ((line[indent] == '-') && (line[indent + 1U] == ' ')) {
+            if ((list_entry != NULL) &&
+                (list_entry->list_count < (size_t)IEC61850_YAML_MAX_LIST_ITEMS)) {
                 value_start = &line[indent + 2U];
                 /* Skip leading whitespace */
                 while (*value_start == ' ') { value_start++; }
@@ -184,7 +184,7 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
 
         /* Extract key */
         key_len = (size_t)(colon - &line[indent]);
-        if (key_len == 0U || key_len >= (size_t)IEC61850_YAML_MAX_KEY_LEN) {
+        if ((key_len == 0U) || (key_len >= (size_t)IEC61850_YAML_MAX_KEY_LEN)) {
             continue;
         }
 
@@ -264,7 +264,7 @@ const char *iec61850_yaml_get_string(const iec61850_yaml_doc_t *doc,
                                       const char *key)
 {
     const iec61850_yaml_entry_t *entry = find_entry(doc, key);
-    if (entry == NULL || entry->type != IEC61850_YAML_STRING) {
+    if ((entry == NULL) || (entry->type != IEC61850_YAML_STRING)) {
         return NULL;
     }
     return entry->value;
@@ -275,7 +275,7 @@ int iec61850_yaml_get_int(const iec61850_yaml_doc_t *doc,
                            int default_val)
 {
     const iec61850_yaml_entry_t *entry = find_entry(doc, key);
-    if (entry == NULL || entry->type != IEC61850_YAML_STRING) {
+    if ((entry == NULL) || (entry->type != IEC61850_YAML_STRING)) {
         return default_val;
     }
     if (entry->value[0] == '\0') {
@@ -295,19 +295,19 @@ bool iec61850_yaml_get_bool(const iec61850_yaml_doc_t *doc,
                              bool default_val)
 {
     const iec61850_yaml_entry_t *entry = find_entry(doc, key);
-    if (entry == NULL || entry->type != IEC61850_YAML_STRING) {
+    if ((entry == NULL) || (entry->type != IEC61850_YAML_STRING)) {
         return default_val;
     }
     if (entry->value[0] == '\0') {
         return default_val;
     }
 
-    if (strcasecmp(entry->value, "true") == 0 ||
-        strcasecmp(entry->value, "yes") == 0) {
+    if ((strcasecmp(entry->value, "true") == 0) ||
+        (strcasecmp(entry->value, "yes") == 0)) {
         return true;
     }
-    if (strcasecmp(entry->value, "false") == 0 ||
-        strcasecmp(entry->value, "no") == 0) {
+    if ((strcasecmp(entry->value, "false") == 0) ||
+        (strcasecmp(entry->value, "no") == 0)) {
         return false;
     }
 
@@ -322,8 +322,8 @@ const char **iec61850_yaml_get_list(const iec61850_yaml_doc_t *doc,
                                      size_t *count)
 {
     const iec61850_yaml_entry_t *entry = find_entry(doc, key);
-    if (entry == NULL || entry->type != IEC61850_YAML_LIST ||
-        entry->list_count == 0U) {
+    if ((entry == NULL) || (entry->type != IEC61850_YAML_LIST) ||
+        (entry->list_count == 0U)) {
         if (count != NULL) { *count = 0; }
         return NULL;
     }

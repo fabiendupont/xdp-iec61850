@@ -88,7 +88,7 @@ void packet_io_destroy(struct packet_io *io);
 static inline int packet_io_open(struct packet_io *io, const char *ifname,
                                   int queue_id)
 {
-    if (io == NULL || io->ops == NULL || io->ops->open == NULL) {
+    if ((io == NULL) || (io->ops == NULL) || (io->ops->open == NULL)) {
         return -1;
     }
     return io->ops->open(io, ifname, queue_id);
@@ -97,7 +97,7 @@ static inline int packet_io_open(struct packet_io *io, const char *ifname,
 static inline int packet_io_recv(struct packet_io *io, void **pkt_data,
                                   uint32_t *pkt_len)
 {
-    if (io == NULL || io->ops == NULL || io->ops->recv == NULL) {
+    if ((io == NULL) || (io->ops == NULL) || (io->ops->recv == NULL)) {
         return -1;
     }
     return io->ops->recv(io, pkt_data, pkt_len);
@@ -111,14 +111,14 @@ static inline int packet_io_recv(struct packet_io *io, void **pkt_data,
 static inline int packet_io_recv_batch(struct packet_io *io, void **pkt_data,
                                         uint32_t *pkt_lens, int max)
 {
-    if (io == NULL || io->ops == NULL) {
+    if ((io == NULL) || (io->ops == NULL)) {
         return -1;
     }
     if (io->ops->recv_batch != NULL) {
         return io->ops->recv_batch(io, pkt_data, pkt_lens, max);
     }
     /* Fallback: single recv */
-    if (io->ops->recv == NULL || max < 1) {
+    if ((io->ops->recv == NULL) || (max < 1)) {
         return -1;
     }
     int ret = io->ops->recv(io, &pkt_data[0], &pkt_lens[0]);
@@ -128,7 +128,7 @@ static inline int packet_io_recv_batch(struct packet_io *io, void **pkt_data,
 static inline int packet_io_send(struct packet_io *io, const void *pkt_data,
                                   uint32_t pkt_len)
 {
-    if (io == NULL || io->ops == NULL || io->ops->send == NULL) {
+    if ((io == NULL) || (io->ops == NULL) || (io->ops->send == NULL)) {
         return -1;
     }
     return io->ops->send(io, pkt_data, pkt_len);
@@ -136,7 +136,7 @@ static inline int packet_io_send(struct packet_io *io, const void *pkt_data,
 
 static inline void packet_io_release(struct packet_io *io)
 {
-    if (io != NULL && io->ops != NULL && io->ops->release != NULL) {
+    if ((io != NULL) && (io->ops != NULL) && (io->ops->release != NULL)) {
         io->ops->release(io);
     }
 }
@@ -147,7 +147,7 @@ static inline void packet_io_release(struct packet_io *io)
  */
 static inline void packet_io_release_batch(struct packet_io *io, int count)
 {
-    if (io == NULL || io->ops == NULL) {
+    if ((io == NULL) || (io->ops == NULL)) {
         return;
     }
     if (io->ops->release_batch != NULL) {
@@ -164,7 +164,7 @@ static inline void packet_io_release_batch(struct packet_io *io, int count)
 
 static inline void packet_io_close(struct packet_io *io)
 {
-    if (io != NULL && io->ops != NULL && io->ops->close != NULL) {
+    if ((io != NULL) && (io->ops != NULL) && (io->ops->close != NULL)) {
         io->ops->close(io);
     }
 }

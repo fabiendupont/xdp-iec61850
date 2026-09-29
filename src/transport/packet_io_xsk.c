@@ -222,15 +222,15 @@ struct packet_io *packet_io_create_xsk_inherited(int control_sock_fd)
         return NULL;
     }
 
-    if (msg.magic != XSK_HANDOFF_MAGIC || msg.reserved != 0) {
+    if ((msg.magic != XSK_HANDOFF_MAGIC) || (msg.reserved != 0)) {
         errno = EPROTO;
         return NULL;
     }
 
     struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mh);
-    if (cmsg == NULL || cmsg->cmsg_level != SOL_SOCKET ||
-        cmsg->cmsg_type != SCM_RIGHTS ||
-        cmsg->cmsg_len != CMSG_LEN(sizeof(fds))) {
+    if ((cmsg == NULL) || (cmsg->cmsg_level != SOL_SOCKET) ||
+        (cmsg->cmsg_type != SCM_RIGHTS) ||
+        (cmsg->cmsg_len != CMSG_LEN(sizeof(fds)))) {
         errno = EPROTO;
         return NULL;
     }

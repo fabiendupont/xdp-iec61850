@@ -70,7 +70,7 @@ int iec61850_key_manager_load_private_key(iec61850_key_manager_t *km,
     int result;
     FILE *fp = NULL;
 
-    if (km == NULL || path == NULL) {
+    if ((km == NULL) || (path == NULL)) {
         result = IEC61850_SEC_ERR_ARGS;
         goto done;
     }
@@ -188,9 +188,9 @@ static int sign_rsa_pss(EVP_PKEY *pkey, const uint8_t *data, size_t data_len,
         goto cleanup;
     }
 
-    if (EVP_PKEY_CTX_set_rsa_padding(pkey_ctx, RSA_PKCS1_PSS_PADDING) <= 0 ||
-        EVP_PKEY_CTX_set_rsa_pss_saltlen(pkey_ctx, RSA_PSS_SALTLEN_DIGEST) <= 0 ||
-        EVP_PKEY_CTX_set_rsa_mgf1_md(pkey_ctx, EVP_sha256()) <= 0) {
+    if ((EVP_PKEY_CTX_set_rsa_padding(pkey_ctx, RSA_PKCS1_PSS_PADDING) <= 0) ||
+        (EVP_PKEY_CTX_set_rsa_pss_saltlen(pkey_ctx, RSA_PSS_SALTLEN_DIGEST) <= 0) ||
+        (EVP_PKEY_CTX_set_rsa_mgf1_md(pkey_ctx, EVP_sha256()) <= 0)) {
         result = IEC61850_SEC_ERR_SIGN;
         goto cleanup;
     }
@@ -277,7 +277,7 @@ int iec61850_key_manager_sign(const iec61850_key_manager_t *km,
                                uint8_t *sig_out, size_t sig_capacity,
                                size_t *sig_len)
 {
-    if (km == NULL || data == NULL || sig_out == NULL || sig_len == NULL) {
+    if ((km == NULL) || (data == NULL) || (sig_out == NULL) || (sig_len == NULL)) {
         return IEC61850_SEC_ERR_ARGS;
     }
     if (km->private_key == NULL) {
@@ -320,9 +320,9 @@ static int verify_rsa_pss(const uint8_t *data, size_t data_len,
         goto cleanup;
     }
 
-    if (EVP_PKEY_CTX_set_rsa_padding(pkey_ctx, RSA_PKCS1_PSS_PADDING) <= 0 ||
-        EVP_PKEY_CTX_set_rsa_pss_saltlen(pkey_ctx, RSA_PSS_SALTLEN_DIGEST) <= 0 ||
-        EVP_PKEY_CTX_set_rsa_mgf1_md(pkey_ctx, EVP_sha256()) <= 0) {
+    if ((EVP_PKEY_CTX_set_rsa_padding(pkey_ctx, RSA_PKCS1_PSS_PADDING) <= 0) ||
+        (EVP_PKEY_CTX_set_rsa_pss_saltlen(pkey_ctx, RSA_PSS_SALTLEN_DIGEST) <= 0) ||
+        (EVP_PKEY_CTX_set_rsa_mgf1_md(pkey_ctx, EVP_sha256()) <= 0)) {
         result = IEC61850_SEC_ERR_VERIFY;
         goto cleanup;
     }
@@ -386,7 +386,7 @@ int iec61850_key_manager_verify(const uint8_t *data, size_t data_len,
 {
     int key_id;
 
-    if (data == NULL || signature == NULL || public_key == NULL) {
+    if ((data == NULL) || (signature == NULL) || (public_key == NULL)) {
         return IEC61850_SEC_ERR_ARGS;
     }
 

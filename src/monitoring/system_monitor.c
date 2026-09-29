@@ -15,7 +15,7 @@ static uint64_t get_time_ns(void)
 {
     struct timespec ts;
     (void)clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+    return ((uint64_t)ts.tv_sec * 1000000000ULL) + (uint64_t)ts.tv_nsec;
 }
 
 void iec61850_monitor_init(iec61850_system_monitor_t *mon)
@@ -33,14 +33,14 @@ void iec61850_monitor_set_mempool(iec61850_system_monitor_t *mon,
     mon->mempool.available = available;
     mon->mempool.in_use = (total > available) ? (total - available) : 0ULL;
     mon->mempool.usage_percent = (total > 0ULL)
-        ? ((float)mon->mempool.in_use / (float)total) * 100.0f
+        ? (((float)mon->mempool.in_use / (float)total) * 100.0f)
         : 0.0f;
 }
 
 void iec61850_monitor_update_pub(iec61850_system_monitor_t *mon,
                                   const iec61850_pub_stats_t *stats)
 {
-    if (mon == NULL || stats == NULL) { return; }
+    if ((mon == NULL) || (stats == NULL)) { return; }
     mon->pub_sent = stats->sent;
     mon->pub_errors = stats->errors;
 }
@@ -48,7 +48,7 @@ void iec61850_monitor_update_pub(iec61850_system_monitor_t *mon,
 void iec61850_monitor_update_sub(iec61850_system_monitor_t *mon,
                                   const iec61850_sub_stats_t *stats)
 {
-    if (mon == NULL || stats == NULL) { return; }
+    if ((mon == NULL) || (stats == NULL)) { return; }
     mon->sub_received = stats->received;
     mon->sub_duplicates = stats->duplicates;
     mon->sub_timeouts = stats->timeouts;
@@ -101,8 +101,8 @@ iec61850_system_health_t iec61850_monitor_get_health(
         h.status = IEC61850_HEALTH_CRITICAL;
     } else if (!h.publisher_healthy || !h.subscriber_healthy) {
         h.status = IEC61850_HEALTH_DEGRADED;
-    } else if (h.mempool.usage_percent > 60.0f ||
-               h.pub_total_errors > 0ULL || h.sub_total_timeouts > 0ULL) {
+    } else if ((h.mempool.usage_percent > 60.0f) ||
+               ((h.pub_total_errors > 0ULL) || (h.sub_total_timeouts > 0ULL))) {
         h.status = IEC61850_HEALTH_WARNING;
     } else {
         h.status = IEC61850_HEALTH_HEALTHY;
@@ -129,7 +129,7 @@ const char *iec61850_health_status_to_string(iec61850_health_status_t status)
 int iec61850_metrics_to_json(const iec61850_system_health_t *health,
                               char *buf, size_t buf_size)
 {
-    if (health == NULL || buf == NULL || buf_size < 64U) {
+    if ((health == NULL) || (buf == NULL) || (buf_size < 64U)) {
         return -1;
     }
 
@@ -167,13 +167,13 @@ int iec61850_metrics_to_json(const iec61850_system_health_t *health,
         (unsigned long long)health->sub_total_timeouts,
         (double)health->rx_error_rate);
 
-    return (n >= 0 && (size_t)n < buf_size) ? n : -1;
+    return ((n >= 0) && ((size_t)n < buf_size)) ? n : -1;
 }
 
 int iec61850_metrics_to_csv(const iec61850_system_health_t *health,
                              char *buf, size_t buf_size)
 {
-    if (health == NULL || buf == NULL) { return -1; }
+    if ((health == NULL) || (buf == NULL)) { return -1; }
 
     struct timespec ts;
     (void)clock_gettime(CLOCK_REALTIME, &ts);
@@ -188,7 +188,7 @@ int iec61850_metrics_to_csv(const iec61850_system_health_t *health,
         (unsigned long long)health->sub_total_received,
         (unsigned long long)health->sub_total_timeouts);
 
-    return (n >= 0 && (size_t)n < buf_size) ? n : -1;
+    return ((n >= 0) && ((size_t)n < buf_size)) ? n : -1;
 }
 
 int iec61850_metrics_csv_header(char *buf, size_t buf_size)
@@ -198,5 +198,5 @@ int iec61850_metrics_csv_header(char *buf, size_t buf_size)
     int n = snprintf(buf, buf_size,
         "timestamp,status,memory_pct,pub_sent,pub_errors,sub_received,sub_timeouts");
 
-    return (n >= 0 && (size_t)n < buf_size) ? n : -1;
+    return ((n >= 0) && ((size_t)n < buf_size)) ? n : -1;
 }

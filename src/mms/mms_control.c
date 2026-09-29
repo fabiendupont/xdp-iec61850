@@ -13,7 +13,7 @@ static uint64_t now_ms(void)
 {
     struct timespec ts;
     (void)clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+    return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
 }
 
 void iec61850_control_manager_init(iec61850_control_manager_t *mgr)
@@ -52,7 +52,7 @@ static iec61850_control_object_t *find_object(iec61850_control_manager_t *mgr,
 int iec61850_control_register(iec61850_control_manager_t *mgr,
                                 const char *domain, const char *item_id)
 {
-    if (mgr == NULL || domain == NULL || item_id == NULL) {
+    if ((mgr == NULL) || (domain == NULL) || (item_id == NULL)) {
         return -EINVAL;
     }
 
@@ -87,7 +87,7 @@ int iec61850_control_set_action_callback(iec61850_control_manager_t *mgr,
                                            iec61850_control_action_cb_t cb,
                                            void *user_data)
 {
-    if (mgr == NULL || domain == NULL || item_id == NULL) {
+    if ((mgr == NULL) || (domain == NULL) || (item_id == NULL)) {
         return -EINVAL;
     }
 
@@ -113,7 +113,7 @@ int iec61850_control_select(iec61850_control_manager_t *mgr,
                               uint32_t session_id,
                               mms_select_response_t *resp)
 {
-    if (mgr == NULL || resp == NULL) { return -EINVAL; }
+    if ((mgr == NULL) || (resp == NULL)) { return -EINVAL; }
 
     (void)pthread_mutex_lock(&mgr->mutex);
     iec61850_control_object_t *obj = find_object(mgr, domain, item_id);
@@ -135,8 +135,8 @@ int iec61850_control_select(iec61850_control_manager_t *mgr,
     if (obj->state != MMS_CONTROL_STATE_READY) {
         /* Check if prior selection expired */
         uint64_t now = now_ms();
-        if (obj->selection_expires_at_ms > 0ULL &&
-            now > obj->selection_expires_at_ms) {
+        if ((obj->selection_expires_at_ms > 0ULL) &&
+            (now > obj->selection_expires_at_ms)) {
             obj->state = MMS_CONTROL_STATE_READY;
             obj->selection_id = 0;
             obj->owner_session_id = 0;
@@ -199,7 +199,7 @@ int iec61850_control_operate(iec61850_control_manager_t *mgr,
                                iec61850_control_ids_t ids,
                                mms_operate_response_t *resp)
 {
-    if (mgr == NULL || resp == NULL) { return -EINVAL; }
+    if ((mgr == NULL) || (resp == NULL)) { return -EINVAL; }
 
     (void)pthread_mutex_lock(&mgr->mutex);
     iec61850_control_object_t *obj = find_object(mgr, domain, item_id);
@@ -235,8 +235,8 @@ int iec61850_control_operate(iec61850_control_manager_t *mgr,
     }
 
     /* Check selection timeout */
-    if (obj->selection_expires_at_ms > 0ULL &&
-        now_ms() > obj->selection_expires_at_ms) {
+    if ((obj->selection_expires_at_ms > 0ULL) &&
+        (now_ms() > obj->selection_expires_at_ms)) {
         obj->state = MMS_CONTROL_STATE_READY;
         obj->selection_id = 0;
         obj->owner_session_id = 0;
@@ -294,8 +294,8 @@ int iec61850_control_cancel(iec61850_control_manager_t *mgr,
     (void)pthread_mutex_lock(&obj->mutex);
     (void)pthread_mutex_unlock(&mgr->mutex);
 
-    if (obj->selection_id != ids.selection_id ||
-        obj->owner_session_id != ids.session_id) {
+    if ((obj->selection_id != ids.selection_id) ||
+        (obj->owner_session_id != ids.session_id)) {
         (void)pthread_mutex_unlock(&obj->mutex);
         return MMS_CONTROL_ERROR_INVALID_SELECTION_ID;
     }
@@ -322,9 +322,9 @@ void iec61850_control_cleanup_expired(iec61850_control_manager_t *mgr)
         if (!obj->valid) { continue; }
 
         (void)pthread_mutex_lock(&obj->mutex);
-        if (obj->state == MMS_CONTROL_STATE_SELECTED &&
-            obj->selection_expires_at_ms > 0ULL &&
-            now > obj->selection_expires_at_ms) {
+        if ((obj->state == MMS_CONTROL_STATE_SELECTED) &&
+            (obj->selection_expires_at_ms > 0ULL) &&
+            (now > obj->selection_expires_at_ms)) {
             obj->state = MMS_CONTROL_STATE_READY;
             obj->selection_id = 0;
             obj->owner_session_id = 0;

@@ -76,7 +76,7 @@ static int ensure_data_index(iec61850_goose_publisher_t *pub, size_t index)
 int iec61850_goose_publisher_set_boolean(iec61850_goose_publisher_t *pub,
                                           size_t index, bool value)
 {
-    if (pub == NULL || ensure_data_index(pub, index) != 0) { return -1; }
+    if ((pub == NULL) || (ensure_data_index(pub, index) != 0)) { return -1; }
     pub->data[index].type = GOOSE_DATA_BOOLEAN;
     pub->data[index].value.boolean = value;
     return 0;
@@ -85,7 +85,7 @@ int iec61850_goose_publisher_set_boolean(iec61850_goose_publisher_t *pub,
 int iec61850_goose_publisher_set_int32(iec61850_goose_publisher_t *pub,
                                         size_t index, int32_t value)
 {
-    if (pub == NULL || ensure_data_index(pub, index) != 0) { return -1; }
+    if ((pub == NULL) || (ensure_data_index(pub, index) != 0)) { return -1; }
     pub->data[index].type = GOOSE_DATA_INT32;
     pub->data[index].value.int32 = value;
     return 0;
@@ -94,7 +94,7 @@ int iec61850_goose_publisher_set_int32(iec61850_goose_publisher_t *pub,
 int iec61850_goose_publisher_set_uint32(iec61850_goose_publisher_t *pub,
                                          size_t index, uint32_t value)
 {
-    if (pub == NULL || ensure_data_index(pub, index) != 0) { return -1; }
+    if ((pub == NULL) || (ensure_data_index(pub, index) != 0)) { return -1; }
     pub->data[index].type = GOOSE_DATA_UINT32;
     pub->data[index].value.uint32 = value;
     return 0;
@@ -103,7 +103,7 @@ int iec61850_goose_publisher_set_uint32(iec61850_goose_publisher_t *pub,
 int iec61850_goose_publisher_set_float32(iec61850_goose_publisher_t *pub,
                                           size_t index, float value)
 {
-    if (pub == NULL || ensure_data_index(pub, index) != 0) { return -1; }
+    if ((pub == NULL) || (ensure_data_index(pub, index) != 0)) { return -1; }
     pub->data[index].type = GOOSE_DATA_FLOAT32;
     pub->data[index].value.float32 = value;
     return 0;
@@ -113,7 +113,7 @@ int iec61850_goose_publisher_set_bitstring(iec61850_goose_publisher_t *pub,
                                             size_t index,
                                             const uint8_t *data, size_t len)
 {
-    if (pub == NULL || data == NULL || ensure_data_index(pub, index) != 0) {
+    if ((pub == NULL) || (data == NULL) || (ensure_data_index(pub, index) != 0)) {
         return -1;
     }
     if (len > (size_t)IEC61850_GOOSE_MAX_BYTE_ENTRY_LEN) { return -1; }
@@ -132,7 +132,7 @@ int iec61850_goose_publisher_set_octetstring(iec61850_goose_publisher_t *pub,
                                               size_t index,
                                               const uint8_t *data, size_t len)
 {
-    if (pub == NULL || data == NULL || ensure_data_index(pub, index) != 0) {
+    if ((pub == NULL) || (data == NULL) || (ensure_data_index(pub, index) != 0)) {
         return -1;
     }
     if (len > (size_t)IEC61850_GOOSE_MAX_BYTE_ENTRY_LEN) { return -1; }
@@ -160,7 +160,7 @@ int iec61850_goose_publisher_prepare(iec61850_goose_publisher_t *pub,
     goose_apdu_t apdu;
     struct timespec ts;
 
-    if (pub == NULL || buf == NULL || encoded == NULL) {
+    if ((pub == NULL) || (buf == NULL) || (encoded == NULL)) {
         return -1;
     }
 
@@ -180,8 +180,8 @@ int iec61850_goose_publisher_prepare(iec61850_goose_publisher_t *pub,
 
     /* Timestamp */
     (void)clock_gettime(CLOCK_REALTIME, &ts);
-    apdu.timestamp = (uint64_t)ts.tv_sec * 1000000ULL +
-                     (uint64_t)ts.tv_nsec / 1000ULL;
+    apdu.timestamp = ((uint64_t)ts.tv_sec * 1000000ULL) +
+                     ((uint64_t)ts.tv_nsec / 1000ULL);
 
     /* Copy data entries */
     for (uint32_t i = 0; i < pub->data_count; i++) {
@@ -248,7 +248,7 @@ int iec61850_goose_publisher_enable_security(iec61850_goose_publisher_t *pub,
                                                void *key_manager,
                                                void *cert_manager)
 {
-    if (pub == NULL || key_manager == NULL || cert_manager == NULL) {
+    if ((pub == NULL) || (key_manager == NULL) || (cert_manager == NULL)) {
         return -EINVAL;
     }
 
@@ -351,7 +351,7 @@ static int append_security_extension(uint8_t *frame_buf, size_t frame_capacity,
         ext_buf[ext_pos++] = (uint8_t)(sig_len >> 8U);
         ext_buf[ext_pos++] = (uint8_t)(sig_len);
     }
-    if (ext_pos + sig_len > sizeof(ext_buf)) {
+    if ((ext_pos + sig_len) > sizeof(ext_buf)) {
         return -1;
     }
     (void)memcpy(&ext_buf[ext_pos], sig_buf, sig_len);
@@ -371,14 +371,14 @@ static int append_security_extension(uint8_t *frame_buf, size_t frame_capacity,
         outer[outer_pos++] = (uint8_t)(ext_pos >> 8U);
         outer[outer_pos++] = (uint8_t)(ext_pos);
     }
-    if (outer_pos + ext_pos > sizeof(outer)) {
+    if ((outer_pos + ext_pos) > sizeof(outer)) {
         return -1;
     }
     (void)memcpy(&outer[outer_pos], ext_buf, ext_pos);
     outer_pos += ext_pos;
 
     /* Append to frame */
-    if (*frame_len + outer_pos > frame_capacity) {
+    if ((*frame_len + outer_pos) > frame_capacity) {
         return -1;
     }
     (void)memcpy(&frame_buf[*frame_len], outer, outer_pos);
@@ -397,7 +397,7 @@ int iec61850_goose_publisher_build_frame(iec61850_goose_publisher_t *pub,
     iec61850_eth_frame_config_t fcfg;
     int ret;
 
-    if (pub == NULL || frame_buf == NULL || frame_len == NULL) {
+    if ((pub == NULL) || (frame_buf == NULL) || (frame_len == NULL)) {
         return -EINVAL;
     }
 
@@ -448,7 +448,7 @@ int iec61850_goose_publisher_publish(iec61850_goose_publisher_t *pub)
     size_t frame_len = 0;
     int ret;
 
-    if (pub == NULL || pub->io == NULL) {
+    if ((pub == NULL) || (pub->io == NULL)) {
         return -EINVAL;
     }
 

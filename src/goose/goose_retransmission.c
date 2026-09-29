@@ -12,7 +12,7 @@ static uint64_t monotonic_ns(void)
 {
     struct timespec ts;
     (void)clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+    return ((uint64_t)ts.tv_sec * 1000000000ULL) + (uint64_t)ts.tv_nsec;
 }
 
 void iec61850_retransmit_init(iec61850_retransmit_t *rt,

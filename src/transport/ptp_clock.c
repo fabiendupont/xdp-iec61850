@@ -36,7 +36,7 @@ int iec61850_ptp_clock_init(iec61850_ptp_clock_t *clock,
     clock->ptp_fd = -1;
     clock->initialized = false;
 
-    if (source == IEC61850_PTP_SOURCE_SYSTEM_CLOCK || device_path == NULL) {
+    if ((source == IEC61850_PTP_SOURCE_SYSTEM_CLOCK) || (device_path == NULL)) {
         clock->source = IEC61850_PTP_SOURCE_SYSTEM_CLOCK;
         clock->sync_status = IEC61850_PTP_SYNC_UNSYNC;
         clock->initialized = true;
@@ -63,26 +63,26 @@ uint64_t iec61850_ptp_clock_get_time_ns(const iec61850_ptp_clock_t *clock)
 {
     struct timespec ts;
 
-    if (clock == NULL || !clock->initialized) {
+    if ((clock == NULL) || (!clock->initialized)) {
         return 0;
     }
 
-    if (clock->source == IEC61850_PTP_SOURCE_PTP_DEVICE && clock->ptp_fd >= 0) {
+    if ((clock->source == IEC61850_PTP_SOURCE_PTP_DEVICE) && (clock->ptp_fd >= 0)) {
         if (clock_gettime(FD_TO_CLOCKID(clock->ptp_fd), &ts) == 0) {
-            return (uint64_t)ts.tv_sec * 1000000000ULL +
+            return ((uint64_t)ts.tv_sec * 1000000000ULL) +
                    (uint64_t)ts.tv_nsec;
         }
         /* Fall through to system clock on error */
     }
 
     clock_gettime(CLOCK_REALTIME, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ULL +
+    return ((uint64_t)ts.tv_sec * 1000000000ULL) +
            (uint64_t)ts.tv_nsec;
 }
 
 uint8_t iec61850_ptp_clock_get_smp_synch(const iec61850_ptp_clock_t *clock)
 {
-    if (clock == NULL || !clock->initialized) {
+    if ((clock == NULL) || (!clock->initialized)) {
         return 0;
     }
 
@@ -100,7 +100,7 @@ uint8_t iec61850_ptp_clock_get_smp_synch(const iec61850_ptp_clock_t *clock)
 
 void iec61850_ptp_clock_update_sync(iec61850_ptp_clock_t *clock)
 {
-    if (clock == NULL || !clock->initialized) {
+    if ((clock == NULL) || (!clock->initialized)) {
         return;
     }
 

@@ -41,7 +41,7 @@ int iec61850_tcp_connect(iec61850_tcp_conn_t *conn, const char *host,
     int flags;
     int optval;
 
-    if (conn == NULL || host == NULL) {
+    if ((conn == NULL) || (host == NULL)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
 
@@ -51,7 +51,7 @@ int iec61850_tcp_connect(iec61850_tcp_conn_t *conn, const char *host,
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (getaddrinfo(host, port_str, &hints, &res) != 0 || res == NULL) {
+    if ((getaddrinfo(host, port_str, &hints, &res) != 0) || (res == NULL)) {
         return IEC61850_TRANSPORT_ERR_CONNECT;
     }
 
@@ -66,7 +66,7 @@ int iec61850_tcp_connect(iec61850_tcp_conn_t *conn, const char *host,
     (void)fcntl(conn->sockfd, F_SETFL, flags | O_NONBLOCK);
 
     result = connect(conn->sockfd, res->ai_addr, res->ai_addrlen);
-    if (result < 0 && errno != EINPROGRESS) {
+    if ((result < 0) && (errno != EINPROGRESS)) {
         (void)close(conn->sockfd);
         conn->sockfd = -1;
         freeaddrinfo(res);
@@ -132,7 +132,7 @@ int iec61850_tcp_disconnect(iec61850_tcp_conn_t *conn)
 int iec61850_tcp_send(iec61850_tcp_conn_t *conn, const uint8_t *data,
                        size_t len)
 {
-    if (conn == NULL || data == NULL || !conn->connected) {
+    if ((conn == NULL) || (data == NULL) || (!conn->connected)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
 
@@ -147,7 +147,7 @@ int iec61850_tcp_send(iec61850_tcp_conn_t *conn, const uint8_t *data,
 int iec61850_tcp_recv(iec61850_tcp_conn_t *conn, uint8_t *buffer,
                        size_t buflen, int timeout_ms)
 {
-    if (conn == NULL || buffer == NULL || !conn->connected) {
+    if ((conn == NULL) || (buffer == NULL) || (!conn->connected)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
 
@@ -180,7 +180,7 @@ int iec61850_tcp_recv_exact(iec61850_tcp_conn_t *conn, uint8_t *buffer,
 {
     size_t received = 0;
 
-    if (conn == NULL || buffer == NULL || !conn->connected) {
+    if ((conn == NULL) || (buffer == NULL) || (!conn->connected)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
 
@@ -216,7 +216,7 @@ int iec61850_tcp_recv_tpkt(iec61850_tcp_conn_t *conn, uint8_t *buffer,
 {
     int ret;
 
-    if (conn == NULL || buffer == NULL) {
+    if ((conn == NULL) || (buffer == NULL)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
     if (buflen < 4U) {
@@ -230,7 +230,7 @@ int iec61850_tcp_recv_tpkt(iec61850_tcp_conn_t *conn, uint8_t *buffer,
     /* Extract total TPKT frame length */
     uint16_t total_len = (uint16_t)((uint16_t)buffer[2] << 8U) |
                          (uint16_t)buffer[3];
-    if (total_len < 4U || (size_t)total_len > buflen) {
+    if ((total_len < 4U) || ((size_t)total_len > buflen)) {
         return IEC61850_TRANSPORT_ERR_RECV;
     }
 
@@ -300,7 +300,7 @@ int iec61850_tcp_listener_bind(iec61850_tcp_listener_t *listener,
 int iec61850_tcp_listener_listen(iec61850_tcp_listener_t *listener,
                                   int backlog)
 {
-    if (listener == NULL || listener->sockfd < 0) {
+    if ((listener == NULL) || (listener->sockfd < 0)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
 
@@ -318,7 +318,7 @@ int iec61850_tcp_listener_accept(iec61850_tcp_listener_t *listener,
 {
     int optval;
 
-    if (listener == NULL || client == NULL || !listener->listening) {
+    if ((listener == NULL) || (client == NULL) || (!listener->listening)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
 

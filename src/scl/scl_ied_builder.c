@@ -86,7 +86,7 @@ static void populate_ln_with_standard_dos(iec61850_logical_node_t *ln,
 int iec61850_scl_build_ied_model(const iec61850_scl_doc_t *doc,
                                    iec61850_ied_model_t *model)
 {
-    if (doc == NULL || model == NULL) {
+    if ((doc == NULL) || (model == NULL)) {
         return -EINVAL;
     }
 
@@ -194,7 +194,7 @@ static int register_do_variables(const iec61850_data_object_t *dobj,
     /* Recurse into sub-data-objects */
     for (size_t i = 0; i < dobj->sub_count; i++) {
         const iec61850_data_object_t *sub = dobj->sub_objects[i];
-        if (sub == NULL || !sub->valid) { continue; }
+        if ((sub == NULL) || (!sub->valid)) { continue; }
 
         /* For sub-objects, DAs are named: LN$FC$ParentDO$SubDO$DA
          * We need to iterate sub-object DAs and build the compound name */
@@ -225,13 +225,13 @@ int iec61850_ied_model_register_mms(const iec61850_ied_model_t *model,
 {
     int total = 0;
 
-    if (model == NULL || data_store == NULL) {
+    if ((model == NULL) || (data_store == NULL)) {
         return -EINVAL;
     }
 
     for (size_t i = 0; i < model->ld_count; i++) {
         const iec61850_logical_device_t *ld = model->logical_devices[i];
-        if (ld == NULL || !ld->valid) { continue; }
+        if ((ld == NULL) || (!ld->valid)) { continue; }
 
         /* Domain name: IEDName + LDInst */
         char domain[MMS_MAX_DOMAIN_NAME];
@@ -239,20 +239,20 @@ int iec61850_ied_model_register_mms(const iec61850_ied_model_t *model,
                        model->ied_name, ld->ld_inst);
 
         int ret = iec61850_mms_ds_create_domain(data_store, domain);
-        if (ret != (int)IEC61850_MMS_DS_OK && ret != (int)IEC61850_MMS_DS_ERR_EXISTS) {
+        if ((ret != (int)IEC61850_MMS_DS_OK) && (ret != (int)IEC61850_MMS_DS_ERR_EXISTS)) {
             continue;
         }
 
         for (size_t j = 0; j < ld->ln_count; j++) {
             const iec61850_logical_node_t *ln = ld->logical_nodes[j];
-            if (ln == NULL || !ln->valid) { continue; }
+            if ((ln == NULL) || (!ln->valid)) { continue; }
 
             /* LN name: lnClass + inst (already combined in ln_inst) */
             const char *ln_name = ln->ln_inst;
 
             for (size_t k = 0; k < ln->do_count; k++) {
                 const iec61850_data_object_t *dobj = ln->data_objects[k];
-                if (dobj == NULL || !dobj->valid) { continue; }
+                if ((dobj == NULL) || (!dobj->valid)) { continue; }
 
                 int reg = register_do_variables(dobj, ln_name, domain,
                                                 data_store);
@@ -273,7 +273,7 @@ int iec61850_scl_auto_configure_rcbs(const iec61850_scl_doc_t *doc,
     iec61850_rcb_manager_t *mgr = (iec61850_rcb_manager_t *)mgr_ptr;
     int configured = 0;
 
-    if (doc == NULL || mgr == NULL) {
+    if ((doc == NULL) || (mgr == NULL)) {
         return -EINVAL;
     }
 

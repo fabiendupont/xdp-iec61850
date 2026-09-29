@@ -72,13 +72,13 @@ int iec61850_scl_get_rcb_configs(const iec61850_scl_doc_t *doc,
                                   iec61850_scl_rcb_config_t *configs,
                                   size_t max_count, size_t *count)
 {
-    if (doc == NULL || configs == NULL || count == NULL) {
+    if ((doc == NULL) || (configs == NULL) || (count == NULL)) {
         return -EINVAL;
     }
 
     *count = 0;
 
-    for (size_t i = 0; i < doc->rcb_count && *count < max_count; i++) {
+    for (size_t i = 0; (i < doc->rcb_count) && (*count < max_count); i++) {
         scl_rcb_to_config(&doc->rcbs[i], &configs[*count]);
         (*count)++;
     }
@@ -90,7 +90,7 @@ int iec61850_scl_auto_create_rcbs(const iec61850_scl_doc_t *doc,
                                    iec61850_rcb_manager_t *mgr,
                                    iec61850_mms_data_store_t *data_store)
 {
-    if (doc == NULL || mgr == NULL) {
+    if ((doc == NULL) || (mgr == NULL)) {
         return -EINVAL;
     }
 

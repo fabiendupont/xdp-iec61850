@@ -22,7 +22,7 @@ int hmac_sha256_sign(const uint8_t *key, size_t key_len,
     size_t actual_len = 0;
     int ret = -2;
 
-    if (!key || !data || !out_mac || mac_len < 32U) {
+    if ((!key) || (!data) || (!out_mac) || (mac_len < 32U)) {
         return -2;
     }
 
@@ -66,7 +66,7 @@ int hmac_sha256_verify(const uint8_t *key, size_t key_len,
     uint8_t computed_mac[32];
     int ret;
 
-    if (!key || !data || !expected_mac || mac_len > 32U) {
+    if ((!key) || (!data) || (!expected_mac) || (mac_len > 32U)) {
         return -2;
     }
 
@@ -94,7 +94,7 @@ int aes_gmac_verify(const uint8_t *key, size_t key_len,
     int ret = -2;
     int outlen = 0;
 
-    if (!key || !iv || !aad || !expected_tag) {
+    if ((!key) || (!iv) || (!aad) || (!expected_tag)) {
         return -2;
     }
 

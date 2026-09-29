@@ -33,12 +33,12 @@ static int ber_write_length(uint8_t *buf, size_t buf_size, size_t *offset,
         buf[*offset] = (uint8_t)length;
         (*offset)++;
     } else if (length < 256U) {
-        if (*offset + 2U > buf_size) { return -ENOSPC; }
+        if ((*offset + 2U) > buf_size) { return -ENOSPC; }
         buf[*offset] = 0x81;
         buf[*offset + 1U] = (uint8_t)length;
         *offset += 2U;
     } else {
-        if (*offset + 3U > buf_size) { return -ENOSPC; }
+        if ((*offset + 3U) > buf_size) { return -ENOSPC; }
         buf[*offset] = 0x82;
         buf[*offset + 1U] = (uint8_t)(length >> 8U);
         buf[*offset + 2U] = (uint8_t)(length & 0xFFU);
@@ -59,7 +59,7 @@ static int ber_read_length(const uint8_t *buf, size_t buf_len, size_t *offset,
         *length = first;
     } else {
         uint8_t num_bytes = first & 0x7FU;
-        if (num_bytes == 0U || num_bytes > 2U) { return -EBADMSG; }
+        if ((num_bytes == 0U) || (num_bytes > 2U)) { return -EBADMSG; }
         if (*offset + (size_t)num_bytes > buf_len) { return -EBADMSG; }
 
         *length = 0;
@@ -184,11 +184,11 @@ int iec61850_tpkt_encode(uint8_t *buf, size_t buf_size,
 {
     size_t total;
 
-    if (buf == NULL || data == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (data == NULL)) { return -EINVAL; }
 
     /* TPKT header (4) + COTP DT header (3) + data */
     total = (size_t)IEC61850_TPKT_HEADER_LEN + COTP_DT_HEADER + data_len;
-    if (total > buf_size || total > 65535U) { return -ENOSPC; }
+    if ((total > buf_size) || (total > 65535U)) { return -ENOSPC; }
 
     /* TPKT header */
     buf[0] = IEC61850_TPKT_VERSION;
@@ -213,14 +213,14 @@ int iec61850_tpkt_decode(const uint8_t *buf, size_t buf_len,
     size_t cotp_li;
     size_t header_len;
 
-    if (buf == NULL || payload == NULL || payload_len == NULL) {
+    if ((buf == NULL) || (payload == NULL) || (payload_len == NULL)) {
         return -EINVAL;
     }
     if (buf_len < (size_t)IEC61850_TPKT_HEADER_LEN + 1U) { return -EBADMSG; }
     if (buf[0] != (uint8_t)IEC61850_TPKT_VERSION) { return -EPROTONOSUPPORT; }
 
     total_len = (uint16_t)((uint16_t)buf[2] << 8U) | (uint16_t)buf[3];
-    if (total_len < (size_t)IEC61850_TPKT_HEADER_LEN + 1U || total_len > buf_len) {
+    if ((total_len < (size_t)IEC61850_TPKT_HEADER_LEN + 1U) || (total_len > buf_len)) {
         return -EBADMSG;
     }
 
@@ -258,7 +258,7 @@ void iec61850_session_params_init(iec61850_session_params_t *params)
 static int session_encode_param(uint8_t *buf, size_t buf_size, size_t *offset,
                                   uint8_t pi, const uint8_t *value, size_t val_len)
 {
-    if (*offset + 2U + val_len > buf_size) { return -ENOSPC; }
+    if ((*offset + 2U + val_len) > buf_size) { return -ENOSPC; }
     buf[*offset] = pi;
     buf[*offset + 1U] = (uint8_t)val_len;
     if (val_len > 0U) {
@@ -281,7 +281,7 @@ static int write_session_length(uint8_t *buf, size_t buf_size, size_t *offset,
         buf[*offset] = (uint8_t)length;
         (*offset)++;
     } else {
-        if (*offset + 3U > buf_size) { return -ENOSPC; }
+        if ((*offset + 3U) > buf_size) { return -ENOSPC; }
         buf[*offset] = 0xFF;
         buf[*offset + 1U] = (uint8_t)(length >> 8U);
         buf[*offset + 2U] = (uint8_t)(length & 0xFFU);
@@ -306,7 +306,7 @@ static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
     uint8_t req_buf[2];
     int ret;
 
-    if (buf == NULL || params == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (params == NULL)) { return -EINVAL; }
 
     /*
      * Compute total SPDU content length first, so we can write the
@@ -322,13 +322,13 @@ static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
     size_t content_len = 2U + ca_inner;  /* PGI 0x05 tag(1) + LI(1) + inner */
     content_len += 4U;  /* requirements (PI=1,LI=1,val=2) */
     /* CONNECT includes both SSELs; ACCEPT only includes Called SSEL */
-    if (si == IEC61850_SI_CONNECT && params->calling_ssel_len > 0U) {
+    if ((si == IEC61850_SI_CONNECT) && (params->calling_ssel_len > 0U)) {
         content_len += 2U + params->calling_ssel_len;
     }
     if (params->called_ssel_len > 0U) {
         content_len += 2U + params->called_ssel_len;
     }
-    if (user_data != NULL && user_data_len > 0U) {
+    if ((user_data != NULL) && (user_data_len > 0U)) {
         /* User data PI: PI(1) + session_length_size(user_data_len) + data */
         content_len += 1U + session_length_size(user_data_len) + user_data_len;
     }
@@ -343,7 +343,7 @@ static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
     if (ret != 0) { return ret; }
 
     /* Connect/Accept Item PGI (0x05) containing Protocol Options + Version */
-    if (offset + 2U + ca_inner > buf_size) { return -ENOSPC; }
+    if ((offset + 2U + ca_inner) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x05;  /* PGI Connect/Accept Item */
     buf[offset++] = (uint8_t)ca_inner;
 
@@ -366,7 +366,7 @@ static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
     if (ret != 0) { return ret; }
 
     /* Calling Session Selector (CONNECT only) */
-    if (si == IEC61850_SI_CONNECT && params->calling_ssel_len > 0U) {
+    if ((si == IEC61850_SI_CONNECT) && (params->calling_ssel_len > 0U)) {
         ret = session_encode_param(buf, buf_size, &offset,
                                      IEC61850_SPI_CALLING_SSEL,
                                      params->calling_ssel,
@@ -384,14 +384,14 @@ static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
     }
 
     /* User Data */
-    if (user_data != NULL && user_data_len > 0U) {
+    if ((user_data != NULL) && (user_data_len > 0U)) {
         if (offset >= buf_size) { return -ENOSPC; }
         buf[offset] = IEC61850_SPI_USER_DATA;
         offset++;
         /* User data PI length uses ISO 8327 session length encoding */
         ret = write_session_length(buf, buf_size, &offset, user_data_len);
         if (ret != 0) { return ret; }
-        if (offset + user_data_len > buf_size) { return -ENOSPC; }
+        if ((offset + user_data_len) > buf_size) { return -ENOSPC; }
         (void)memcpy(&buf[offset],user_data, user_data_len);
         offset += user_data_len;
     }
@@ -423,10 +423,10 @@ int iec61850_session_encode_data(uint8_t *buf, size_t buf_size,
 {
     size_t offset = 0;
 
-    if (buf == NULL || user_data == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (user_data == NULL)) { return -EINVAL; }
 
     /* GIVE_TOKENS SPDU (SI=0x01, LI=0x00) + DATA SPDU (SI=0x01, LI=0x00) */
-    if (4U + user_data_len > buf_size) { return -ENOSPC; }
+    if ((4U + user_data_len) > buf_size) { return -ENOSPC; }
 
     /* GIVE_TOKENS */
     buf[offset++] = IEC61850_SI_DATA;  /* SI=0x01 */
@@ -452,7 +452,7 @@ int iec61850_session_encode_finish(uint8_t *buf, size_t buf_size,
     if (buf == NULL) { return -EINVAL; }
 
     size_t content_len = 0;
-    if (user_data != NULL && user_data_len > 0U) {
+    if ((user_data != NULL) && (user_data_len > 0U)) {
         content_len = 1U + session_length_size(user_data_len) + user_data_len;
     }
 
@@ -463,13 +463,13 @@ int iec61850_session_encode_finish(uint8_t *buf, size_t buf_size,
     ret = write_session_length(buf, buf_size, &offset, content_len);
     if (ret != 0) { return ret; }
 
-    if (user_data != NULL && user_data_len > 0U) {
+    if ((user_data != NULL) && (user_data_len > 0U)) {
         if (offset >= buf_size) { return -ENOSPC; }
         buf[offset] = IEC61850_SPI_USER_DATA;
         offset++;
         ret = write_session_length(buf, buf_size, &offset, user_data_len);
         if (ret != 0) { return ret; }
-        if (offset + user_data_len > buf_size) { return -ENOSPC; }
+        if ((offset + user_data_len) > buf_size) { return -ENOSPC; }
         (void)memcpy(&buf[offset],user_data, user_data_len);
         offset += user_data_len;
     }
@@ -488,8 +488,8 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
     uint8_t li;
     size_t params_end;
 
-    if (buf == NULL || si_type == NULL || user_data == NULL ||
-        user_data_len == NULL) {
+    if ((buf == NULL) || (si_type == NULL) || (user_data == NULL) ||
+        (user_data_len == NULL)) {
         return -EINVAL;
     }
 
@@ -502,7 +502,7 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
         uint8_t first_li = buf[offset]; offset++;
         if (first_li == 0xFFU) {
             /* 3-byte form: 0xFF + 2-byte big-endian */
-            if (offset + 2U > buf_len) { return -EBADMSG; }
+            if ((offset + 2U) > buf_len) { return -EBADMSG; }
             li = (uint8_t)0;  /* unused — use spdu_len below */
             size_t spdu_len = (size_t)((size_t)buf[offset] << 8U) |
                               (size_t)buf[offset + 1U];
@@ -525,8 +525,8 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
     if (si == IEC61850_SI_DATA) {
         /* Handle GIVE_TOKENS + DATA format (01 00 01 00 <data>)
          * or plain DATA format (01 00 <data>) */
-        if (li == 0U && offset + 2U <= buf_len &&
-            buf[offset] == IEC61850_SI_DATA && buf[offset + 1U] == 0x00U) {
+        if ((li == 0U) && ((offset + 2U) <= buf_len) &&
+            (buf[offset] == IEC61850_SI_DATA) && (buf[offset + 1U] == 0x00U)) {
             /* GIVE_TOKENS prefix present — skip it */
             offset += 2U;
         }
@@ -539,7 +539,7 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
     if (params_end > buf_len) { return -EBADMSG; }
 
     while (offset < params_end) {
-        if (offset + 1U >= params_end) { break; }
+        if ((offset + 1U) >= params_end) { break; }
 
         uint8_t pi = buf[offset]; offset++;
         size_t plen;
@@ -550,7 +550,7 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
             if (buf[offset] == 0xFFU) {
                 /* 3-byte form */
                 offset++;
-                if (offset + 2U > buf_len) { break; }
+                if ((offset + 2U) > buf_len) { break; }
                 plen = (size_t)((size_t)buf[offset] << 8U) |
                        (size_t)buf[offset + 1U];
                 offset += 2U;
@@ -565,7 +565,7 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
 
         plen = buf[offset]; offset++;
 
-        if (offset + plen > params_end) { break; }
+        if ((offset + plen) > params_end) { break; }
 
         if (params != NULL) {
             switch (pi) {
@@ -615,7 +615,7 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
 {
     size_t offset = 0;
 
-    if (buf == NULL || acse_pdu == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (acse_pdu == NULL)) { return -EINVAL; }
 
     /* Build bottom-up: we know the content sizes */
     /* For simplicity, encode directly (this is init-time, not hot path) */
@@ -630,7 +630,7 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     offset += 3U;  /* Reserve 3 bytes for BER length */
 
     /* Mode selector [0] IMPLICIT SET { [0] INTEGER = 1 (normal mode) } */
-    if (offset + 8U > buf_size) { return -ENOSPC; }
+    if ((offset + 8U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0xA0;  /* [0] CONSTRUCTED */
     buf[offset++] = 0x03;  /* length 3 */
     buf[offset++] = 0x80;  /* [0] IMPLICIT */
@@ -638,28 +638,28 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     buf[offset++] = 0x01;  /* normal-mode = 1 */
 
     /* Normal-mode-parameters [2] IMPLICIT SEQUENCE */
-    if (offset + 3U > buf_size) { return -ENOSPC; }
+    if ((offset + 3U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0xA2;  /* [2] CONSTRUCTED */
     size_t nmp_len_offset = offset;
     offset += 2U;  /* length placeholder (0x81 NN) */
     size_t nmp_start = offset;
 
     /* Calling presentation selector [1] IMPLICIT OCTET STRING */
-    if (offset + 6U > buf_size) { return -ENOSPC; }
+    if ((offset + 6U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x81;  /* [1] IMPLICIT */
     buf[offset++] = 0x04;  /* length 4 */
     buf[offset++] = 0x00; buf[offset++] = 0x00;
     buf[offset++] = 0x00; buf[offset++] = 0x01;  /* P-selector = 1 */
 
     /* Called presentation selector [2] IMPLICIT OCTET STRING */
-    if (offset + 6U > buf_size) { return -ENOSPC; }
+    if ((offset + 6U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x82;  /* [2] IMPLICIT */
     buf[offset++] = 0x04;  /* length 4 */
     buf[offset++] = 0x00; buf[offset++] = 0x00;
     buf[offset++] = 0x00; buf[offset++] = 0x01;  /* P-selector = 1 */
 
     /* Definition Context List [4] IMPLICIT SEQUENCE OF */
-    if (offset + 4U > buf_size) { return -ENOSPC; }
+    if ((offset + 4U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0xA4;  /* [4] CONSTRUCTED */
     size_t dcl_len_offset = offset;
     offset += 2U;  /* length placeholder */
@@ -667,7 +667,7 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     size_t dcl_start = offset;
 
     /* Context entry 1: ACSE (pcid=1) */
-    if (offset + 20U > buf_size) { return -ENOSPC; }
+    if ((offset + 20U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x30;  /* SEQUENCE */
     buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_ACSE_LEN +
                                2U + 2U + (size_t)IEC61850_OID_BER_LEN);
@@ -685,7 +685,7 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Context entry 2: MMS (pcid=3) */
-    if (offset + 20U > buf_size) { return -ENOSPC; }
+    if ((offset + 20U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x30;
     buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_MMS_LEN +
                                2U + 2U + (size_t)IEC61850_OID_BER_LEN);
@@ -710,15 +710,15 @@ int iec61850_pres_encode_cp(uint8_t *buf, size_t buf_size,
     /* User data: fully-encoded-data [APPLICATION 1] */
     /* Content: PDV-list SEQUENCE { pcid, [0] CONSTRUCTED { acse_pdu } } */
     size_t a0_len_sz = (acse_len < 128U) ? (size_t)1U
-                       : (acse_len < 256U ? (size_t)2U : (size_t)3U);
+                       : ((acse_len < 256U) ? (size_t)2U : (size_t)3U);
     size_t a0_total = 1U + a0_len_sz + acse_len;
     size_t pdv_inner = 3U + a0_total;  /* pcid(3) + A0-wrapped data */
     size_t pdv_len_sz = (pdv_inner < 128U) ? (size_t)1U
-                        : (pdv_inner < 256U ? (size_t)2U : (size_t)3U);
+                        : ((pdv_inner < 256U) ? (size_t)2U : (size_t)3U);
     size_t pdv_total = 1U + pdv_len_sz + pdv_inner;
     size_t fed_inner = pdv_total;
 
-    if (offset + 10U + acse_len > buf_size) { return -ENOSPC; }
+    if ((offset + 10U + acse_len) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x61;  /* [APPLICATION 1] fully-encoded-data */
     int lret = ber_write_length(buf, buf_size, &offset, fed_inner);
     if (lret != 0) { return lret; }
@@ -769,7 +769,7 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     size_t offset = 0;
     int lret;
 
-    if (buf == NULL || acse_pdu == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (acse_pdu == NULL)) { return -EINVAL; }
 
     /* CPA SET tag (same as CP: 0x31) */
     if (offset >= buf_size) { return -ENOSPC; }
@@ -780,32 +780,32 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     offset += 3U;
 
     /* Mode selector [0] IMPLICIT SET { [0] INTEGER = 1 (normal mode) } */
-    if (offset + 8U > buf_size) { return -ENOSPC; }
+    if ((offset + 8U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0xA0; buf[offset++] = 0x03;
     buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x01;
 
     /* Normal-mode-parameters [2] IMPLICIT SEQUENCE */
-    if (offset + 3U > buf_size) { return -ENOSPC; }
+    if ((offset + 3U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0xA2;
     size_t nmp_len_offset = offset;
     offset += 2U;  /* 0x81 NN placeholder */
     size_t nmp_start = offset;
 
     /* Responding presentation selector [3] IMPLICIT OCTET STRING */
-    if (offset + 6U > buf_size) { return -ENOSPC; }
+    if ((offset + 6U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x83; buf[offset++] = 0x04;
     buf[offset++] = 0x00; buf[offset++] = 0x00;
     buf[offset++] = 0x00; buf[offset++] = 0x01;
 
     /* Presentation context definition result list [5] IMPLICIT SEQUENCE OF */
-    if (offset + 4U > buf_size) { return -ENOSPC; }
+    if ((offset + 4U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0xA5;
     size_t rl_len_offset = offset;
     offset++;  /* length placeholder (short form) */
     size_t rl_start = offset;
 
     /* Result entry 1: ACSE context accepted */
-    if (offset + 12U > buf_size) { return -ENOSPC; }
+    if ((offset + 12U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x30;  /* SEQUENCE */
     buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN);
     buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x00;  /* result = acceptance */
@@ -814,7 +814,7 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     offset += (size_t)IEC61850_OID_BER_LEN;
 
     /* Result entry 2: MMS context accepted */
-    if (offset + 12U > buf_size) { return -ENOSPC; }
+    if ((offset + 12U) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x30;
     buf[offset++] = (uint8_t)(3U + 2U + (size_t)IEC61850_OID_BER_LEN);
     buf[offset++] = 0x80; buf[offset++] = 0x01; buf[offset++] = 0x00;
@@ -827,14 +827,14 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
 
     /* User data: fully-encoded-data [APPLICATION 1] */
     size_t a0_len_sz = (acse_len < 128U) ? (size_t)1U
-                       : (acse_len < 256U ? (size_t)2U : (size_t)3U);
+                       : ((acse_len < 256U) ? (size_t)2U : (size_t)3U);
     size_t a0_total = 1U + a0_len_sz + acse_len;
     size_t pdv_inner = 3U + a0_total;
     size_t pdv_len_sz = (pdv_inner < 128U) ? (size_t)1U
-                        : (pdv_inner < 256U ? (size_t)2U : (size_t)3U);
+                        : ((pdv_inner < 256U) ? (size_t)2U : (size_t)3U);
     size_t pdv_total = 1U + pdv_len_sz + pdv_inner;
 
-    if (offset + 10U + acse_len > buf_size) { return -ENOSPC; }
+    if ((offset + 10U + acse_len) > buf_size) { return -ENOSPC; }
     buf[offset++] = 0x61;  /* [APPLICATION 1] */
     lret = ber_write_length(buf, buf_size, &offset, pdv_total);
     if (lret != 0) { return lret; }
@@ -872,10 +872,10 @@ int iec61850_pres_encode_pdata(uint8_t *buf, size_t buf_size,
     size_t offset = 0;
     int ret;
 
-    if (buf == NULL || app_pdu == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (app_pdu == NULL)) { return -EINVAL; }
 
     /* Calculate sizes with A0 wrapper */
-    size_t a0_len_size = (app_len < 128U) ? 1U : (app_len < 256U ? 2U : 3U);
+    size_t a0_len_size = (app_len < 128U) ? 1U : ((app_len < 256U) ? 2U : 3U);
     size_t a0_total = 1U + a0_len_size + app_len;  /* 0xA0 + len + data */
     size_t pdv_inner = 3U + a0_total;  /* pcid(3) + A0-wrapped data */
 
@@ -884,7 +884,7 @@ int iec61850_pres_encode_pdata(uint8_t *buf, size_t buf_size,
     buf[offset++] = 0x61;
 
     /* Length of PDV-list SEQUENCE */
-    size_t seq_len_size = (pdv_inner < 128U) ? 1U : (pdv_inner < 256U ? 2U : 3U);
+    size_t seq_len_size = (pdv_inner < 128U) ? 1U : ((pdv_inner < 256U) ? 2U : 3U);
     size_t fed_inner = 1U + seq_len_size + pdv_inner;
     ret = ber_write_length(buf, buf_size, &offset, fed_inner);
     if (ret != 0) { return ret; }
@@ -918,7 +918,7 @@ int iec61850_pres_decode(const uint8_t *buf, size_t buf_len,
     size_t seq_len;
     int ret;
 
-    if (buf == NULL || pcid == NULL || app_pdu == NULL || app_len == NULL) {
+    if ((buf == NULL) || (pcid == NULL) || (app_pdu == NULL) || (app_len == NULL)) {
         return -EINVAL;
     }
 
@@ -987,13 +987,13 @@ int iec61850_pres_decode(const uint8_t *buf, size_t buf_len,
             if (seq_end > buf_len) { return -EBADMSG; }
 
             /* Read pcid: INTEGER */
-            if (offset + 3U <= seq_end && buf[offset] == 0x02U &&
-                buf[offset + 1U] == 0x01U) {
+            if (((offset + 3U) <= seq_end) && (buf[offset] == 0x02U) &&
+                (buf[offset + 1U] == 0x01U)) {
                 *pcid = buf[offset + 2U];
                 offset += 3U;
 
                 /* Strip [0] CONSTRUCTED wrapper (0xA0) if present */
-                if (offset < seq_end && buf[offset] == 0xA0U) {
+                if ((offset < seq_end) && (buf[offset] == 0xA0U)) {
                     offset++;
                     size_t a0_len;
                     ret = ber_read_length(buf, buf_len, &offset, &a0_len);
@@ -1062,7 +1062,7 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
     size_t offset = 0;
     int ret;
 
-    if (buf == NULL || params == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (params == NULL)) { return -EINVAL; }
 
     /* AARQ tag [APPLICATION 0] CONSTRUCTED */
     buf[offset++] = IEC61850_ACSE_TAG_AARQ;
@@ -1124,17 +1124,17 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
 
     /* User Information [30] — contains the MMS InitiateRequest
      * Wrapped in EXTERNAL { direct-reference INTEGER, encoding [0] } */
-    if (app_pdu != NULL && app_len > 0U) {
+    if ((app_pdu != NULL) && (app_len > 0U)) {
         /* EXTERNAL inner: direct-ref(3) + encoding [0](2+app_len) */
         size_t ext_inner = 3U + 2U + app_len;
         /* Adjust for BER length encoding of app_len */
         size_t app_len_sz = (app_len < 128U) ? (size_t)1U
-                            : (app_len < 256U ? (size_t)2U : (size_t)3U);
+                            : ((app_len < 256U) ? (size_t)2U : (size_t)3U);
         size_t a0_total = 1U + app_len_sz + app_len;
         ext_inner = 3U + a0_total;
 
         size_t ext_len_sz = (ext_inner < 128U) ? (size_t)1U
-                            : (ext_inner < 256U ? (size_t)2U : (size_t)3U);
+                            : ((ext_inner < 256U) ? (size_t)2U : (size_t)3U);
         size_t be_inner = 1U + ext_len_sz + ext_inner;
 
         buf[offset++] = 0xBE;  /* [30] CONSTRUCTED */
@@ -1177,7 +1177,7 @@ int iec61850_acse_encode_aare(uint8_t *buf, size_t buf_size,
     size_t offset = 0;
     int ret;
 
-    if (buf == NULL || params == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (params == NULL)) { return -EINVAL; }
 
     buf[offset++] = IEC61850_ACSE_TAG_AARE;
     size_t len_offset = offset;
@@ -1211,7 +1211,7 @@ int iec61850_acse_encode_aare(uint8_t *buf, size_t buf_size,
     buf[offset++] = 0x00;  /* null (no diagnostic) */
 
     /* User Information [30] IMPLICIT SEQUENCE OF EXTERNAL */
-    if (app_pdu != NULL && app_len > 0U) {
+    if ((app_pdu != NULL) && (app_len > 0U)) {
         /* EXTERNAL { indirect-reference INTEGER, encoding [0] } */
         size_t ext_content = 3U + 2U + app_len;  /* indirect-ref(3) + A0+len + data */
         size_t ext_len_sz = (ext_content < 128U) ? (size_t)1U : (size_t)2U;
@@ -1249,7 +1249,7 @@ int iec61850_acse_encode_aare(uint8_t *buf, size_t buf_size,
 
 int iec61850_acse_encode_rlrq(uint8_t *buf, size_t buf_size)
 {
-    if (buf == NULL || buf_size < 4U) { return -EINVAL; }
+    if ((buf == NULL) || (buf_size < 4U)) { return -EINVAL; }
 
     buf[0] = IEC61850_ACSE_TAG_RLRQ;
     buf[1] = 0x02;
@@ -1261,7 +1261,7 @@ int iec61850_acse_encode_rlrq(uint8_t *buf, size_t buf_size)
 
 int iec61850_acse_encode_rlre(uint8_t *buf, size_t buf_size)
 {
-    if (buf == NULL || buf_size < 2U) { return -EINVAL; }
+    if ((buf == NULL) || (buf_size < 2U)) { return -EINVAL; }
 
     buf[0] = IEC61850_ACSE_TAG_RLRE;
     buf[1] = 0x00;
@@ -1279,7 +1279,7 @@ int iec61850_acse_decode(const uint8_t *buf, size_t buf_len,
     size_t end;
     int ret;
 
-    if (buf == NULL || tag == NULL) { return -EINVAL; }
+    if ((buf == NULL) || (tag == NULL)) { return -EINVAL; }
     if (buf_len < 2U) { return -EBADMSG; }
 
     *tag = buf[offset]; offset++;
@@ -1310,9 +1310,9 @@ int iec61850_acse_decode(const uint8_t *buf, size_t buf_len,
 
         switch (elem_tag) {
             case 0xA1:  /* Application Context Name [1] */
-                if (params != NULL && elem_len > 2U && buf[offset] == 0x06U) {
+                if ((params != NULL) && (elem_len > 2U) && (buf[offset] == 0x06U)) {
                     size_t oid_len = buf[offset + 1U];
-                    if (oid_len <= (size_t)IEC61850_ISO_MAX_OID && offset + 2U + oid_len <= elem_end) {
+                    if ((oid_len <= (size_t)IEC61850_ISO_MAX_OID) && ((offset + 2U + oid_len) <= elem_end)) {
                         (void)memcpy(params->app_context_oid, &buf[offset + 2U], oid_len);
                         params->app_context_oid_len = oid_len;
                     }
@@ -1320,17 +1320,17 @@ int iec61850_acse_decode(const uint8_t *buf, size_t buf_len,
                 break;
 
             case 0xA2:  /* Result [2] (AARE only) */
-                if (result != NULL && elem_len >= 3U && buf[offset] == 0x02U &&
-                    buf[offset + 1U] == 0x01U) {
+                if ((result != NULL) && (elem_len >= 3U) && (buf[offset] == 0x02U) &&
+                    (buf[offset + 1U] == 0x01U)) {
                     *result = (iec61850_aare_result_t)buf[offset + 2U];
                 }
                 break;
 
             case 0xBE:  /* User Information [30] */
-                if (app_pdu != NULL && app_len != NULL) {
+                if ((app_pdu != NULL) && (app_len != NULL)) {
                     /* Dig into EXTERNAL { direct-reference, encoding [0] } */
                     size_t inner = offset;
-                    if (inner < elem_end && buf[inner] == 0x28U) {
+                    if ((inner < elem_end) && (buf[inner] == 0x28U)) {
                         inner++;
                         size_t ext_len;
                         ret = ber_read_length(buf, buf_len, &inner, &ext_len);
@@ -1339,7 +1339,7 @@ int iec61850_acse_decode(const uint8_t *buf, size_t buf_len,
                         if (ext_end > elem_end) break;
 
                         /* Skip optional direct-reference (INTEGER) */
-                        if (inner < ext_end && buf[inner] == 0x02U) {
+                        if ((inner < ext_end) && (buf[inner] == 0x02U)) {
                             inner++;
                             size_t dr_len;
                             ret = ber_read_length(buf, buf_len, &inner, &dr_len);
@@ -1348,11 +1348,11 @@ int iec61850_acse_decode(const uint8_t *buf, size_t buf_len,
                         }
 
                         /* encoding [0] single-ASN1-type */
-                        if (inner < ext_end && buf[inner] == 0xA0U) {
+                        if ((inner < ext_end) && (buf[inner] == 0xA0U)) {
                             inner++;
                             size_t enc_len;
                             ret = ber_read_length(buf, buf_len, &inner, &enc_len);
-                            if (ret == 0 && inner + enc_len <= ext_end) {
+                            if ((ret == 0) && ((inner + enc_len) <= ext_end)) {
                                 *app_pdu = &buf[inner];
                                 *app_len = enc_len;
                             }
@@ -1397,7 +1397,7 @@ int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
     uint8_t recv_buf[4096];
     int ret;
 
-    if (conn == NULL || host == NULL) { return -EINVAL; }
+    if ((conn == NULL) || (host == NULL)) { return -EINVAL; }
 
     conn->state = IEC61850_ISO_STATE_CONNECTING;
 
@@ -1462,7 +1462,7 @@ int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
     ret = iec61850_session_decode(tpkt_payload, tpkt_payload_len,
                                     &si_type, &conn->session_params,
                                     &sess_user_data, &sess_user_data_len);
-    if (ret != 0 || si_type != IEC61850_SI_ACCEPT) { goto fail; }
+    if ((ret != 0) || (si_type != IEC61850_SI_ACCEPT)) { goto fail; }
 
     /* Decode Presentation */
     uint8_t pres_pcid;
@@ -1480,8 +1480,8 @@ int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
     ret = iec61850_acse_decode(pres_app, pres_app_len, &acse_tag,
                                  &conn->acse_params, &aare_result,
                                  &aare_app, &aare_app_len);
-    if (ret != 0 || acse_tag != IEC61850_ACSE_TAG_AARE ||
-        aare_result != IEC61850_AARE_ACCEPTED) {
+    if ((ret != 0) || (acse_tag != IEC61850_ACSE_TAG_AARE) ||
+        (aare_result != IEC61850_AARE_ACCEPTED)) {
         goto fail;
     }
 
@@ -1531,7 +1531,7 @@ int iec61850_iso_accept(iec61850_iso_conn_t *conn,
     ret = iec61850_session_decode(tpkt_payload, tpkt_payload_len,
                                     &si_type, &conn->session_params,
                                     &sess_data, &sess_data_len);
-    if (ret != 0 || si_type != IEC61850_SI_CONNECT) { return -EPROTO; }
+    if ((ret != 0) || (si_type != IEC61850_SI_CONNECT)) { return -EPROTO; }
 
     uint8_t pres_pcid;
     const uint8_t *pres_data;
@@ -1547,10 +1547,10 @@ int iec61850_iso_accept(iec61850_iso_conn_t *conn,
     ret = iec61850_acse_decode(pres_data, pres_data_len, &acse_tag,
                                  &conn->acse_params, &aare_result,
                                  &app_data, &app_data_len);
-    if (ret != 0 || acse_tag != IEC61850_ACSE_TAG_AARQ) { return -EPROTO; }
+    if ((ret != 0) || (acse_tag != IEC61850_ACSE_TAG_AARQ)) { return -EPROTO; }
 
     /* Copy MMS InitiateRequest to caller */
-    if (mms_req != NULL && mms_req_len != NULL && app_data != NULL) {
+    if ((mms_req != NULL) && (mms_req_len != NULL) && (app_data != NULL)) {
         if (app_data_len > *mms_req_len) { return -ENOSPC; }
         (void)memcpy(mms_req, app_data, app_data_len);
         *mms_req_len = app_data_len;
@@ -1597,7 +1597,7 @@ int iec61850_iso_send(iec61850_iso_conn_t *conn,
     uint8_t tpkt_buf[IEC61850_ISO_MAX_PDU];
     int ret;
 
-    if (conn == NULL || data == NULL) { return -EINVAL; }
+    if ((conn == NULL) || (data == NULL)) { return -EINVAL; }
     if (conn->state != IEC61850_ISO_STATE_CONNECTED) { return -ENOTCONN; }
 
     /* Wrap in Presentation P-DATA (MMS context = pcid 3) */
@@ -1627,7 +1627,7 @@ int iec61850_iso_recv(iec61850_iso_conn_t *conn,
     uint8_t recv_buf[IEC61850_ISO_MAX_PDU];
     int ret;
 
-    if (conn == NULL || buf == NULL || recv_len == NULL) { return -EINVAL; }
+    if ((conn == NULL) || (buf == NULL) || (recv_len == NULL)) { return -EINVAL; }
     if (conn->state != IEC61850_ISO_STATE_CONNECTED) { return -ENOTCONN; }
 
     *recv_len = 0;

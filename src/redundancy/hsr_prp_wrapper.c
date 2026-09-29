@@ -67,8 +67,8 @@ int iec61850_hsr_prp_config_validate(const iec61850_hsr_prp_config_t *cfg)
         return -EINVAL;
     }
 
-    if (cfg->mode != IEC61850_HSR_PRP_MODE_HSR &&
-        cfg->mode != IEC61850_HSR_PRP_MODE_PRP) {
+    if ((cfg->mode != IEC61850_HSR_PRP_MODE_HSR) &&
+        (cfg->mode != IEC61850_HSR_PRP_MODE_PRP)) {
         return -EINVAL;
     }
 
@@ -130,7 +130,7 @@ int iec61850_hsr_prp_init(const iec61850_hsr_prp_config_t *cfg)
 
 int iec61850_hsr_prp_start(void)
 {
-    if (!s_initialized || !s_instance) {
+    if ((!s_initialized) || (!s_instance)) {
         return -EINVAL;
     }
 
@@ -160,7 +160,7 @@ int iec61850_hsr_prp_get_stats(iec61850_hsr_prp_stats_t *stats)
 
     (void)memset(stats, 0, sizeof(*stats));
 
-    if (!s_initialized || !s_instance) {
+    if ((!s_initialized) || (!s_instance)) {
         return -EINVAL;
     }
 

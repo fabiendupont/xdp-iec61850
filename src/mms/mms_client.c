@@ -30,7 +30,7 @@ int iec61850_mms_client_connect(iec61850_mms_client_t *client,
     mms_initiate_request_t req;
     int ret;
 
-    if (client == NULL || host == NULL) {
+    if ((client == NULL) || (host == NULL)) {
         return IEC61850_MMS_CLIENT_ERR_ARGS;
     }
 
@@ -63,7 +63,7 @@ int iec61850_mms_client_disconnect(iec61850_mms_client_t *client)
 
 bool iec61850_mms_client_is_connected(const iec61850_mms_client_t *client)
 {
-    return client != NULL && client->connected;
+    return (client != NULL) && (client->connected);
 }
 
 /* Send confirmed request and receive confirmed response */
@@ -102,8 +102,8 @@ int iec61850_mms_client_read(iec61850_mms_client_t *client,
     mms_confirmed_response_t resp;
     int ret;
 
-    if (client == NULL || !client->connected || item_id == NULL ||
-        value == NULL) {
+    if ((client == NULL) || (!client->connected) || (item_id == NULL) ||
+        (value == NULL)) {
         return IEC61850_MMS_CLIENT_ERR_ARGS;
     }
 
@@ -137,8 +137,8 @@ int iec61850_mms_client_write(iec61850_mms_client_t *client,
     mms_confirmed_response_t resp;
     int ret;
 
-    if (client == NULL || !client->connected || item_id == NULL ||
-        value == NULL) {
+    if ((client == NULL) || (!client->connected) || (item_id == NULL) ||
+        (value == NULL)) {
         return IEC61850_MMS_CLIENT_ERR_ARGS;
     }
 
@@ -174,8 +174,8 @@ int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
     mms_confirmed_response_t resp;
     int ret;
 
-    if (client == NULL || !client->connected || names == NULL ||
-        count == NULL) {
+    if ((client == NULL) || (!client->connected) || (names == NULL) ||
+        (count == NULL)) {
         return IEC61850_MMS_CLIENT_ERR_ARGS;
     }
 
@@ -184,7 +184,7 @@ int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
     char continue_after_id[MMS_MAX_VARIABLE_NAME] = {0};
     bool use_continue = false;
 
-    while (has_more && *count < max_count) {
+    while ((has_more) && (*count < max_count)) {
         (void)memset(&req, 0, sizeof(req));
         client->invoke_id++;
         req.invoke_id = client->invoke_id;
@@ -207,8 +207,8 @@ int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
             return IEC61850_MMS_CLIENT_ERR_MMS;
         }
 
-        for (uint32_t i = 0; i < resp.params.getnamelist.num_identifiers &&
-             *count < max_count; i++) {
+        for (uint32_t i = 0; (i < resp.params.getnamelist.num_identifiers) &&
+             (*count < max_count); i++) {
             (void)strncpy(names[*count], resp.params.getnamelist.identifiers[i],
                            (size_t)MMS_MAX_VARIABLE_NAME - 1U);
             names[*count][(size_t)MMS_MAX_VARIABLE_NAME - 1U] = '\0';
@@ -216,7 +216,7 @@ int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
         }
 
         has_more = resp.params.getnamelist.more_follows;
-        if (has_more && resp.params.getnamelist.num_identifiers > 0U) {
+        if ((has_more) && (resp.params.getnamelist.num_identifiers > 0U)) {
             /* Set continue token to last identifier received */
             uint32_t last = resp.params.getnamelist.num_identifiers - 1U;
             (void)strncpy(continue_after_id,
@@ -240,8 +240,8 @@ int iec61850_mms_client_get_var_attrs(iec61850_mms_client_t *client,
     mms_confirmed_response_t resp;
     int ret;
 
-    if (client == NULL || !client->connected || item_id == NULL ||
-        attrs == NULL) {
+    if ((client == NULL) || (!client->connected) || (item_id == NULL) ||
+        (attrs == NULL)) {
         return IEC61850_MMS_CLIENT_ERR_ARGS;
     }
 
@@ -271,7 +271,7 @@ int iec61850_mms_client_identify(iec61850_mms_client_t *client,
                                    char *vendor, char *model, char *revision,
                                    size_t buf_size)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 
@@ -301,7 +301,7 @@ int iec61850_mms_client_define_named_varlist(
     const char *domain, const char *list_name,
     const mms_variable_spec_t *vars, uint32_t num_vars)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 
@@ -315,7 +315,7 @@ int iec61850_mms_client_define_named_varlist(
     (void)strncpy(req.params.definenamedvarlist.list_name, list_name,
                    (size_t)MMS_MAX_VARIABLE_NAME - 1U);
     req.params.definenamedvarlist.num_variables = num_vars;
-    for (uint32_t i = 0U; i < num_vars && i < (uint32_t)MMS_MAX_NAMED_VARIABLES; i++) {
+    for (uint32_t i = 0U; (i < num_vars) && (i < (uint32_t)MMS_MAX_NAMED_VARIABLES); i++) {
         req.params.definenamedvarlist.variables[i] = vars[i];
     }
 
@@ -328,7 +328,7 @@ int iec61850_mms_client_delete_named_varlist(
     iec61850_mms_client_t *client,
     const char *domain, const char *list_name)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 
@@ -352,7 +352,7 @@ int iec61850_mms_client_read_named_varlist(
     const char *domain, const char *list_name,
     mms_value_t *values, uint32_t *num_values, uint32_t max_values)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 
@@ -387,7 +387,7 @@ int iec61850_mms_client_file_directory(
     mms_file_entry_t *entries, uint32_t *num_entries,
     uint32_t max_entries)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 
@@ -420,7 +420,7 @@ int iec61850_mms_client_file_open(
     iec61850_mms_client_t *client,
     const char *filename, uint32_t *file_handle, uint32_t *file_size)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 
@@ -448,7 +448,7 @@ int iec61850_mms_client_file_read(
     uint32_t file_handle, uint8_t *data, uint32_t *data_len,
     uint32_t max_len, bool *more_follows)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 
@@ -476,7 +476,7 @@ int iec61850_mms_client_file_read(
 int iec61850_mms_client_file_close(
     iec61850_mms_client_t *client, uint32_t file_handle)
 {
-    if (client == NULL || !client->connected) {
+    if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
     }
 

@@ -226,13 +226,13 @@ static int encode_asdu(uint8_t *buf, size_t buf_size, size_t *offset,
     size_t asdu_len = *offset - asdu_start;
     if (asdu_len >= 128U) {
         /* Need to shift and use long form */
-        if (asdu_len <= 0xFFU && (*offset + 1U) <= buf_size) {
+        if ((asdu_len <= 0xFFU) && ((*offset + 1U) <= buf_size)) {
             /* Shift data right by 1 byte for 1-byte long form */
             (void)memmove(&buf[asdu_start + 1U], &buf[asdu_start], asdu_len);
             *offset += 1U;
             buf[len_offset] = 0x81U;  /* Long form: 1 length byte follows */
             buf[len_offset + 1U] = (uint8_t)asdu_len;
-        } else if (asdu_len <= 0xFFFFU && (*offset + 2U) <= buf_size) {
+        } else if ((asdu_len <= 0xFFFFU) && ((*offset + 2U) <= buf_size)) {
             /* Shift data right by 2 bytes for 2-byte long form */
             (void)memmove(&buf[asdu_start + 2U], &buf[asdu_start], asdu_len);
             *offset += 2U;
@@ -262,7 +262,7 @@ int sv_encode_apdu(uint8_t *buf, size_t buf_size,
     size_t apdu_start;
     size_t apdu_len;
 
-    if (!buf || !apdu || !encoded_len || buf_size < 64U) {
+    if ((!buf) || (!apdu) || (!encoded_len) || (buf_size < 64U)) {
         return SV_BER_ERR_INVALID_ARG;
     }
 
@@ -304,7 +304,7 @@ int sv_encode_apdu(uint8_t *buf, size_t buf_size,
     size_t seq_start = offset;
 
     /* Encode each ASDU */
-    for (size_t i = 0; i < apdu->noASDU && i < SV_MAX_ASDU; i++) {
+    for (size_t i = 0; (i < apdu->noASDU) && (i < SV_MAX_ASDU); i++) {
         ret = encode_asdu(buf, buf_size, &offset, &apdu->asdu[i]);
         if (ret != SV_BER_OK) {
             return ret;
@@ -315,13 +315,13 @@ int sv_encode_apdu(uint8_t *buf, size_t buf_size,
     size_t seq_len = offset - seq_start;
     if (seq_len >= 128U) {
         /* Need to shift and use long form */
-        if (seq_len <= 0xFFU && (offset + 1U) <= buf_size) {
+        if ((seq_len <= 0xFFU) && ((offset + 1U) <= buf_size)) {
             /* Shift data right by 1 byte for 1-byte long form */
             (void)memmove(&buf[seq_start + 1U], &buf[seq_start], seq_len);
             buf[seq_length_offset] = 0x81U;
             buf[seq_length_offset + 1U] = (uint8_t)seq_len;
             offset++;
-        } else if (seq_len <= 0xFFFFU && (offset + 2U) <= buf_size) {
+        } else if ((seq_len <= 0xFFFFU) && ((offset + 2U) <= buf_size)) {
             /* Shift data right by 2 bytes for 2-byte long form */
             (void)memmove(&buf[seq_start + 2U], &buf[seq_start], seq_len);
             buf[seq_length_offset] = 0x82U;
@@ -339,13 +339,13 @@ int sv_encode_apdu(uint8_t *buf, size_t buf_size,
     apdu_len = offset - apdu_start;
     if (apdu_len >= 128U) {
         /* Need to shift and use long form */
-        if (apdu_len <= 0xFFU && (offset + 1U) <= buf_size) {
+        if ((apdu_len <= 0xFFU) && ((offset + 1U) <= buf_size)) {
             /* Shift data right by 1 byte */
             (void)memmove(&buf[apdu_start + 1U], &buf[apdu_start], apdu_len);
             buf[apdu_length_offset] = 0x81U;
             buf[apdu_length_offset + 1U] = (uint8_t)apdu_len;
             offset++;
-        } else if (apdu_len <= 0xFFFFU && (offset + 2U) <= buf_size) {
+        } else if ((apdu_len <= 0xFFFFU) && ((offset + 2U) <= buf_size)) {
             /* Shift data right by 2 bytes */
             (void)memmove(&buf[apdu_start + 2U], &buf[apdu_start], apdu_len);
             buf[apdu_length_offset] = 0x82U;
@@ -394,7 +394,7 @@ static int decode_samples(const uint8_t *buf, size_t buf_size, size_t *offset,
     asdu->num_samples = 0;
 
     /* Each sample is 8 bytes (4 value + 4 quality) */
-    if (data_len % 8U != 0U) {
+    if ((data_len % 8U) != 0U) {
         return SV_BER_ERR_DECODING;
     }
 
@@ -501,7 +501,7 @@ static int decode_asdu(const uint8_t *buf, size_t buf_size, size_t *offset,
     sv_asdu_init(asdu);
 
     /* Helper macro: peek at next tag without consuming it */
-    #define PEEK_TAG() ((*offset < asdu_end && *offset < buf_size) ? buf[*offset] : (uint8_t)0U)
+    #define PEEK_TAG() (((*offset < asdu_end) && (*offset < buf_size)) ? buf[*offset] : (uint8_t)0U)
 
     /* [0] svID - VisibleString (REQUIRED) */
     if (PEEK_TAG() != SV_TAG_SVID) { return SV_BER_ERR_DECODING; }
@@ -594,7 +594,7 @@ int sv_decode_apdu(const uint8_t *buf, size_t buf_size, sv_apdu_t *apdu)
     uint8_t tag = 0;
     size_t length = 0;
 
-    if (!buf || !apdu || buf_size < 10U) {
+    if ((!buf) || (!apdu) || (buf_size < 10U)) {
         return SV_BER_ERR_INVALID_ARG;
     }
 
@@ -608,7 +608,7 @@ int sv_decode_apdu(const uint8_t *buf, size_t buf_size, sv_apdu_t *apdu)
     }
     /* Accept both APPLICATION 0 (0x60, per IEC 61850-9-2) and
      * APPLICATION 2 (0x62, used by some implementations) */
-    if (tag != 0x60U && tag != SV_APDU_TAG) {
+    if ((tag != 0x60U) && (tag != SV_APDU_TAG)) {
         return SV_BER_ERR_DECODING;
     }
 
@@ -636,7 +636,7 @@ int sv_decode_apdu(const uint8_t *buf, size_t buf_size, sv_apdu_t *apdu)
         return ret;
     }
     /* Accept both [2] (0xA2, per IEC 61850-9-2) and [1] (0xA1, legacy) */
-    if (tag != 0xA2U && tag != 0xA1U) {
+    if ((tag != 0xA2U) && (tag != 0xA1U)) {
         return SV_BER_ERR_DECODING;
     }
     ret = ber_decode_length(buf, buf_size, &offset, &length);
@@ -649,7 +649,7 @@ int sv_decode_apdu(const uint8_t *buf, size_t buf_size, sv_apdu_t *apdu)
     }
 
     /* Decode each ASDU */
-    for (uint8_t i = 0; i < apdu->noASDU && i < SV_MAX_ASDU; i++) {
+    for (uint8_t i = 0; (i < apdu->noASDU) && (i < SV_MAX_ASDU); i++) {
         /* Each ASDU is a SEQUENCE */
         ret = ber_decode_tag(buf, buf_size, &offset, &tag);
         if (ret != SV_BER_OK) {
@@ -714,7 +714,7 @@ int sv_set_svid(sv_asdu_t *asdu, const char *svID)
 {
     size_t len;
 
-    if (!asdu || !svID) {
+    if ((!asdu) || (!svID)) {
         return SV_BER_ERR_INVALID_ARG;
     }
 
@@ -733,7 +733,7 @@ int sv_set_datset(sv_asdu_t *asdu, const char *datSet)
 {
     size_t len;
 
-    if (!asdu || !datSet) {
+    if ((!asdu) || (!datSet)) {
         return SV_BER_ERR_INVALID_ARG;
     }
 
@@ -777,7 +777,7 @@ int sv_encode_security(uint8_t *buf, size_t buf_size, size_t *offset,
     size_t sec_start;
     size_t sec_len;
 
-    if (!buf || !offset || !asdu) {
+    if ((!buf) || (!offset) || (!asdu)) {
         return SV_BER_ERR_INVALID_ARG;
     }
 
@@ -857,12 +857,12 @@ int sv_encode_security(uint8_t *buf, size_t buf_size, size_t *offset,
     sec_len = *offset - sec_start;
     if (sec_len >= 128U) {
         /* Need to shift and use long form */
-        if (sec_len <= 0xFFU && (*offset + 1U) <= buf_size) {
+        if ((sec_len <= 0xFFU) && ((*offset + 1U) <= buf_size)) {
             (void)memmove(&buf[sec_start + 1U], &buf[sec_start], sec_len);
             buf[length_offset] = 0x81U;
             buf[length_offset + 1U] = (uint8_t)sec_len;
             (*offset)++;
-        } else if (sec_len <= 0xFFFFU && (*offset + 2U) <= buf_size) {
+        } else if ((sec_len <= 0xFFFFU) && ((*offset + 2U) <= buf_size)) {
             (void)memmove(&buf[sec_start + 2U], &buf[sec_start], sec_len);
             buf[length_offset] = 0x82U;
             buf[length_offset + 1U] = (uint8_t)(sec_len >> 8U);
@@ -884,7 +884,7 @@ int sv_set_security(sv_asdu_t *asdu,
                     const uint8_t *signature,
                     size_t signature_len)
 {
-    if (!asdu || !key_id || !signature) {
+    if ((!asdu) || (!key_id) || (!signature)) {
         return SV_BER_ERR_INVALID_ARG;
     }
 
@@ -899,8 +899,8 @@ int sv_set_security(sv_asdu_t *asdu,
     /* Get current time for security timestamp */
     struct timespec ts;
     if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
-        asdu->security_timestamp = (uint64_t)ts.tv_sec * 1000000ULL +
-                                   (uint64_t)ts.tv_nsec / 1000ULL;
+        asdu->security_timestamp = ((uint64_t)ts.tv_sec * 1000000ULL) +
+                                   ((uint64_t)ts.tv_nsec / 1000ULL);
     } else {
         asdu->security_timestamp = 0;  /* Fallback */
     }

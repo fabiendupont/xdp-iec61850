@@ -18,7 +18,7 @@ int ber_decode_tag(const uint8_t *buf, size_t buf_size, size_t *offset, uint8_t 
 {
     int result;
 
-    if (!buf || !offset || !tag) {
+    if ((!buf) || (!offset) || (!tag)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (*offset >= buf_size) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -35,7 +35,7 @@ int ber_decode_length(const uint8_t *buf, size_t buf_size, size_t *offset, size_
 {
     int result;
 
-    if (!buf || !offset || !length) {
+    if ((!buf) || (!offset) || (!length)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (*offset >= buf_size) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -76,7 +76,7 @@ int ber_decode_boolean(const uint8_t *buf, size_t buf_size, size_t *offset,
     uint8_t tag;
     size_t length;
 
-    if (!buf || !offset || !value) {
+    if ((!buf) || (!offset) || (!value)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Decode tag */
@@ -112,7 +112,7 @@ int ber_decode_int32(const uint8_t *buf, size_t buf_size, size_t *offset,
     uint8_t tag;
     size_t length;
 
-    if (!buf || !offset || !value) {
+    if ((!buf) || (!offset) || (!value)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Decode tag */
@@ -163,7 +163,7 @@ int ber_decode_uint32(const uint8_t *buf, size_t buf_size, size_t *offset,
     uint8_t tag;
     size_t length;
 
-    if (!buf || !offset || !value) {
+    if ((!buf) || (!offset) || (!value)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Decode tag */
@@ -202,7 +202,7 @@ int ber_decode_visiblestring(const uint8_t *buf, size_t buf_size, size_t *offset
     uint8_t tag;
     size_t length;
 
-    if (!buf || !offset || !str || (str_size == 0U)) {
+    if ((!buf) || (!offset) || (!str) || (str_size == 0U)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Decode tag */
@@ -245,7 +245,7 @@ int ber_decode_utctime(const uint8_t *buf, size_t buf_size, size_t *offset,
     uint32_t seconds;
     uint32_t fraction;
 
-    if (!buf || !offset || !timestamp_us) {
+    if ((!buf) || (!offset) || (!timestamp_us)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Decode tag */
@@ -281,7 +281,7 @@ int ber_decode_utctime(const uint8_t *buf, size_t buf_size, size_t *offset,
 
                 /* Convert to microseconds */
                 /* Fraction is in units of 1/2^24 seconds, convert to microseconds with rounding */
-                uint64_t fraction_us = ((uint64_t)fraction * 1000000ULL + (1ULL << 23)) >> 24;
+                uint64_t fraction_us = (((uint64_t)fraction * 1000000ULL) + (1ULL << 23)) >> 24;
 
                 *timestamp_us = ((uint64_t)seconds * 1000000ULL) + fraction_us;
 
@@ -313,7 +313,7 @@ int goose_decode_alldata(const uint8_t *buf, size_t buf_size, size_t *offset,
     size_t length;
     size_t alldata_end;
 
-    if (!buf || !offset || !data || !count) {
+    if ((!buf) || (!offset) || (!data) || (!count)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         *count = 0;
@@ -382,7 +382,7 @@ int goose_decode_alldata(const uint8_t *buf, size_t buf_size, size_t *offset,
                                     ret = ber_decode_length(buf, buf_size, offset, &float_len);
                                     if (ret != GOOSE_BER_OK) {
                                         result = ret;
-                                    } else if (float_len != 5U || (*offset + 5U) > buf_size) {
+                                    } else if ((float_len != 5U) || ((*offset + 5U) > buf_size)) {
                                         result = GOOSE_BER_ERR_ENCODING;
                                     } else {
                                         /* Skip exponent width byte (0x08) */
@@ -408,7 +408,7 @@ int goose_decode_alldata(const uint8_t *buf, size_t buf_size, size_t *offset,
                                     ret = ber_decode_length(buf, buf_size, offset, &bs_len);
                                     if (ret != GOOSE_BER_OK) {
                                         result = ret;
-                                    } else if (bs_len < 1U || (*offset + bs_len) > buf_size) {
+                                    } else if ((bs_len < 1U) || ((*offset + bs_len) > buf_size)) {
                                         result = GOOSE_BER_ERR_ENCODING;
                                     } else {
                                         /* First byte is "unused bits" count — skip it */
@@ -536,7 +536,7 @@ int goose_decode_apdu(const uint8_t *buf, size_t buf_size, goose_apdu_t *apdu)
     size_t apdu_end;
     size_t data_count = 0;
 
-    if (!buf || !apdu) {
+    if ((!buf) || (!apdu)) {
         return GOOSE_BER_ERR_INVALID_ARG;
     }
 
@@ -687,7 +687,7 @@ int ber_decode_octetstring(const uint8_t *buf, size_t buf_size, size_t *offset,
     size_t length;
     size_t i;
 
-    if (!buf || !offset || !data || !actual_len) {
+    if ((!buf) || (!offset) || (!data) || (!actual_len)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (*offset >= buf_size) {
         result = GOOSE_BER_ERR_BUFFER_FULL;
@@ -733,7 +733,7 @@ int goose_decode_security(const uint8_t *buf, size_t buf_size, size_t *offset,
     uint32_t algo;
     size_t key_id_len;
 
-    if (!buf || !offset || !apdu) {
+    if ((!buf) || (!offset) || (!apdu)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else if (*offset >= buf_size) {
         /* No more data - security extension is optional */

@@ -154,7 +154,7 @@ static int process_request(iec61850_mms_session_t *session,
             }
 
             /* Copy up to MMS_MAX_NAMELIST_ITEMS from the start position */
-            uint32_t remaining = (start < total) ? total - start : 0U;
+            uint32_t remaining = (start < total) ? (total - start) : 0U;
             uint32_t to_copy = remaining;
             if (to_copy > (uint32_t)MMS_MAX_NAMELIST_ITEMS) {
                 to_copy = (uint32_t)MMS_MAX_NAMELIST_ITEMS;
@@ -165,7 +165,7 @@ static int process_request(iec61850_mms_session_t *session,
                 (void)memcpy(resp->params.getnamelist.identifiers[i],
                              all_names[start + i], MMS_MAX_VARIABLE_NAME);
             }
-            resp->params.getnamelist.more_follows = (start + to_copy < total);
+            resp->params.getnamelist.more_follows = ((start + to_copy) < total);
             return 0;
         }
 
@@ -427,7 +427,7 @@ static int process_request(iec61850_mms_session_t *session,
                     session->journal,
                     req->params.readjournal.start_entry_id,
                     j_entries, &j_count,
-                    req->params.readjournal.max_entries > 0U ?
+                    (req->params.readjournal.max_entries > 0U) ?
                         req->params.readjournal.max_entries :
                         (uint32_t)MMS_MAX_JOURNAL_ENTRIES);
             } else {
@@ -436,12 +436,12 @@ static int process_request(iec61850_mms_session_t *session,
                     req->params.readjournal.start_time,
                     req->params.readjournal.end_time,
                     j_entries, &j_count,
-                    req->params.readjournal.max_entries > 0U ?
+                    (req->params.readjournal.max_entries > 0U) ?
                         req->params.readjournal.max_entries :
                         (uint32_t)MMS_MAX_JOURNAL_ENTRIES);
             }
             for (uint32_t ji = 0;
-                 ji < j_count && ji < (uint32_t)MMS_MAX_JOURNAL_ENTRIES; ji++) {
+                 (ji < j_count) && (ji < (uint32_t)MMS_MAX_JOURNAL_ENTRIES); ji++) {
                 resp->params.readjournal.entries[ji].entry_id =
                     j_entries[ji].entry_id;
                 resp->params.readjournal.entries[ji].timestamp =
@@ -595,7 +595,7 @@ static void *session_thread(void *arg)
         }
 
         /* Check for Conclude request */
-        if (recv_len >= 1U && (recv_buf[0] == (uint8_t)MMS_TAG_CONCLUDE_REQUEST)) {
+        if ((recv_len >= 1U) && (recv_buf[0] == (uint8_t)MMS_TAG_CONCLUDE_REQUEST)) {
             /* Send Conclude response and exit */
             uint8_t conclude_resp[2] = { MMS_TAG_CONCLUDE_RESPONSE, 0x00 };
             (void)iec61850_iso_send(&session->iso, conclude_resp, 2);
@@ -663,8 +663,8 @@ static void *accept_thread(void *arg)
 
         /* Find a free session slot */
         bool assigned = false;
-        for (uint32_t i = 0; i < server->config.max_sessions &&
-             i < (uint32_t)IEC61850_MMS_MAX_SESSIONS; i++) {
+        for (uint32_t i = 0; (i < server->config.max_sessions) &&
+             (i < (uint32_t)IEC61850_MMS_MAX_SESSIONS); i++) {
             if (!atomic_load(&server->sessions[i].active)) {
                 iec61850_mms_session_t *sess = &server->sessions[i];
                 iec61850_iso_conn_init(&sess->iso);

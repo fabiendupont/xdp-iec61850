@@ -70,8 +70,8 @@ iec61850_binding_result_t iec61850_binding_bind_variable(
     const char *domain, const char *variable,
     iec61850_data_attribute_t *attribute)
 {
-    if (mgr == NULL || domain == NULL || variable == NULL ||
-        attribute == NULL) {
+    if ((mgr == NULL) || (domain == NULL) || (variable == NULL) ||
+        (attribute == NULL)) {
         return IEC61850_BINDING_ERR_ARGS;
     }
 
@@ -106,7 +106,7 @@ iec61850_binding_result_t iec61850_binding_unbind_variable(
     iec61850_mms_binding_manager_t *mgr,
     const char *domain, const char *variable)
 {
-    if (mgr == NULL || domain == NULL || variable == NULL) {
+    if ((mgr == NULL) || (domain == NULL) || (variable == NULL)) {
         return IEC61850_BINDING_ERR_ARGS;
     }
 
@@ -133,7 +133,7 @@ iec61850_binding_result_t iec61850_binding_unbind_domain(
     iec61850_mms_binding_manager_t *mgr,
     const char *domain)
 {
-    if (mgr == NULL || domain == NULL) {
+    if ((mgr == NULL) || (domain == NULL)) {
         return IEC61850_BINDING_ERR_ARGS;
     }
 
@@ -178,7 +178,7 @@ iec61850_data_attribute_t *iec61850_binding_get_bound_attribute(
 {
     iec61850_data_attribute_t *attr = NULL;
 
-    if (mgr == NULL || domain == NULL || variable == NULL) {
+    if ((mgr == NULL) || (domain == NULL) || (variable == NULL)) {
         return NULL;
     }
 
@@ -219,7 +219,7 @@ iec61850_binding_result_t iec61850_binding_on_mms_write(
     const char *domain, const char *variable,
     const mms_value_t *value)
 {
-    if (mgr == NULL || domain == NULL || variable == NULL || value == NULL) {
+    if ((mgr == NULL) || (domain == NULL) || (variable == NULL) || (value == NULL)) {
         return IEC61850_BINDING_ERR_ARGS;
     }
 

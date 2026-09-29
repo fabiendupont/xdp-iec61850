@@ -105,14 +105,14 @@ static int create_xsk(const char *ifname, int queue_id,
 
     /* Configure ring sizes. */
     uint32_t ring_sz = RING_SIZE;
-    if (setsockopt(xsk_fd, SOL_XDP, XDP_UMEM_FILL_RING,
-                   &ring_sz, sizeof(ring_sz)) < 0 ||
-        setsockopt(xsk_fd, SOL_XDP, XDP_UMEM_COMPLETION_RING,
-                   &ring_sz, sizeof(ring_sz)) < 0 ||
-        setsockopt(xsk_fd, SOL_XDP, XDP_RX_RING,
-                   &ring_sz, sizeof(ring_sz)) < 0 ||
-        setsockopt(xsk_fd, SOL_XDP, XDP_TX_RING,
-                   &ring_sz, sizeof(ring_sz)) < 0) {
+    if ((setsockopt(xsk_fd, SOL_XDP, XDP_UMEM_FILL_RING,
+                   &ring_sz, sizeof(ring_sz)) < 0) ||
+        (setsockopt(xsk_fd, SOL_XDP, XDP_UMEM_COMPLETION_RING,
+                   &ring_sz, sizeof(ring_sz)) < 0) ||
+        (setsockopt(xsk_fd, SOL_XDP, XDP_RX_RING,
+                   &ring_sz, sizeof(ring_sz)) < 0) ||
+        (setsockopt(xsk_fd, SOL_XDP, XDP_TX_RING,
+                   &ring_sz, sizeof(ring_sz)) < 0)) {
         perror("setsockopt ring sizes");
         close(xsk_fd);
         return -1;
@@ -127,7 +127,7 @@ static int create_xsk(const char *ifname, int queue_id,
         return -1;
     }
 
-    uint64_t fill_map_size = off.fr.desc + RING_SIZE * sizeof(uint64_t);
+    uint64_t fill_map_size = off.fr.desc + (RING_SIZE * sizeof(uint64_t));
     void *fill_map = mmap(NULL, fill_map_size,
                           PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE,
                           xsk_fd, XDP_UMEM_PGOFF_FILL_RING);
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (!ifname || !sock_path || !bpf_dir) {
+    if ((!ifname) || (!sock_path) || (!bpf_dir)) {
         usage(argv[0]);
         return 1;
     }

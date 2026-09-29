@@ -45,7 +45,7 @@ static int compute_key_id(EVP_PKEY *pkey, uint8_t *key_id)
     unsigned char sha1_full[20];
 
     der_len = i2d_PUBKEY(pkey, &der_buf);
-    if (der_len <= 0 || der_buf == NULL) {
+    if ((der_len <= 0) || (der_buf == NULL)) {
         return IEC61850_SEC_ERR_PARSE;
     }
 
@@ -73,7 +73,7 @@ int iec61850_cert_manager_load(iec61850_cert_manager_t *cm, const char *path)
     int result;
     FILE *fp = NULL;
 
-    if (cm == NULL || path == NULL) {
+    if ((cm == NULL) || (path == NULL)) {
         result = IEC61850_SEC_ERR_ARGS;
         goto done;
     }
@@ -135,34 +135,34 @@ done:
 
 bool iec61850_cert_manager_is_loaded(const iec61850_cert_manager_t *cm)
 {
-    return cm != NULL && cm->valid;
+    return (cm != NULL) && (cm->valid);
 }
 
 EVP_PKEY *iec61850_cert_manager_get_public_key(
     const iec61850_cert_manager_t *cm)
 {
-    if (cm == NULL || !cm->valid) { return NULL; }
+    if ((cm == NULL) || (!cm->valid)) { return NULL; }
     return cm->public_key;
 }
 
 const uint8_t *iec61850_cert_manager_get_key_id(
     const iec61850_cert_manager_t *cm)
 {
-    if (cm == NULL || !cm->valid) { return NULL; }
+    if ((cm == NULL) || (!cm->valid)) { return NULL; }
     return cm->key_id;
 }
 
 const char *iec61850_cert_manager_get_subject(
     const iec61850_cert_manager_t *cm)
 {
-    if (cm == NULL || !cm->valid) { return ""; }
+    if ((cm == NULL) || (!cm->valid)) { return ""; }
     return cm->subject;
 }
 
 const char *iec61850_cert_manager_get_issuer(
     const iec61850_cert_manager_t *cm)
 {
-    if (cm == NULL || !cm->valid) { return ""; }
+    if ((cm == NULL) || (!cm->valid)) { return ""; }
     return cm->issuer;
 }
 
@@ -190,7 +190,7 @@ int iec61850_cert_manager_verify_chain(iec61850_cert_manager_t *cm,
     X509_STORE_CTX *ctx = NULL;
     int result = IEC61850_SEC_ERR_VERIFY;
 
-    if (cm == NULL || !cm->valid || ca_paths == NULL || ca_count == 0U) {
+    if ((cm == NULL) || (!cm->valid) || (ca_paths == NULL) || (ca_count == 0U)) {
         return IEC61850_SEC_ERR_ARGS;
     }
 
@@ -241,7 +241,7 @@ cleanup:
 
 bool iec61850_cert_manager_is_valid_time(const iec61850_cert_manager_t *cm)
 {
-    if (cm == NULL || !cm->valid || cm->cert == NULL) {
+    if ((cm == NULL) || (!cm->valid) || (cm->cert == NULL)) {
         return false;
     }
 
@@ -253,7 +253,7 @@ bool iec61850_cert_manager_is_valid_time(const iec61850_cert_manager_t *cm)
             return false;  /* could not compute diff */
         }
         /* If day/sec are negative, current time is before notBefore */
-        if (day < 0 || sec < 0) {
+        if ((day < 0) || (sec < 0)) {
             return false;  /* certificate not yet valid */
         }
     }
@@ -266,7 +266,7 @@ bool iec61850_cert_manager_is_valid_time(const iec61850_cert_manager_t *cm)
             return false;
         }
         /* If day/sec are negative, notAfter is in the past → expired */
-        if (day < 0 || sec < 0) {
+        if ((day < 0) || (sec < 0)) {
             return false;  /* certificate expired */
         }
     }
