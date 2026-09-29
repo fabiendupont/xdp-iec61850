@@ -366,9 +366,10 @@ int mms_encode_value(const mms_value_t* value, uint8_t* buffer, size_t buflen) {
             }
             /* BIT STRING: first byte is unused-bits count, then data */
             {
-                size_t byte_count = (value->value.bit_string.bit_count + 7) / 8;
-                uint8_t unused = (uint8_t)((byte_count * 8) - value->value.bit_string.bit_count);
-                if (byte_count + 1 > sizeof(value_buf)) {
+                size_t byte_count = (value->value.bit_string.bit_count + 7U) / 8U;
+                uint8_t unused = (uint8_t)((byte_count * 8U) - value->value.bit_string.bit_count);
+                if (byte_count > sizeof(value->value.bit_string.data) ||
+                    (byte_count + 1U) > sizeof(value_buf)) {
                     return MMS_ERROR_BUFFER_TOO_SMALL;
                 }
                 value_buf[0] = unused;
