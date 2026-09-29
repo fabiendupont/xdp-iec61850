@@ -24,6 +24,7 @@ Exit codes:
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -66,8 +67,9 @@ def load_baseline(path: Path) -> dict:
 def changed_files_in_mr() -> set[str]:
     """Return set of files changed vs. the merge-base (best-effort)."""
     try:
+        default_branch = os.environ.get("CI_DEFAULT_BRANCH", "main")
         base = subprocess.check_output(
-            ["git", "merge-base", "HEAD", "origin/main"],
+            ["git", "merge-base", "HEAD", f"origin/{default_branch}"],
             text=True, stderr=subprocess.DEVNULL
         ).strip()
         out = subprocess.check_output(
