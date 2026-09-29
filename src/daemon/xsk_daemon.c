@@ -90,7 +90,7 @@ static int create_xsk(const char *ifname, int queue_id,
     }
 
     /* Register the memfd-backed UMEM on this socket. */
-    memset(&reg, 0, sizeof(reg));
+    (void)memset(&reg, 0, sizeof(reg));
     reg.addr       = (uintptr_t)umem_area;
     reg.len        = UMEM_SIZE;
     reg.chunk_size = UMEM_FRAME_SIZE;
@@ -143,17 +143,17 @@ static int create_xsk(const char *ifname, int queue_id,
         ring[i] = (uint64_t)i * UMEM_FRAME_SIZE;
     __atomic_store_n(prod, RING_SIZE, __ATOMIC_RELEASE);
 
-    munmap(fill_map, fill_map_size);
+    (void)munmap(fill_map, fill_map_size);
 
     /* Bind: prefer zero-copy, fall back to copy mode. */
     unsigned int ifindex = if_nametoindex(ifname);
     if (ifindex == 0) {
-        fprintf(stderr, "if_nametoindex(%s): %s\n", ifname, strerror(errno));
+        (void)fprintf(stderr, "if_nametoindex(%s): %s\n", ifname, strerror(errno));
         close(xsk_fd);
         return -1;
     }
 
-    memset(&sxdp, 0, sizeof(sxdp));
+    (void)memset(&sxdp, 0, sizeof(sxdp));
     sxdp.sxdp_family    = AF_XDP;
     sxdp.sxdp_ifindex   = ifindex;
     sxdp.sxdp_queue_id  = (uint32_t)queue_id;
@@ -161,8 +161,8 @@ static int create_xsk(const char *ifname, int queue_id,
 
     if (bind(xsk_fd, (struct sockaddr *)&sxdp, sizeof(sxdp)) < 0) {
         if (errno == EINVAL) {
-            fprintf(stderr,
-                    "XDP_ZEROCOPY not supported, falling back to XDP_COPY\n");
+            (void)fprintf(stderr,
+                          "XDP_ZEROCOPY not supported, falling back to XDP_COPY\n");
             sxdp.sxdp_flags = XDP_COPY | XDP_USE_NEED_WAKEUP;
             if (bind(xsk_fd, (struct sockaddr *)&sxdp, sizeof(sxdp)) < 0) {
                 perror("bind AF_XDP (copy mode)");
@@ -208,7 +208,7 @@ static int send_fds(int conn_fd, int xsk_fd, int umem_fd)
     cmsg->cmsg_level = SOL_SOCKET;
     cmsg->cmsg_type  = SCM_RIGHTS;
     cmsg->cmsg_len   = CMSG_LEN(sizeof(fds));
-    memcpy(CMSG_DATA(cmsg), fds, sizeof(fds));
+    (void)memcpy(CMSG_DATA(cmsg), fds, sizeof(fds));
 
     if (sendmsg(conn_fd, &mh, 0) < 0) {
         perror("sendmsg SCM_RIGHTS");
@@ -221,10 +221,10 @@ static int send_fds(int conn_fd, int xsk_fd, int umem_fd)
 
 static void usage(const char *prog)
 {
-    fprintf(stderr,
-            "Usage: %s --iface <ifname> --queue <id> "
-            "--socket <path> --bpf-dir <dir>\n",
-            prog);
+    (void)fprintf(stderr,
+                  "Usage: %s --iface <ifname> --queue <id> "
+                  "--socket <path> --bpf-dir <dir>\n",
+                  prog);
 }
 
 int main(int argc, char *argv[])
@@ -265,26 +265,26 @@ int main(int argc, char *argv[])
 
     struct xgl_graph *g = xgl_graph_create("iec61850-daemon", 0);
     if (!g) {
-        fprintf(stderr, "xgl_graph_create failed\n");
+        (void)fprintf(stderr, "xgl_graph_create failed\n");
         return 1;
     }
 
     struct iec61850_graph_indices idx;
     int ret = iec61850_graph_register(g, bpf_dir, &idx);
     if (ret != 0) {
-        fprintf(stderr, "iec61850_graph_register: %s\n", strerror(-ret));
+        (void)fprintf(stderr, "iec61850_graph_register: %s\n", strerror(-ret));
         xgl_graph_destroy(g);
         return 1;
     }
 
     ret = xgl_graph_attach(g, ifname);
     if (ret != 0) {
-        fprintf(stderr, "xgl_graph_attach(%s): %s\n", ifname, strerror(-ret));
+        (void)fprintf(stderr, "xgl_graph_attach(%s): %s\n", ifname, strerror(-ret));
         xgl_graph_destroy(g);
         return 1;
     }
 
-    fprintf(stderr, "XDP pipeline attached to %s\n", ifname);
+    (void)fprintf(stderr, "XDP pipeline attached to %s\n", ifname);
 
     /* ── 2. Create memfd-backed UMEM ── */
 
@@ -314,8 +314,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    fprintf(stderr, "AF_XDP socket created (%s mode)\n",
-            zerocopy ? "zero-copy" : "copy");
+    (void)fprintf(stderr, "AF_XDP socket created (%s mode)\n",
+                  zerocopy ? "zero-copy" : "copy");
 
     /* ── 4. Insert XSK fd into graph XSKMAP ── */
 
@@ -323,11 +323,11 @@ int main(int argc, char *argv[])
     if (xskmap_fd >= 0) {
         uint32_t key = (uint32_t)queue_id;
         if (bpf_map_update_elem(xskmap_fd, &key, &xsk_fd, BPF_ANY) != 0)
-            fprintf(stderr, "Warning: XSKMAP update failed: %s\n",
-                    strerror(errno));
+            (void)fprintf(stderr, "Warning: XSKMAP update failed: %s\n",
+                          strerror(errno));
     } else {
-        fprintf(stderr, "Warning: xgl_xsk_map not found (%s) — "
-                "redirect may not work\n", strerror(-xskmap_fd));
+        (void)fprintf(stderr, "Warning: xgl_xsk_map not found (%s) — "
+                      "redirect may not work\n", strerror(-xskmap_fd));
     }
 
     /* ── 5. Unix socket — accept and hand off fds ── */
@@ -341,9 +341,9 @@ int main(int argc, char *argv[])
     unlink(sock_path);
 
     struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
+    (void)memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
+    (void)strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
 
     if (bind(srv_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("bind AF_UNIX");
@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    fprintf(stderr, "Listening on %s\n", sock_path);
+    (void)fprintf(stderr, "Listening on %s\n", sock_path);
 
     while (g_running) {
         int conn_fd = accept(srv_fd, NULL, NULL);
@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
         }
 
         if (send_fds(conn_fd, xsk_fd, umem_fd) == 0)
-            fprintf(stderr, "Handed off fds to application\n");
+            (void)fprintf(stderr, "Handed off fds to application\n");
 
         close(conn_fd);
     }

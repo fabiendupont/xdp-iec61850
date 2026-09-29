@@ -53,7 +53,7 @@ static int compute_key_id(EVP_PKEY *pkey, uint8_t *key_id)
     OPENSSL_free(der_buf);
 
     /* IEC 62351-6: keyID is first 4 bytes of SHA-1 hash */
-    memcpy(key_id, sha1_full, IEC61850_CERT_KEYID_LEN);
+    (void)memcpy(key_id, sha1_full, IEC61850_CERT_KEYID_LEN);
     return IEC61850_SEC_OK;
 }
 

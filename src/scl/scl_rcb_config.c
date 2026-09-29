@@ -20,7 +20,7 @@
 static void scl_rcb_to_config(const iec61850_scl_rcb_t *scl_rcb,
                                iec61850_scl_rcb_config_t *cfg)
 {
-    memset(cfg, 0, sizeof(*cfg));
+    (void)memset(cfg, 0, sizeof(*cfg));
 
     (void)strncpy(cfg->rpt_id, scl_rcb->rpt_id,
                    IEC61850_SCL_MAX_NAME - 1);

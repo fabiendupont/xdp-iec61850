@@ -556,9 +556,9 @@ void iec61850_rcb_manager_on_data_change(iec61850_rcb_manager_t *mgr,
 
         /* For buffered RCBs, add to buffer */
         if (rcb->type == IEC61850_RCB_BUFFERED) {
-            iec61850_report_buffer_add(&mgr->buffers[i],
-                                         IEC61850_REASON_DCHG,
-                                         var_ref, new_val, timestamp_ms);
+            (void)iec61850_report_buffer_add(&mgr->buffers[i],
+                                             IEC61850_REASON_DCHG,
+                                             var_ref, new_val, timestamp_ms);
         }
 
         /* Trigger the report sender */

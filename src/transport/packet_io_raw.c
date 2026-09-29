@@ -51,7 +51,7 @@ static int raw_open(struct packet_io *io, const char *ifname, int queue_id)
         }
 
         struct sockaddr_ll addr;
-        memset(&addr, 0, sizeof(addr));
+        (void)memset(&addr, 0, sizeof(addr));
         addr.sll_family = AF_PACKET;
         addr.sll_protocol = (uint16_t)htons(ETH_P_ALL);
         addr.sll_ifindex = (int)ifindex;

@@ -482,11 +482,11 @@ iec61850_data_object_t *iec61850_cdc_create_spc(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_SPC);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
-    iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
 
     return dobj;
 }
@@ -496,11 +496,11 @@ iec61850_data_object_t *iec61850_cdc_create_dpc(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_DPC);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_DBPOS);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
-    iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_DBPOS);
-    iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_DBPOS);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_DBPOS);
+    (void)iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
 
     return dobj;
 }
@@ -510,9 +510,9 @@ iec61850_data_object_t *iec61850_cdc_create_ins(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_INS);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_INT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_INT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -522,9 +522,9 @@ iec61850_data_object_t *iec61850_cdc_create_mv(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_MV);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "mag", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "mag", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -534,9 +534,9 @@ iec61850_data_object_t *iec61850_cdc_create_sps(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_SPS);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -546,9 +546,9 @@ iec61850_data_object_t *iec61850_cdc_create_dps(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_DPS);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_DBPOS);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_DBPOS);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -558,9 +558,9 @@ iec61850_data_object_t *iec61850_cdc_create_ens(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_ENS);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_ENUMERATED);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_ENUMERATED);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -570,12 +570,12 @@ iec61850_data_object_t *iec61850_cdc_create_act(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_ACT);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "general", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "phsA", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "phsB", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "phsC", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "general", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "phsA", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "phsB", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "phsC", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -585,13 +585,13 @@ iec61850_data_object_t *iec61850_cdc_create_acd(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_ACD);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "general", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "dirGeneral", IEC61850_FC_ST, IEC61850_BTYPE_ENUMERATED);
-    iec61850_do_add_attribute(dobj, "phsA", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "phsB", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "phsC", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "general", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "dirGeneral", IEC61850_FC_ST, IEC61850_BTYPE_ENUMERATED);
+    (void)iec61850_do_add_attribute(dobj, "phsA", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "phsB", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "phsC", IEC61850_FC_ST, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -601,9 +601,9 @@ iec61850_data_object_t *iec61850_cdc_create_sec(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_SEC);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "cnt", IEC61850_FC_ST, IEC61850_BTYPE_INT32U);
-    iec61850_do_add_attribute(dobj, "sev", IEC61850_FC_ST, IEC61850_BTYPE_ENUMERATED);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "cnt", IEC61850_FC_ST, IEC61850_BTYPE_INT32U);
+    (void)iec61850_do_add_attribute(dobj, "sev", IEC61850_FC_ST, IEC61850_BTYPE_ENUMERATED);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -613,11 +613,11 @@ iec61850_data_object_t *iec61850_cdc_create_inc(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_INC);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_INT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
-    iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_INT32);
-    iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_INT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_INT32);
+    (void)iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
 
     return dobj;
 }
@@ -627,11 +627,11 @@ iec61850_data_object_t *iec61850_cdc_create_bsc(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_BSC);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "valWTr", IEC61850_FC_ST, IEC61850_BTYPE_STRUCT);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
-    iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_STRUCT);
-    iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
+    (void)iec61850_do_add_attribute(dobj, "valWTr", IEC61850_FC_ST, IEC61850_BTYPE_STRUCT);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_STRUCT);
+    (void)iec61850_do_add_attribute(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED);
 
     return dobj;
 }
@@ -641,10 +641,10 @@ iec61850_data_object_t *iec61850_cdc_create_cmv(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_CMV);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -654,9 +654,9 @@ iec61850_data_object_t *iec61850_cdc_create_sav(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_SAV);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "instMag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "instMag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -666,14 +666,14 @@ iec61850_data_object_t *iec61850_cdc_create_wye(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_WYE);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "phsA.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsA.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsB.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsB.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsC.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsC.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "phsA.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsA.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsB.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsB.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsC.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsC.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -683,14 +683,14 @@ iec61850_data_object_t *iec61850_cdc_create_del(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_DEL);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "phsAB.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsAB.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsBC.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsBC.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsCA.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsCA.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "phsAB.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsAB.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsBC.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsBC.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsCA.cVal.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsCA.cVal.ang.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -700,7 +700,7 @@ iec61850_data_object_t *iec61850_cdc_create_spg(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_SPG);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "setVal", IEC61850_FC_SP, IEC61850_BTYPE_BOOLEAN);
+    (void)iec61850_do_add_attribute(dobj, "setVal", IEC61850_FC_SP, IEC61850_BTYPE_BOOLEAN);
 
     return dobj;
 }
@@ -710,7 +710,7 @@ iec61850_data_object_t *iec61850_cdc_create_asg(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_ASG);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "setMag.f", IEC61850_FC_SP, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "setMag.f", IEC61850_FC_SP, IEC61850_BTYPE_FLOAT32);
 
     return dobj;
 }
@@ -720,11 +720,11 @@ iec61850_data_object_t *iec61850_cdc_create_lpl(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_LPL);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "vendor", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "swRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "d", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "configRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "ldNs", IEC61850_FC_EX, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "vendor", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "swRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "d", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "configRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "ldNs", IEC61850_FC_EX, IEC61850_BTYPE_VISIBLE_STRING);
 
     return dobj;
 }
@@ -734,11 +734,11 @@ iec61850_data_object_t *iec61850_cdc_create_dpl(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_DPL);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "vendor", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "hwRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "swRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "serNum", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "model", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "vendor", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "hwRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "swRev", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "serNum", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "model", IEC61850_FC_DC, IEC61850_BTYPE_VISIBLE_STRING);
 
     return dobj;
 }
@@ -748,11 +748,11 @@ iec61850_data_object_t *iec61850_cdc_create_bcr(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_BCR);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "actVal", IEC61850_FC_ST, IEC61850_BTYPE_INT64);
-    iec61850_do_add_attribute(dobj, "frVal", IEC61850_FC_ST, IEC61850_BTYPE_INT64);
-    iec61850_do_add_attribute(dobj, "frTm", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "actVal", IEC61850_FC_ST, IEC61850_BTYPE_INT64);
+    (void)iec61850_do_add_attribute(dobj, "frVal", IEC61850_FC_ST, IEC61850_BTYPE_INT64);
+    (void)iec61850_do_add_attribute(dobj, "frTm", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -762,9 +762,9 @@ iec61850_data_object_t *iec61850_cdc_create_vss(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_VSS);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_VISIBLE_STRING);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_VISIBLE_STRING);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -774,11 +774,11 @@ iec61850_data_object_t *iec61850_cdc_create_mx3(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_MX3);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "phsA.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsB.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsC.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "phsA.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsB.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsC.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }
@@ -788,11 +788,11 @@ iec61850_data_object_t *iec61850_cdc_create_del3(const char *name)
     iec61850_data_object_t *dobj = iec61850_do_create(name, IEC61850_CDC_DEL3);
     if (dobj == NULL) { return NULL; }
 
-    iec61850_do_add_attribute(dobj, "phsAB.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsBC.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "phsCA.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
-    iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
-    iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
+    (void)iec61850_do_add_attribute(dobj, "phsAB.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsBC.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "phsCA.mag.f", IEC61850_FC_MX, IEC61850_BTYPE_FLOAT32);
+    (void)iec61850_do_add_attribute(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY);
+    (void)iec61850_do_add_attribute(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP);
 
     return dobj;
 }

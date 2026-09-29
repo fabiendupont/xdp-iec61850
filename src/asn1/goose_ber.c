@@ -382,7 +382,7 @@ static int goose_encode_data_elements(uint8_t *buf, size_t buf_size,
                 uint8_t float_buf[5];
                 uint32_t float_bits;
                 float_buf[0] = 0x08U;
-                memcpy(&float_bits, &data[i].value.float32, sizeof(uint32_t));
+                (void)memcpy(&float_bits, &data[i].value.float32, sizeof(uint32_t));
                 float_buf[1] = (uint8_t)((float_bits >> 24U) & 0xFFU);
                 float_buf[2] = (uint8_t)((float_bits >> 16U) & 0xFFU);
                 float_buf[3] = (uint8_t)((float_bits >> 8U) & 0xFFU);
@@ -401,7 +401,7 @@ static int goose_encode_data_elements(uint8_t *buf, size_t buf_size,
                     ret = GOOSE_BER_ERR_BUFFER_FULL;
                 } else {
                     bs_buf[0] = 0x00U;  /* unused bits count */
-                    memcpy(&bs_buf[1], data[i].value.bytes.data, bs_len);
+                    (void)memcpy(&bs_buf[1], data[i].value.bytes.data, bs_len);
                     ret = ber_encode_octetstring(buf, buf_size, offset,
                                                 ASN1_CLASS_CONTEXT | 0x04U,
                                                 bs_buf, bs_len + 1U);

@@ -444,7 +444,7 @@ int iec61850_sv_subscriber_process_frame(
 
     /* Process ALL ASDUs */
     for (uint8_t i = 0; i < apdu.noASDU; i++) {
-        iec61850_sv_subscriber_process(sub, &apdu.asdu[i], recv_time_ns);
+        (void)iec61850_sv_subscriber_process(sub, &apdu.asdu[i], recv_time_ns);
     }
 
     return apdu.noASDU > 0 ? 1 : 0;

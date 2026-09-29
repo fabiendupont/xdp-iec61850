@@ -29,7 +29,7 @@ int iec61850_hsr_prp_config_init(iec61850_hsr_prp_config_t *cfg,
         return -EINVAL;
     }
 
-    memset(cfg, 0, sizeof(*cfg));
+    (void)memset(cfg, 0, sizeof(*cfg));
     cfg->mode = mode;
     cfg->supervision_interval_ms = 2000;
     cfg->node_timeout_ms = 60000;
@@ -39,7 +39,7 @@ int iec61850_hsr_prp_config_init(iec61850_hsr_prp_config_t *cfg,
         if (len >= IEC61850_HSR_PRP_IFNAMSIZ) {
             return -ENAMETOOLONG;
         }
-        memcpy(cfg->port_a, port_a, len + 1);
+        (void)memcpy(cfg->port_a, port_a, len + 1);
     }
 
     if (port_b) {
@@ -47,7 +47,7 @@ int iec61850_hsr_prp_config_init(iec61850_hsr_prp_config_t *cfg,
         if (len >= IEC61850_HSR_PRP_IFNAMSIZ) {
             return -ENAMETOOLONG;
         }
-        memcpy(cfg->port_b, port_b, len + 1);
+        (void)memcpy(cfg->port_b, port_b, len + 1);
     }
 
     return 0;
@@ -158,7 +158,7 @@ int iec61850_hsr_prp_get_stats(iec61850_hsr_prp_stats_t *stats)
         return -EINVAL;
     }
 
-    memset(stats, 0, sizeof(*stats));
+    (void)memset(stats, 0, sizeof(*stats));
 
     if (!s_initialized || !s_instance) {
         return -EINVAL;
@@ -208,7 +208,7 @@ int iec61850_hsr_prp_get_stats(iec61850_hsr_prp_stats_t *stats)
     if (!stats) {
         return -EINVAL;
     }
-    memset(stats, 0, sizeof(*stats));
+    (void)memset(stats, 0, sizeof(*stats));
     return -ENOTSUP;
 }
 

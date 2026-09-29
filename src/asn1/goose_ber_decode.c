@@ -392,7 +392,7 @@ int goose_decode_alldata(const uint8_t *buf, size_t buf_size, size_t *offset,
                                                             | ((uint32_t)buf[*offset + 1U] << 16U)
                                                             | ((uint32_t)buf[*offset + 2U] << 8U)
                                                             | (uint32_t)buf[*offset + 3U];
-                                        memcpy(&data[*count].value.float32, &float_bits, sizeof(float));
+                                        (void)memcpy(&data[*count].value.float32, &float_bits, sizeof(float));
                                         *offset += 4U;
                                         data[*count].type = GOOSE_DATA_FLOAT32;
                                         (*count)++;

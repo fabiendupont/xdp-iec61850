@@ -277,7 +277,7 @@ int iec61850_mms_client_identify(iec61850_mms_client_t *client,
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_IDENTIFY;
 
@@ -307,7 +307,7 @@ int iec61850_mms_client_define_named_varlist(
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_DEFINE_NAMED_VARLIST;
     (void)strncpy(req.params.definenamedvarlist.domain, domain,
@@ -334,7 +334,7 @@ int iec61850_mms_client_delete_named_varlist(
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_DELETE_NAMED_VARLIST;
     (void)strncpy(req.params.deletenamedvarlist.domain, domain,
@@ -358,7 +358,7 @@ int iec61850_mms_client_read_named_varlist(
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
     (void)strncpy(req.params.readnamedvarlist.domain, domain,
@@ -393,7 +393,7 @@ int iec61850_mms_client_file_directory(
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_FILE_DIRECTORY;
     if (file_spec != NULL) {
@@ -426,7 +426,7 @@ int iec61850_mms_client_file_open(
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_FILE_OPEN;
     (void)strncpy(req.params.fileopen.filename, filename,
@@ -454,7 +454,7 @@ int iec61850_mms_client_file_read(
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_FILE_READ;
     req.params.fileread.file_handle = file_handle;
@@ -465,7 +465,7 @@ int iec61850_mms_client_file_read(
     if (resp.service == MMS_SERVICE_TYPE_FILE_READ) {
         uint32_t n = resp.params.fileread.bytes_read;
         if (n > max_len) { n = max_len; }
-        memcpy(data, resp.params.fileread.data, n);
+        (void)memcpy(data, resp.params.fileread.data, n);
         *data_len = n;
         *more_follows = resp.params.fileread.more_follows;
         return IEC61850_MMS_CLIENT_OK;
@@ -482,7 +482,7 @@ int iec61850_mms_client_file_close(
 
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
-    memset(&req, 0, sizeof(req));
+    (void)memset(&req, 0, sizeof(req));
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_FILE_CLOSE;
     req.params.fileclose.file_handle = file_handle;
