@@ -418,7 +418,7 @@ int iec61850_mms_client_file_directory(
 
 int iec61850_mms_client_file_open(
     iec61850_mms_client_t *client,
-    const char *filename, uint32_t *file_handle, uint32_t *file_size)
+    const char *filename, uint32_t *file_handle, uint32_t *file_size) /* NOLINT(bugprone-easily-swappable-parameters) */
 {
     if ((client == NULL) || (!client->connected)) {
         return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;

@@ -297,7 +297,7 @@ static size_t session_length_size(size_t length)
 }
 
 /* Encode CONNECT or ACCEPT SPDU */
-static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si,
+static int session_encode_cn_ac(uint8_t *buf, size_t buf_size, uint8_t si, /* NOLINT(bugprone-easily-swappable-parameters) */
                                   const iec61850_session_params_t *params,
                                   const uint8_t *user_data, size_t user_data_len)
 {
@@ -865,7 +865,7 @@ int iec61850_pres_encode_cpa(uint8_t *buf, size_t buf_size,
     return (int)offset;
 }
 
-int iec61850_pres_encode_pdata(uint8_t *buf, size_t buf_size,
+int iec61850_pres_encode_pdata(uint8_t *buf, size_t buf_size, /* NOLINT(bugprone-easily-swappable-parameters) */
                                  uint8_t pcid,
                                  const uint8_t *app_pdu, size_t app_len)
 {
@@ -1126,12 +1126,11 @@ int iec61850_acse_encode_aarq(uint8_t *buf, size_t buf_size,
      * Wrapped in EXTERNAL { direct-reference INTEGER, encoding [0] } */
     if ((app_pdu != NULL) && (app_len > 0U)) {
         /* EXTERNAL inner: direct-ref(3) + encoding [0](2+app_len) */
-        size_t ext_inner = 3U + 2U + app_len;
         /* Adjust for BER length encoding of app_len */
         size_t app_len_sz = (app_len < 128U) ? (size_t)1U
                             : ((app_len < 256U) ? (size_t)2U : (size_t)3U);
         size_t a0_total = 1U + app_len_sz + app_len;
-        ext_inner = 3U + a0_total;
+        size_t ext_inner = 3U + a0_total;
 
         size_t ext_len_sz = (ext_inner < 128U) ? (size_t)1U
                             : ((ext_inner < 256U) ? (size_t)2U : (size_t)3U);
@@ -1388,7 +1387,7 @@ void iec61850_iso_conn_init(iec61850_iso_conn_t *conn)
 
 int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
                            uint16_t port, const uint8_t *mms_init,
-                           size_t mms_init_len, int timeout_ms)
+                           size_t mms_init_len, int timeout_ms) /* NOLINT(bugprone-easily-swappable-parameters) */
 {
     uint8_t acse_buf[4096];
     uint8_t pres_buf[4096];

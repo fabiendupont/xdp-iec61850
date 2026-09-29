@@ -187,7 +187,7 @@ static int create_xsk(const char *ifname, int queue_id,
 
 /* ── Unix socket: send two fds to the application ───────────────────────── */
 
-static int send_fds(int conn_fd, int xsk_fd, int umem_fd)
+static int send_fds(int conn_fd, int xsk_fd, int umem_fd) /* NOLINT(bugprone-easily-swappable-parameters) */
 {
     struct xsk_handoff_msg msg = {
         .magic      = XSK_HANDOFF_MAGIC,
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
     while ((opt = getopt_long(argc, argv, "i:q:s:b:", opts, NULL)) != -1) {
         switch (opt) {
         case 'i': ifname    = optarg; break;
-        case 'q': queue_id  = atoi(optarg); break;
+        case 'q': { char *end; queue_id = (int)strtol(optarg, &end, 10); break; }
         case 's': sock_path = optarg; break;
         case 'b': bpf_dir   = optarg; break;
         default:  usage(argv[0]); return 1;
@@ -259,8 +259,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    signal(SIGINT,  handle_signal);
-    signal(SIGTERM, handle_signal);
+    (void)signal(SIGINT,  handle_signal);
+    (void)signal(SIGTERM, handle_signal);
 
     /* ── 1. Load IEC 61850 XDP filter pipeline ── */
 

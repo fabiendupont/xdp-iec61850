@@ -62,7 +62,7 @@ static const iec61850_mms_variable_t *find_var_const(
 }
 
 /* Grow an array by doubling. Returns 0 on success, -1 on alloc failure. */
-static int grow_array(void **ptr, size_t *capacity, size_t elem_size,
+static int grow_array(void **ptr, size_t *capacity, size_t elem_size, /* NOLINT(bugprone-easily-swappable-parameters) */
                        size_t init_cap)
 {
     size_t new_cap = (*capacity == 0) ? init_cap : (*capacity * 2);

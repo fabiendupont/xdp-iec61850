@@ -32,7 +32,7 @@ void iec61850_tcp_conn_init(iec61850_tcp_conn_t *conn)
 }
 
 int iec61850_tcp_connect(iec61850_tcp_conn_t *conn, const char *host,
-                          uint16_t port, int timeout_ms)
+                          uint16_t port, int timeout_ms) /* NOLINT(bugprone-easily-swappable-parameters) */
 {
     int result;
     struct addrinfo hints;
@@ -145,7 +145,7 @@ int iec61850_tcp_send(iec61850_tcp_conn_t *conn, const uint8_t *data,
 }
 
 int iec61850_tcp_recv(iec61850_tcp_conn_t *conn, uint8_t *buffer,
-                       size_t buflen, int timeout_ms)
+                       size_t buflen, int timeout_ms) /* NOLINT(bugprone-easily-swappable-parameters) */
 {
     if ((conn == NULL) || (buffer == NULL) || (!conn->connected)) {
         return IEC61850_TRANSPORT_ERR_ARGS;
@@ -176,7 +176,7 @@ int iec61850_tcp_recv(iec61850_tcp_conn_t *conn, uint8_t *buffer,
 }
 
 int iec61850_tcp_recv_exact(iec61850_tcp_conn_t *conn, uint8_t *buffer,
-                              size_t len, int timeout_ms)
+                              size_t len, int timeout_ms) /* NOLINT(bugprone-easily-swappable-parameters) */
 {
     size_t received = 0;
 
@@ -212,7 +212,7 @@ int iec61850_tcp_recv_exact(iec61850_tcp_conn_t *conn, uint8_t *buffer,
 }
 
 int iec61850_tcp_recv_tpkt(iec61850_tcp_conn_t *conn, uint8_t *buffer,
-                             size_t buflen, int timeout_ms)
+                             size_t buflen, int timeout_ms) /* NOLINT(bugprone-easily-swappable-parameters) */
 {
     int ret;
 

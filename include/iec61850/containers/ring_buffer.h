@@ -77,7 +77,7 @@ static inline void NAME##_enqueue(NAME##_t *rb, ELEM_TYPE value)               \
   @ assigns *out, rb->head, rb->count;                                         \
   @ ensures \result == 0 ==> rb->count == \old(rb->count) - 1;                 \
   @*/                                                                          \
-static inline int NAME##_dequeue(NAME##_t *rb, ELEM_TYPE *out)                 \
+static inline int NAME##_dequeue(NAME##_t *rb, ELEM_TYPE *out)  /* NOLINT(bugprone-macro-parentheses) */ \
 {                                                                              \
     if (rb->count == 0U) {                                                     \
         return -1;                                                             \

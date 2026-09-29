@@ -41,8 +41,8 @@ static void populate_ln_with_standard_dos(iec61850_logical_node_t *ln,
         if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
         dobj = iec61850_cdc_create_ins("Beh");
         if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
-    } else if (strcmp(ln_class, "XSWI") == 0) {
-        /* Disconnector */
+    } else if ((strcmp(ln_class, "XSWI") == 0) || (strcmp(ln_class, "CSWI") == 0)) {
+        /* Disconnector / Switch Controller */
         dobj = iec61850_cdc_create_dpc("Pos");
         if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
         dobj = iec61850_cdc_create_ins("Beh");
@@ -62,12 +62,6 @@ static void populate_ln_with_standard_dos(iec61850_logical_node_t *ln,
         dobj = iec61850_cdc_create_spc("Op");
         if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
         dobj = iec61850_cdc_create_sps("Str");
-        if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
-        dobj = iec61850_cdc_create_ins("Beh");
-        if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
-    } else if (strcmp(ln_class, "CSWI") == 0) {
-        /* Switch Controller */
-        dobj = iec61850_cdc_create_dpc("Pos");
         if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
         dobj = iec61850_cdc_create_ins("Beh");
         if (dobj != NULL) { (void)iec61850_ln_add_data_object(ln, dobj); }
@@ -107,7 +101,7 @@ int iec61850_scl_build_ied_model(const iec61850_scl_doc_t *doc,
             /* Build LN name: prefix + lnClass + inst */
             char ln_name[IEC61850_MAX_NAME_LEN];
             ln_name[0] = '\0';
-            (void)strncat(ln_name, scl_ln->ln_prefix, sizeof(ln_name) - 1U);
+            (void)strncat(ln_name, scl_ln->ln_prefix, sizeof(ln_name) - strlen(ln_name) - 1U);
             (void)strncat(ln_name, scl_ln->ln_class,
                           sizeof(ln_name) - strlen(ln_name) - 1U);
             (void)strncat(ln_name, scl_ln->ln_inst,
@@ -149,16 +143,15 @@ static mms_type_t btype_to_mms_type(iec61850_btype_t btype)
         case IEC61850_BTYPE_ENUMERATED:
         case IEC61850_BTYPE_CODED_ENUM:     return MMS_TYPE_INTEGER;
         case IEC61850_BTYPE_OCTET_STRING:   return MMS_TYPE_OCTET_STRING;
-        case IEC61850_BTYPE_VISIBLE_STRING: return MMS_TYPE_VISIBLE_STRING;
+        case IEC61850_BTYPE_VISIBLE_STRING:
         case IEC61850_BTYPE_UNICODE_STRING: return MMS_TYPE_VISIBLE_STRING;
         case IEC61850_BTYPE_TIMESTAMP:      return MMS_TYPE_UTC_TIME;
-        case IEC61850_BTYPE_QUALITY:        return MMS_TYPE_BIT_STRING;
+        case IEC61850_BTYPE_QUALITY:
         case IEC61850_BTYPE_CHECK:          return MMS_TYPE_BIT_STRING;
         case IEC61850_BTYPE_ENTRY_TIME:     return MMS_TYPE_BINARY_TIME;
         case IEC61850_BTYPE_DBPOS:          return MMS_TYPE_BIT_STRING;
         case IEC61850_BTYPE_STRUCT:         return MMS_TYPE_STRUCTURE;
         case IEC61850_BTYPE_PHYS_COMM_ADDR: return MMS_TYPE_OCTET_STRING;
-        case IEC61850_BTYPE_CURRENCY:       return MMS_TYPE_VISIBLE_STRING;
         default:                            return MMS_TYPE_VISIBLE_STRING;
     }
 }
@@ -166,7 +159,7 @@ static mms_type_t btype_to_mms_type(iec61850_btype_t btype)
 /* Register all DAs of a DO as MMS variables.
  * var_prefix is "LN$FC$DO" or "LN$FC$DO$SubDO" for nested objects. */
 static int register_do_variables(const iec61850_data_object_t *dobj,
-                                   const char *ln_name,
+                                   const char *ln_name, /* NOLINT(bugprone-easily-swappable-parameters) */
                                    const char *domain,
                                    iec61850_mms_data_store_t *data_store)
 {

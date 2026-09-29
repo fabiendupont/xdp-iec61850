@@ -416,7 +416,7 @@ static void parse_ied(xmlNode *ied_node, iec61850_scl_doc_t *doc)
     }
 }
 
-int iec61850_scl_parse_file(const char *filename, const char *ied_name,
+int iec61850_scl_parse_file(const char *filename, const char *ied_name, /* NOLINT(bugprone-easily-swappable-parameters) */
                              iec61850_scl_doc_t *doc)
 {
     xmlDoc *xml_doc = NULL;

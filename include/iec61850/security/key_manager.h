@@ -42,13 +42,13 @@ typedef enum {
 
 /* Error codes */
 #define IEC61850_SEC_OK            0
-#define IEC61850_SEC_ERR_ARGS     -1
-#define IEC61850_SEC_ERR_FILE     -2
-#define IEC61850_SEC_ERR_PARSE    -3
-#define IEC61850_SEC_ERR_KEY_TYPE -4
-#define IEC61850_SEC_ERR_SIGN     -5
-#define IEC61850_SEC_ERR_VERIFY   -6
-#define IEC61850_SEC_ERR_BUFFER   -7
+#define IEC61850_SEC_ERR_ARGS     (-1)
+#define IEC61850_SEC_ERR_FILE     (-2)
+#define IEC61850_SEC_ERR_PARSE    (-3)
+#define IEC61850_SEC_ERR_KEY_TYPE (-4)
+#define IEC61850_SEC_ERR_SIGN     (-5)
+#define IEC61850_SEC_ERR_VERIFY   (-6)
+#define IEC61850_SEC_ERR_BUFFER   (-7)
 
 /* Max signature size (RSA-4096 = 512 bytes) */
 #define IEC61850_MAX_SIGNATURE_LEN 512

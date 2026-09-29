@@ -165,7 +165,7 @@ void iec61850_rcb_set_report_sender(iec61850_rcb_t *rcb,
 
 void iec61850_rcb_on_data_change(iec61850_rcb_t *rcb,
                                    const char *var_ref,
-                                   const mms_value_t *old_val,
+                                   const mms_value_t *old_val, /* NOLINT(bugprone-easily-swappable-parameters) */
                                    const mms_value_t *new_val)
 {
     if ((rcb == NULL) || (!rcb->attrs.rpt_ena)) { return; }

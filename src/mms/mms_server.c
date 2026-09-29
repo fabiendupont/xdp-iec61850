@@ -530,18 +530,12 @@ static int process_request(iec61850_mms_session_t *session,
 
         case MMS_SERVICE_TYPE_DEFINE_NAMED_TYPE:
         case MMS_SERVICE_TYPE_DELETE_NAMED_TYPE:
-        case MMS_SERVICE_TYPE_GET_NAMED_TYPE_ATTRS: {
-            /* Named type services — not implemented (IEC 61850 does not use
-             * named types; all types are inferred from the data model).
-             * Return service error per ISO 9506-2. */
-            err->error.error_class = MMS_ERROR_CLASS_SERVICE;
-            err->error.error_code = MMS_SERVICE_ERROR_OTHER;
-            return 1;
-        }
-
+        case MMS_SERVICE_TYPE_GET_NAMED_TYPE_ATTRS:
         case MMS_SERVICE_TYPE_COMMAND_TERMINATION: {
-            /* CommandTermination is an unconfirmed service (server→client).
-             * Receiving it as a request is invalid — return error. */
+            /* Named type services are not used by IEC 61850 (types are
+             * inferred from the data model). CommandTermination is an
+             * unconfirmed service (server→client); receiving it as a
+             * request is invalid. Return service error per ISO 9506-2. */
             err->error.error_class = MMS_ERROR_CLASS_SERVICE;
             err->error.error_code = MMS_SERVICE_ERROR_OTHER;
             return 1;

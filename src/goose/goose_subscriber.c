@@ -109,11 +109,8 @@ bool iec61850_goose_subscriber_process(iec61850_goose_subscriber_t *sub,
     msg.is_retransmission = false;
 
     /* Detect state changes, duplicates, retransmissions */
-    if (ps->message_count == 0U) {
-        /* First message from this publisher */
-        msg.is_new_state = true;
-    } else if (apdu->stNum > ps->latest_st_num) {
-        /* New state */
+    if ((ps->message_count == 0U) || (apdu->stNum > ps->latest_st_num)) {
+        /* First message or new state */
         msg.is_new_state = true;
     } else if (apdu->stNum == ps->latest_st_num) {
         if (apdu->sqNum <= ps->latest_sq_num) {
@@ -298,7 +295,7 @@ static int parse_security_extension(const uint8_t *data, size_t data_len,
  * Stores parsed msg_timestamp in *timestamp_out for Phase 2 replay check.
  */
 static int verify_security_signature(iec61850_goose_subscriber_t *sub,
-                                       const uint8_t *frame_data, size_t frame_len,
+                                       const uint8_t *frame_data, size_t frame_len, /* NOLINT(bugprone-easily-swappable-parameters) */
                                        size_t apdu_offset, size_t apdu_len,
                                        uint32_t *timestamp_out)
 {
@@ -392,7 +389,7 @@ static int verify_security_replay(iec61850_goose_subscriber_t *sub,
 
 int iec61850_goose_subscriber_process_frame(
     iec61850_goose_subscriber_t *sub,
-    const uint8_t *frame_data, size_t frame_len,
+    const uint8_t *frame_data, size_t frame_len, /* NOLINT(bugprone-easily-swappable-parameters) */
     uint64_t recv_time_ns)
 {
     uint16_t ethertype = 0;

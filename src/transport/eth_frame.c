@@ -98,7 +98,7 @@ int iec61850_eth_frame_build(uint8_t *frame_buf, size_t frame_size,
 int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
                               uint16_t *ethertype, uint16_t *app_id,
                               uint16_t *vlan_id,
-                              const uint8_t **apdu, size_t *apdu_len,
+                              const uint8_t **apdu, size_t *apdu_len, /* NOLINT(bugprone-easily-swappable-parameters) */
                               size_t *apdu_offset_out)
 {
     size_t offset = 0;

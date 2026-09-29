@@ -64,7 +64,7 @@ static void detect_key_type(iec61850_key_manager_t *km)
 }
 
 int iec61850_key_manager_load_private_key(iec61850_key_manager_t *km,
-                                           const char *path,
+                                           const char *path, /* NOLINT(bugprone-easily-swappable-parameters) */
                                            const char *passphrase)
 {
     int result;

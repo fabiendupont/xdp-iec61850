@@ -59,7 +59,7 @@ uint64_t iec61850_journal_add_entry(iec61850_journal_t *journal,
 }
 
 int iec61850_journal_read_by_time(const iec61850_journal_t *journal,
-                                    uint64_t start_ms, uint64_t end_ms,
+                                    uint64_t start_ms, uint64_t end_ms, /* NOLINT(bugprone-easily-swappable-parameters) */
                                     iec61850_journal_entry_t *out,
                                     uint32_t *count, uint32_t max_count)
 {

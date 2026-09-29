@@ -167,7 +167,7 @@ int iec61850_control_select_with_value(iec61850_control_manager_t *mgr,
                                          const mms_value_t *value,
                                          mms_select_with_value_response_t *resp)
 {
-    mms_select_response_t sel_resp;
+    mms_select_response_t sel_resp = {0};
     int ret = iec61850_control_select(mgr, domain, item_id, session_id,
                                         &sel_resp);
 
