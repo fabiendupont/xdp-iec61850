@@ -94,7 +94,7 @@ static void test_goose_frame_roundtrip(void)
     size_t apdu_out_len = 0;
 
     ret = iec61850_eth_frame_parse(frame, frame_len, &ethertype, &app_id,
-                                     &vlan_id, &apdu_out, &apdu_out_len);
+                                     &vlan_id, &apdu_out, &apdu_out_len, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)ethertype, (int)IEC61850_ETHERTYPE_GOOSE);
     ASSERT_EQ((int)app_id, 0x0001);
@@ -233,7 +233,7 @@ static void test_goose_appid_filter(void)
     uint16_t et, ai, vi;
     const uint8_t *apdu_out;
     size_t apdu_out_len;
-    iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi, &apdu_out, &apdu_out_len);
+    iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi, &apdu_out, &apdu_out_len, NULL);
     ASSERT_EQ((int)ai, 0x0042);
 
     iec61850_goose_publisher_destroy(&pub);
@@ -282,7 +282,7 @@ static void test_sv_frame_roundtrip(void)
     const uint8_t *apdu_out;
     size_t apdu_out_len;
     ret = iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi,
-                                     &apdu_out, &apdu_out_len);
+                                     &apdu_out, &apdu_out_len, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)et, (int)IEC61850_ETHERTYPE_SV);
     ASSERT_EQ((int)ai, 0x4000);

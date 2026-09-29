@@ -351,12 +351,12 @@ static void test_eth_frame_null_args(void)
     uint16_t et, ai, vi;
     const uint8_t *apdu_out;
     size_t apdu_len;
-    ASSERT_TRUE(iec61850_eth_frame_parse(NULL, 100, &et, &ai, &vi, &apdu_out, &apdu_len) != 0);
+    ASSERT_TRUE(iec61850_eth_frame_parse(NULL, 100, &et, &ai, &vi, &apdu_out, &apdu_len, NULL) != 0);
 
     /* Parse: too short */
     uint8_t short_frame[5] = {0};
     ASSERT_TRUE(iec61850_eth_frame_parse(short_frame, 5, &et, &ai, &vi,
-                &apdu_out, &apdu_len) != 0);
+                &apdu_out, &apdu_len, NULL) != 0);
 
     PASS();
 }

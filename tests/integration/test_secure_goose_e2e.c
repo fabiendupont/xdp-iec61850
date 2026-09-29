@@ -95,7 +95,7 @@ static void test_security_extension_in_frame(void)
     const uint8_t *parsed_apdu;
     size_t parsed_len;
     ret = iec61850_eth_frame_parse(frame_buf, frame_len,
-                                    &et, &appid, &vlan, &parsed_apdu, &parsed_len);
+                                    &et, &appid, &vlan, &parsed_apdu, &parsed_len, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)parsed_len, (int)apdu_len);
 
@@ -123,7 +123,7 @@ static void test_security_extension_in_frame(void)
 
     /* Parse again — PDU Length should include security extension */
     ret = iec61850_eth_frame_parse(frame_buf, frame_len,
-                                    &et, &appid, &vlan, &parsed_apdu, &parsed_len);
+                                    &et, &appid, &vlan, &parsed_apdu, &parsed_len, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_TRUE(parsed_len > apdu_len);  /* APDU + security extension */
 

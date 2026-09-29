@@ -246,7 +246,7 @@ static void test_ss06_frame_roundtrip(void)
     const uint8_t *apdu_out;
     size_t apdu_out_len;
     ret = iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi,
-                                      &apdu_out, &apdu_out_len);
+                                      &apdu_out, &apdu_out_len, NULL);
     INTEROP_ASSERT_EQ(ret, 0);
     INTEROP_ASSERT_EQ((int)et, (int)IEC61850_ETHERTYPE_SV);
     INTEROP_ASSERT_EQ((int)ai, 0x4000);

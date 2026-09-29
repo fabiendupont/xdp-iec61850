@@ -194,7 +194,7 @@ static void test_frame_build_and_parse(void)
     const uint8_t *out_apdu = NULL;
     size_t out_len = 0;
     ret = iec61850_eth_frame_parse(frame, frame_len, &et, &appid, &vlan,
-                                    &out_apdu, &out_len);
+                                    &out_apdu, &out_len, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)et, (int)IEC61850_ETHERTYPE_GOOSE);
     ASSERT_EQ((int)appid, 1);

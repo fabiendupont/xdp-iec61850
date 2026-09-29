@@ -76,12 +76,14 @@ int iec61850_eth_frame_build(uint8_t *frame_buf, size_t frame_size,
  * @param vlan_id      Output: VLAN ID (0 if no VLAN tag)
  * @param apdu         Output: pointer to APDU data within frame_buf
  * @param apdu_len     Output: length of APDU data
+ * @param apdu_offset_out  Output: byte offset of APDU within frame_buf (may be NULL)
  * @return 0 on success, negative errno on error
  */
 int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
                               uint16_t *ethertype, uint16_t *app_id,
                               uint16_t *vlan_id,
-                              const uint8_t **apdu, size_t *apdu_len);
+                              const uint8_t **apdu, size_t *apdu_len,
+                              size_t *apdu_offset_out);
 
 /**
  * Update the PDU Length field in an already-built frame.

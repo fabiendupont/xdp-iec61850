@@ -48,7 +48,7 @@ static void test_gp01_basic_publish(void)
     const uint8_t *apdu;
     size_t apdu_len;
     ret = iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi,
-                                      &apdu, &apdu_len);
+                                      &apdu, &apdu_len, NULL);
     INTEROP_ASSERT_EQ(ret, 0);
     INTEROP_ASSERT_EQ((int)et, (int)IEC61850_ETHERTYPE_GOOSE);
     INTEROP_ASSERT_EQ((int)ai, 0x0001);

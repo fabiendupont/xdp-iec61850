@@ -65,7 +65,7 @@ static void test_goose_build_frame(void)
     uint16_t ethertype = 0, app_id = 0, vlan_id = 0;
     const uint8_t *apdu = NULL;
     size_t apdu_len = 0;
-    ret = iec61850_eth_frame_parse(frame, frame_len, &ethertype, &app_id, &vlan_id, &apdu, &apdu_len);
+    ret = iec61850_eth_frame_parse(frame, frame_len, &ethertype, &app_id, &vlan_id, &apdu, &apdu_len, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)ethertype, (int)IEC61850_ETHERTYPE_GOOSE);
     ASSERT_EQ((int)app_id, 0x0001);
@@ -115,7 +115,7 @@ static void test_sv_build_frame(void)
     uint16_t ethertype = 0, app_id = 0, vlan_id = 0;
     const uint8_t *apdu = NULL;
     size_t apdu_len = 0;
-    ret = iec61850_eth_frame_parse(frame, frame_len, &ethertype, &app_id, &vlan_id, &apdu, &apdu_len);
+    ret = iec61850_eth_frame_parse(frame, frame_len, &ethertype, &app_id, &vlan_id, &apdu, &apdu_len, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)ethertype, (int)IEC61850_ETHERTYPE_SV);
     ASSERT_EQ((int)app_id, 0x4000);

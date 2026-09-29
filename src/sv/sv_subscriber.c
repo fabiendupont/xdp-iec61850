@@ -218,13 +218,13 @@ int iec61850_sv_subscriber_enable_security(iec61850_sv_subscriber_t *sub,
  */
 static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
                                           const uint8_t *frame_data, size_t frame_len,
-                                          const uint8_t *apdu_data, size_t apdu_len,
+                                          size_t apdu_offset, size_t apdu_len,
                                           uint32_t *timestamp_out)
 {
     /* MISRA 11.5: opaque cert_manager handle, deviation Cat. 3 */
     iec61850_cert_manager_t *cm = (iec61850_cert_manager_t *)sub->cert_manager;
+    const uint8_t *apdu_data = &frame_data[apdu_offset];
     EVP_PKEY *pubkey;
-    size_t apdu_offset = (size_t)(apdu_data - frame_data);
     size_t after_apdu = apdu_offset + apdu_len;
     int ret;
 
@@ -258,10 +258,10 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
     size_t inner_len;
 
     if (ext_data[pos] < 0x80U) {
-        inner_len = ext_data[pos++];
+        inner_len = ext_data[pos]; pos++;
     } else if (ext_data[pos] == 0x81U) {
         pos++;
-        inner_len = ext_data[pos++];
+        inner_len = ext_data[pos]; pos++;
     } else if (ext_data[pos] == 0x82U) {
         pos++;
         inner_len = ((size_t)ext_data[pos] << 8U) | ext_data[pos + 1U];
@@ -278,14 +278,14 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
     }
 
     while (pos < end) {
-        uint8_t tag = ext_data[pos++];
+        uint8_t tag = ext_data[pos]; pos++;
         if (pos >= end) { break; }
         size_t len;
         if (ext_data[pos] < 0x80U) {
-            len = ext_data[pos++];
+            len = ext_data[pos]; pos++;
         } else if (ext_data[pos] == 0x81U) {
             pos++;
-            len = ext_data[pos++];
+            len = ext_data[pos]; pos++;
         } else if (ext_data[pos] == 0x82U) {
             pos++;
             len = ((size_t)ext_data[pos] << 8U) | ext_data[pos + 1U];
@@ -376,6 +376,7 @@ int iec61850_sv_subscriber_process_frame(
     uint16_t vlan_id = 0;
     const uint8_t *apdu_data = NULL;
     size_t apdu_len = 0;
+    size_t apdu_offset = 0;
     sv_apdu_t apdu;
     int ret;
 #ifdef IEC61850_SECURITY_ENABLED
@@ -389,7 +390,7 @@ int iec61850_sv_subscriber_process_frame(
     /* Parse Ethernet frame */
     ret = iec61850_eth_frame_parse(frame_data, frame_len,
                                     &ethertype, &app_id, &vlan_id,
-                                    &apdu_data, &apdu_len);
+                                    &apdu_data, &apdu_len, &apdu_offset);
     if (ret != 0) {
         return 0;
     }
@@ -416,7 +417,7 @@ int iec61850_sv_subscriber_process_frame(
     /* Phase 1: Verify signature + forward-drift (no pub_state needed) */
     if (sub->security_enabled) {
         ret = sv_verify_security_signature(sub, frame_data, frame_len,
-                                             apdu_data, apdu_len,
+                                             apdu_offset, apdu_len,
                                              &sec_timestamp);
         if (ret != 0) {
             return 0;

@@ -228,11 +228,11 @@ static int parse_security_extension(const uint8_t *data, size_t data_len,
     /* Parse length */
     size_t ext_len;
     if (data[pos] < 0x80U) {
-        ext_len = data[pos++];
+        ext_len = data[pos]; pos++;
     } else if (data[pos] == 0x81U) {
         pos++;
         if (pos >= data_len) { return -1; }
-        ext_len = data[pos++];
+        ext_len = data[pos]; pos++;
     } else if (data[pos] == 0x82U) {
         pos++;
         if ((pos + 1U) >= data_len) { return -1; }
@@ -248,16 +248,16 @@ static int parse_security_extension(const uint8_t *data, size_t data_len,
 
     /* Parse sub-elements */
     while (pos < end) {
-        uint8_t tag = data[pos++];
+        uint8_t tag = data[pos]; pos++;
         if (pos >= end) { return -1; }
 
         size_t len;
         if (data[pos] < 0x80U) {
-            len = data[pos++];
+            len = data[pos]; pos++;
         } else if (data[pos] == 0x81U) {
             pos++;
             if (pos >= end) { return -1; }
-            len = data[pos++];
+            len = data[pos]; pos++;
         } else if (data[pos] == 0x82U) {
             pos++;
             if ((pos + 1U) >= end) { return -1; }
@@ -299,11 +299,12 @@ static int parse_security_extension(const uint8_t *data, size_t data_len,
  */
 static int verify_security_signature(iec61850_goose_subscriber_t *sub,
                                        const uint8_t *frame_data, size_t frame_len,
-                                       const uint8_t *apdu_data, size_t apdu_len,
+                                       size_t apdu_offset, size_t apdu_len,
                                        uint32_t *timestamp_out)
 {
     /* MISRA 11.5: opaque cert_manager handle, deviation Cat. 3 */
     iec61850_cert_manager_t *cm = (iec61850_cert_manager_t *)sub->cert_manager;
+    const uint8_t *apdu_data = &frame_data[apdu_offset];
     EVP_PKEY *pubkey;
     const uint8_t *sig = NULL;
     size_t sig_len = 0;
@@ -319,7 +320,6 @@ static int verify_security_signature(iec61850_goose_subscriber_t *sub,
     }
 
     /* Security extension follows the APDU in the frame */
-    size_t apdu_offset = (size_t)(apdu_data - frame_data);
     size_t after_apdu = apdu_offset + apdu_len;
     if (after_apdu >= frame_len) {
         sub->total_security_failures++;
@@ -400,6 +400,7 @@ int iec61850_goose_subscriber_process_frame(
     uint16_t vlan_id = 0;
     const uint8_t *apdu_data = NULL;
     size_t apdu_len = 0;
+    size_t apdu_offset = 0;
     goose_apdu_t apdu;
     int ret;
 #ifdef IEC61850_SECURITY_ENABLED
@@ -413,7 +414,7 @@ int iec61850_goose_subscriber_process_frame(
     /* Parse Ethernet frame */
     ret = iec61850_eth_frame_parse(frame_data, frame_len,
                                     &ethertype, &app_id, &vlan_id,
-                                    &apdu_data, &apdu_len);
+                                    &apdu_data, &apdu_len, &apdu_offset);
     if (ret != 0) {
         return 0;
     }
@@ -442,7 +443,7 @@ int iec61850_goose_subscriber_process_frame(
     /* Phase 1: Verify signature + forward-drift (no pub_state needed) */
     if (sub->security_enabled) {
         ret = verify_security_signature(sub, frame_data, frame_len,
-                                          apdu_data, apdu_len, &sec_timestamp);
+                                          apdu_offset, apdu_len, &sec_timestamp);
         if (ret != 0) {
             return 0;
         }

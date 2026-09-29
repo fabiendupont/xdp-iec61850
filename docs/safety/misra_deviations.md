@@ -75,7 +75,7 @@ analysis or because the rule classification is Advisory.
 | 15.5 | Advisory | "A function should have a single point of exit." Early-return guard clauses are used throughout for readability and correctness. This is an Advisory rule. Specific Required violations are fixed where called out. |
 | 12.1 | Advisory | Operator precedence: the project uses well-understood C operators; extra parentheses would reduce readability without safety benefit. |
 | 10.4 | Required | **FIXED outside mms_ber.c**: All 582 violations in 29 non-mms_ber.c files resolved by adding `U`/`ULL` suffixes and `(type)` casts to arithmetic/comparison operands. Remaining ~100 violations are confined to `mms_ber.c` (excluded from analysis); see Category 4 deviation. |
-| 18.4 | Advisory | Remaining 3 violations are pointer subtraction (`ptr - base`) for computing byte offsets in protocol parsers — unavoidable without major restructuring. Pointer arithmetic sites that could use array indexing (`ptr + n` → `&ptr[n]`) have been fixed. See violation inventory below. |
+| 18.4 | Advisory | Remaining 1 violation is pointer subtraction in `yaml_parser.c` (`strchr` result relative to array base — genuinely irreducible). The 2 previously listed subscriber violations (`goose_subscriber.c`, `sv_subscriber.c`) are now fixed by threading `apdu_offset` as a `size_t` parameter from `iec61850_eth_frame_parse`. |
 | 11.5 | Advisory | Remaining ~46 violations: (a) `calloc`/`malloc` implicit void* conversion (C11 standard, unavoidable); (b) explicit opaque handle casts (`cert_manager`, `key_manager`, pthread `arg`, `io->priv`, `data_store`) — all documented and commented in source. |
 | 20.7, 20.10, 20.12 | Advisory/Required | Typed container macros (`IEC61850_DEFINE_FIXED_ARRAY`, `IEC61850_DEFINE_FIXED_STRING`, `IEC61850_DEFINE_RING_BUFFER`) require `##` token pasting. These are already documented as advisory deviations in the header comment blocks. The generated code is verified at each instantiation site. |
 | 21.6, 21.10, 21.3 | Required | `<stdio.h>` in logger, `<time.h>` in monitoring, dynamic allocation in BER parser. No alternative exists in C11 for these OS-level capabilities. |
@@ -129,7 +129,7 @@ XDP/AF_XDP rootless transport work added in this release.
 | 8.7  | 0   | Advisory | **FIXED**: All ~220 violations confirmed as false positives (public API functions in headers). Suppressed via `.cppcheck-suppressions` with deviation justification in Category 5. |
 | 13.3 | 66  | Advisory | Split compound expressions with side effects |
 | 17.3 | 0   | Mandatory | **FIXED**: added `--library=posix` to cppcheck; all 47 were false positives |
-| 18.4 | 3   | Advisory | **REDUCED 30→3**: All `ptr + n` sites replaced with `&ptr[n]`. Remaining 3 are pointer subtraction (`ptr - base`) for offset computation — accepted deviations |
+| 18.4 | 1   | Advisory | **REDUCED 30→1**: All `ptr + n` sites replaced with `&ptr[n]`. 2 subscriber subtraction violations fixed by threading `apdu_offset` from `iec61850_eth_frame_parse`. Remaining 1 is `yaml_parser.c:186` (`strchr` distance from array base — genuinely irreducible, accepted deviation) |
 | 11.5 | ~46 | Advisory | All casts commented with deviation rationale. Calloc/malloc implicit conversions unavoidable in C11; opaque handles (cert_manager, key_manager, pthread arg, io->priv) documented in Category 3 |
 | 19.2 | 8   | Advisory | Union types in goose_ber.h and mms_ber.h structures |
 | 21.6 | 9   | Advisory | stdio I/O functions in logger.c; required for logging subsystem |
