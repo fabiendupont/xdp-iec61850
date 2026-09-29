@@ -219,24 +219,24 @@ int iec61850_tcp_recv_tpkt(iec61850_tcp_conn_t *conn, uint8_t *buffer,
     if (conn == NULL || buffer == NULL) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
-    if (buflen < 4) {
+    if (buflen < 4U) {
         return IEC61850_TRANSPORT_ERR_ARGS;
     }
 
     /* Read 4-byte TPKT header */
-    ret = iec61850_tcp_recv_exact(conn, buffer, 4, timeout_ms);
+    ret = iec61850_tcp_recv_exact(conn, buffer, 4U, timeout_ms);
     if (ret < 0) { return ret; }
 
     /* Extract total TPKT frame length */
-    uint16_t total_len = (uint16_t)((uint16_t)buffer[2] << 8) |
+    uint16_t total_len = (uint16_t)((uint16_t)buffer[2] << 8U) |
                          (uint16_t)buffer[3];
-    if (total_len < 4 || (size_t)total_len > buflen) {
+    if (total_len < 4U || (size_t)total_len > buflen) {
         return IEC61850_TRANSPORT_ERR_RECV;
     }
 
     /* Read remaining payload */
-    size_t remaining = (size_t)total_len - 4;
-    if (remaining > 0) {
+    size_t remaining = (size_t)total_len - 4U;
+    if (remaining > 0U) {
         ret = iec61850_tcp_recv_exact(conn, buffer + 4, remaining, timeout_ms);
         if (ret < 0) { return ret; }
     }

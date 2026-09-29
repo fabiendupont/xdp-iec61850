@@ -116,10 +116,10 @@ int iec61850_mms_client_read(iec61850_mms_client_t *client,
                        MMS_MAX_DOMAIN_NAME - 1);
     }
     (void)strncpy(req.params.read.variable_spec.item_id, item_id,
-                   MMS_MAX_VARIABLE_NAME - 1);
+                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
     ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_READ) {
         *value = resp.params.read.value;
@@ -151,11 +151,11 @@ int iec61850_mms_client_write(iec61850_mms_client_t *client,
                        MMS_MAX_DOMAIN_NAME - 1);
     }
     (void)strncpy(req.params.write.variable_spec.item_id, item_id,
-                   MMS_MAX_VARIABLE_NAME - 1);
+                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
     req.params.write.value = *value;
 
     ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_WRITE) {
         return IEC61850_MMS_CLIENT_OK;
@@ -197,11 +197,11 @@ int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
         if (use_continue) {
             req.params.getnamelist.continue_after = true;
             (void)strncpy(req.params.getnamelist.continue_after_id,
-                           continue_after_id, MMS_MAX_VARIABLE_NAME - 1);
+                           continue_after_id, (size_t)MMS_MAX_VARIABLE_NAME - 1U);
         }
 
         ret = transact(client, &req, &resp);
-        if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+        if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
         if (resp.service != MMS_SERVICE_TYPE_GET_NAMELIST) {
             return IEC61850_MMS_CLIENT_ERR_MMS;
@@ -210,18 +210,18 @@ int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
         for (uint32_t i = 0; i < resp.params.getnamelist.num_identifiers &&
              *count < max_count; i++) {
             (void)strncpy(names[*count], resp.params.getnamelist.identifiers[i],
-                           MMS_MAX_VARIABLE_NAME - 1);
-            names[*count][MMS_MAX_VARIABLE_NAME - 1] = '\0';
+                           (size_t)MMS_MAX_VARIABLE_NAME - 1U);
+            names[*count][(size_t)MMS_MAX_VARIABLE_NAME - 1U] = '\0';
             (*count)++;
         }
 
         has_more = resp.params.getnamelist.more_follows;
-        if (has_more && resp.params.getnamelist.num_identifiers > 0) {
+        if (has_more && resp.params.getnamelist.num_identifiers > 0U) {
             /* Set continue token to last identifier received */
-            uint32_t last = resp.params.getnamelist.num_identifiers - 1;
+            uint32_t last = resp.params.getnamelist.num_identifiers - 1U;
             (void)strncpy(continue_after_id,
                            resp.params.getnamelist.identifiers[last],
-                           MMS_MAX_VARIABLE_NAME - 1);
+                           (size_t)MMS_MAX_VARIABLE_NAME - 1U);
             use_continue = true;
         } else {
             has_more = false;
@@ -254,10 +254,10 @@ int iec61850_mms_client_get_var_attrs(iec61850_mms_client_t *client,
                        domain, MMS_MAX_DOMAIN_NAME - 1);
     }
     (void)strncpy(req.params.getvariableattrs.variable_spec.item_id,
-                   item_id, MMS_MAX_VARIABLE_NAME - 1);
+                   item_id, (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
     ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_GET_VARIABLE_ATTRS) {
         *attrs = resp.params.getvariableattrs.attributes;
@@ -282,15 +282,15 @@ int iec61850_mms_client_identify(iec61850_mms_client_t *client,
     req.service = MMS_SERVICE_TYPE_IDENTIFY;
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_IDENTIFY) {
         if (vendor != NULL)
-            (void)strncpy(vendor, resp.params.identify.vendor_name, buf_size - 1);
+            (void)strncpy(vendor, resp.params.identify.vendor_name, buf_size - 1U);
         if (model != NULL)
-            (void)strncpy(model, resp.params.identify.model_name, buf_size - 1);
+            (void)strncpy(model, resp.params.identify.model_name, buf_size - 1U);
         if (revision != NULL)
-            (void)strncpy(revision, resp.params.identify.revision, buf_size - 1);
+            (void)strncpy(revision, resp.params.identify.revision, buf_size - 1U);
         return IEC61850_MMS_CLIENT_OK;
     }
     return IEC61850_MMS_CLIENT_ERR_MMS;
@@ -313,14 +313,14 @@ int iec61850_mms_client_define_named_varlist(
     (void)strncpy(req.params.definenamedvarlist.domain, domain,
                    MMS_MAX_DOMAIN_NAME - 1);
     (void)strncpy(req.params.definenamedvarlist.list_name, list_name,
-                   MMS_MAX_VARIABLE_NAME - 1);
+                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
     req.params.definenamedvarlist.num_variables = num_vars;
-    for (uint32_t i = 0; i < num_vars && i < MMS_MAX_NAMED_VARIABLES; i++) {
+    for (uint32_t i = 0U; i < num_vars && i < (uint32_t)MMS_MAX_NAMED_VARIABLES; i++) {
         req.params.definenamedvarlist.variables[i] = vars[i];
     }
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
     return IEC61850_MMS_CLIENT_OK;
 }
 
@@ -340,10 +340,10 @@ int iec61850_mms_client_delete_named_varlist(
     (void)strncpy(req.params.deletenamedvarlist.domain, domain,
                    MMS_MAX_DOMAIN_NAME - 1);
     (void)strncpy(req.params.deletenamedvarlist.list_name, list_name,
-                   MMS_MAX_VARIABLE_NAME - 1);
+                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
     return IEC61850_MMS_CLIENT_OK;
 }
 
@@ -364,10 +364,10 @@ int iec61850_mms_client_read_named_varlist(
     (void)strncpy(req.params.readnamedvarlist.domain, domain,
                    MMS_MAX_DOMAIN_NAME - 1);
     (void)strncpy(req.params.readnamedvarlist.list_name, list_name,
-                   MMS_MAX_VARIABLE_NAME - 1);
+                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_READ_NAMED_VARLIST) {
         uint32_t n = resp.params.readnamedvarlist.num_values;
@@ -398,11 +398,11 @@ int iec61850_mms_client_file_directory(
     req.service = MMS_SERVICE_TYPE_FILE_DIRECTORY;
     if (file_spec != NULL) {
         (void)strncpy(req.params.filedirectory.file_specification, file_spec,
-                       MMS_MAX_VARIABLE_NAME - 1);
+                       (size_t)MMS_MAX_VARIABLE_NAME - 1U);
     }
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_FILE_DIRECTORY) {
         uint32_t n = resp.params.filedirectory.num_entries;
@@ -430,10 +430,10 @@ int iec61850_mms_client_file_open(
     req.invoke_id = ++client->invoke_id;
     req.service = MMS_SERVICE_TYPE_FILE_OPEN;
     (void)strncpy(req.params.fileopen.filename, filename,
-                   MMS_MAX_VARIABLE_NAME - 1);
+                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_FILE_OPEN) {
         *file_handle = resp.params.fileopen.file_handle;
@@ -460,7 +460,7 @@ int iec61850_mms_client_file_read(
     req.params.fileread.file_handle = file_handle;
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_FILE_READ) {
         uint32_t n = resp.params.fileread.bytes_read;
@@ -488,6 +488,6 @@ int iec61850_mms_client_file_close(
     req.params.fileclose.file_handle = file_handle;
 
     int ret = transact(client, &req, &resp);
-    if (ret != IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
     return IEC61850_MMS_CLIENT_OK;
 }

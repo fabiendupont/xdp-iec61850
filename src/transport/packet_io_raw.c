@@ -44,7 +44,7 @@ static int raw_open(struct packet_io *io, const char *ifname, int queue_id)
 
     if (ifname != NULL) {
         unsigned int ifindex = if_nametoindex(ifname);
-        if (ifindex == 0) {
+        if (ifindex == 0U) {
             close(priv->fd);
             priv->fd = -1;
             return -ENODEV;

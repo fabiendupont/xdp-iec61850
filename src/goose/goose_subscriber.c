@@ -63,14 +63,14 @@ static iec61850_goose_pub_state_t *find_or_create_pub(
     }
 
     /* Create new if room */
-    if (sub->publisher_count >= IEC61850_GOOSE_MAX_PUBLISHERS) {
+    if (sub->publisher_count >= (size_t)IEC61850_GOOSE_MAX_PUBLISHERS) {
         return NULL;
     }
 
     iec61850_goose_pub_state_t *ps = &sub->publishers[sub->publisher_count];
     (void)memset(ps, 0, sizeof(*ps));
-    (void)strncpy(ps->gocb_ref, gocb_ref, GOOSE_MAX_GOCBREF_LEN - 1);
-    ps->gocb_ref[GOOSE_MAX_GOCBREF_LEN - 1] = '\0';
+    (void)strncpy(ps->gocb_ref, gocb_ref, (size_t)GOOSE_MAX_GOCBREF_LEN - 1U);
+    ps->gocb_ref[GOOSE_MAX_GOCBREF_LEN - 1U] = '\0';
     ps->valid = true;
     sub->publisher_count++;
 
@@ -109,7 +109,7 @@ bool iec61850_goose_subscriber_process(iec61850_goose_subscriber_t *sub,
     msg.is_retransmission = false;
 
     /* Detect state changes, duplicates, retransmissions */
-    if (ps->message_count == 0) {
+    if (ps->message_count == 0U) {
         /* First message from this publisher */
         msg.is_new_state = true;
     } else if (apdu->stNum > ps->latest_st_num) {
@@ -162,7 +162,7 @@ void iec61850_goose_subscriber_check_timeouts(
         if (!sub->publishers[i].valid || sub->publishers[i].timeout_detected) {
             continue;
         }
-        if (sub->publishers[i].last_recv_time_ns > 0 &&
+        if (sub->publishers[i].last_recv_time_ns > 0ULL &&
             current_time_ns > sub->publishers[i].last_recv_time_ns &&
             (current_time_ns - sub->publishers[i].last_recv_time_ns) > timeout_ns) {
             sub->publishers[i].timeout_detected = true;
@@ -218,25 +218,25 @@ static int parse_security_extension(const uint8_t *data, size_t data_len,
 {
     size_t pos = 0;
 
-    if (data_len < 4) { return -1; }
+    if (data_len < 4U) { return -1; }
 
     /* Look for tag 0xAC (CONSTRUCTED [12]) */
-    if (data[pos] != 0xAC) { return -1; }
+    if (data[pos] != 0xACU) { return -1; }
     pos++;
 
     /* Parse length */
     size_t ext_len;
-    if (data[pos] < 0x80) {
+    if (data[pos] < 0x80U) {
         ext_len = data[pos++];
-    } else if (data[pos] == 0x81) {
+    } else if (data[pos] == 0x81U) {
         pos++;
         if (pos >= data_len) { return -1; }
         ext_len = data[pos++];
-    } else if (data[pos] == 0x82) {
+    } else if (data[pos] == 0x82U) {
         pos++;
-        if (pos + 1 >= data_len) { return -1; }
-        ext_len = ((size_t)data[pos] << 8) | data[pos + 1];
-        pos += 2;
+        if (pos + 1U >= data_len) { return -1; }
+        ext_len = ((size_t)data[pos] << 8U) | data[pos + 1U];
+        pos += 2U;
     } else {
         return -1;
     }
@@ -251,30 +251,30 @@ static int parse_security_extension(const uint8_t *data, size_t data_len,
         if (pos >= end) { return -1; }
 
         size_t len;
-        if (data[pos] < 0x80) {
+        if (data[pos] < 0x80U) {
             len = data[pos++];
-        } else if (data[pos] == 0x81) {
+        } else if (data[pos] == 0x81U) {
             pos++;
             if (pos >= end) { return -1; }
             len = data[pos++];
-        } else if (data[pos] == 0x82) {
+        } else if (data[pos] == 0x82U) {
             pos++;
-            if (pos + 1 >= end) { return -1; }
-            len = ((size_t)data[pos] << 8) | data[pos + 1];
-            pos += 2;
+            if (pos + 1U >= end) { return -1; }
+            len = ((size_t)data[pos] << 8U) | data[pos + 1U];
+            pos += 2U;
         } else {
             return -1;
         }
 
         if (pos + len > end) { return -1; }
 
-        if (tag == 0x80 && len == 8 && timestamp_secs_out != NULL) {
+        if (tag == 0x80U && len == 8U && timestamp_secs_out != NULL) {
             /* timeOfCurrentKey: first 4 bytes are seconds */
-            *timestamp_secs_out = ((uint32_t)data[pos] << 24) |
-                                  ((uint32_t)data[pos + 1] << 16) |
-                                  ((uint32_t)data[pos + 2] << 8) |
-                                  (uint32_t)data[pos + 3];
-        } else if (tag == 0x82) {
+            *timestamp_secs_out = ((uint32_t)data[pos] << 24U) |
+                                  ((uint32_t)data[pos + 1U] << 16U) |
+                                  ((uint32_t)data[pos + 2U] << 8U) |
+                                  (uint32_t)data[pos + 3U];
+        } else if (tag == 0x82U) {
             /* signature */
             *sig_out = &data[pos];
             *sig_len_out = len;
@@ -347,7 +347,7 @@ static int verify_security_signature(iec61850_goose_subscriber_t *sub,
     }
 
     /* Forward-drift check: reject future timestamps */
-    if (msg_timestamp > 0) {
+    if (msg_timestamp > 0U) {
         uint64_t ts64 = (uint64_t)msg_timestamp;
         struct timespec now_ts;
         (void)clock_gettime(CLOCK_REALTIME, &now_ts);
@@ -370,11 +370,11 @@ static int verify_security_replay(iec61850_goose_subscriber_t *sub,
                                     iec61850_goose_pub_state_t *pub_state,
                                     uint32_t msg_timestamp)
 {
-    if (pub_state == NULL || msg_timestamp == 0) { return 0; }
+    if (pub_state == NULL || msg_timestamp == 0U) { return 0; }
 
     uint64_t ts64 = (uint64_t)msg_timestamp;
 
-    if (pub_state->last_msg_timestamp > 0) {
+    if (pub_state->last_msg_timestamp > 0ULL) {
         uint64_t last64 = pub_state->last_msg_timestamp;
         if (ts64 < last64 &&
             (last64 - ts64) > GOOSE_SEC_MAX_BACKWARD_DRIFT_S) {
@@ -404,7 +404,7 @@ int iec61850_goose_subscriber_process_frame(
     uint32_t sec_timestamp = 0;
 #endif
 
-    if (sub == NULL || frame_data == NULL || frame_len == 0) {
+    if (sub == NULL || frame_data == NULL || frame_len == 0U) {
         return 0;
     }
 
@@ -427,12 +427,12 @@ int iec61850_goose_subscriber_process_frame(
     }
 
     /* APPID filter */
-    if (sub->config.filter_appid != 0 && app_id != sub->config.filter_appid) {
+    if (sub->config.filter_appid != 0U && app_id != sub->config.filter_appid) {
         return 0;
     }
 
     /* VLAN filter */
-    if (sub->config.filter_vlan != 0 && vlan_id != sub->config.filter_vlan) {
+    if (sub->config.filter_vlan != 0U && vlan_id != sub->config.filter_vlan) {
         return 0;
     }
 
@@ -456,7 +456,7 @@ int iec61850_goose_subscriber_process_frame(
 
 #ifdef IEC61850_SECURITY_ENABLED
     /* Phase 2: Per-publisher replay check (pub_state now available) */
-    if (sub->security_enabled && sec_timestamp > 0) {
+    if (sub->security_enabled && sec_timestamp > 0U) {
         iec61850_goose_pub_state_t *ps = find_or_create_pub(sub, apdu.gocbRef);
         if (ps != NULL) {
             ret = verify_security_replay(sub, ps, sec_timestamp);

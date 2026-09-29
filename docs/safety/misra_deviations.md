@@ -41,7 +41,7 @@ mitigation measures.
 | Rule | Directive | Classification | Count | Justification |
 |------|-----------|---------------|-------|---------------|
 | Rule 10.3 | Implicit conversion narrowing | Required | ~300 | `mms_ber.c` (4900+ lines) has extensive BER tag/length byte manipulation. Narrowing conversions are inherent to the ASN.1 BER wire format (tags are bytes, lengths are multi-byte). Mitigated by: CBMC proof (encoder), Frama-C EVA (encoder), ASAN/UBSAN testing (all paths). Compiled with `-Wno-conversion` via meson override. |
-| Rule 10.4 | Essential type mismatch in arithmetic | Required | ~100 | Same root cause as Rule 10.3 — BER byte-level arithmetic. Mitigated by same evidence. |
+| Rule 10.4 | Essential type mismatch in arithmetic | Required | ~100 | `mms_ber.c` only. Same root cause as Rule 10.3 — BER byte-level arithmetic. All other files (29 files, 582 violations) were fixed by adding explicit `U`/`ULL` suffixes and `(type)` casts. Remaining violations are confined to `mms_ber.c` (excluded from analysis). Mitigated by same evidence as Rule 10.3. |
 
 ### Category 5: Intentional Suppressions
 
@@ -74,7 +74,7 @@ analysis or because the rule classification is Advisory.
 | 5.9 | Advisory | Internal linkage identifiers flagged across translation units; the project uses unique naming conventions throughout. |
 | 15.5 | Advisory | "A function should have a single point of exit." Early-return guard clauses are used throughout for readability and correctness. This is an Advisory rule. Specific Required violations are fixed where called out. |
 | 12.1 | Advisory | Operator precedence: the project uses well-understood C operators; extra parentheses would reduce readability without safety benefit. |
-| 10.4 | Required | Mixed essential type categories (e.g., `uint8_t`/`size_t` in BER arithmetic). 201 violations in BER encoder/decoder. These arise from standard byte-manipulation patterns. An explicit cast plan is tracked in the backlog. |
+| 10.4 | Required | **FIXED outside mms_ber.c**: All 582 violations in 29 non-mms_ber.c files resolved by adding `U`/`ULL` suffixes and `(type)` casts to arithmetic/comparison operands. Remaining ~100 violations are confined to `mms_ber.c` (excluded from analysis); see Category 4 deviation. |
 | 18.4, 11.5 | Advisory | Pointer arithmetic and void* conversions are necessary in the buffer and container implementations. |
 | 20.7, 20.10, 20.12 | Advisory/Required | Typed container macros (`IEC61850_DEFINE_FIXED_ARRAY`, `IEC61850_DEFINE_FIXED_STRING`, `IEC61850_DEFINE_RING_BUFFER`) require `##` token pasting. These are already documented as advisory deviations in the header comment blocks. The generated code is verified at each instantiation site. |
 | 21.6, 21.10, 21.3 | Required | `<stdio.h>` in logger, `<time.h>` in monitoring, dynamic allocation in BER parser. No alternative exists in C11 for these OS-level capabilities. |

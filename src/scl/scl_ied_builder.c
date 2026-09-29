@@ -107,11 +107,11 @@ int iec61850_scl_build_ied_model(const iec61850_scl_doc_t *doc,
             /* Build LN name: prefix + lnClass + inst */
             char ln_name[IEC61850_MAX_NAME_LEN];
             ln_name[0] = '\0';
-            (void)strncat(ln_name, scl_ln->ln_prefix, sizeof(ln_name) - 1);
+            (void)strncat(ln_name, scl_ln->ln_prefix, sizeof(ln_name) - 1U);
             (void)strncat(ln_name, scl_ln->ln_class,
-                          sizeof(ln_name) - strlen(ln_name) - 1);
+                          sizeof(ln_name) - strlen(ln_name) - 1U);
             (void)strncat(ln_name, scl_ln->ln_inst,
-                          sizeof(ln_name) - strlen(ln_name) - 1);
+                          sizeof(ln_name) - strlen(ln_name) - 1U);
 
             iec61850_logical_node_t *ln = iec61850_ln_create(scl_ln->ln_class,
                                                                ln_name);
@@ -186,7 +186,7 @@ static int register_do_variables(const iec61850_data_object_t *dobj,
         mms_type_t mms_type = btype_to_mms_type(da->btype);
         int ret = iec61850_mms_ds_create_variable(
             data_store, domain, var_name, mms_type, &da->value);
-        if (ret == IEC61850_MMS_DS_OK) {
+        if (ret == (int)IEC61850_MMS_DS_OK) {
             registered++;
         }
     }
@@ -211,7 +211,7 @@ static int register_do_variables(const iec61850_data_object_t *dobj,
             mms_type_t mms_type = btype_to_mms_type(da->btype);
             int ret = iec61850_mms_ds_create_variable(
                 data_store, domain, var_name, mms_type, &da->value);
-            if (ret == IEC61850_MMS_DS_OK) {
+            if (ret == (int)IEC61850_MMS_DS_OK) {
                 registered++;
             }
         }
@@ -239,7 +239,7 @@ int iec61850_ied_model_register_mms(const iec61850_ied_model_t *model,
                        model->ied_name, ld->ld_inst);
 
         int ret = iec61850_mms_ds_create_domain(data_store, domain);
-        if (ret != IEC61850_MMS_DS_OK && ret != IEC61850_MMS_DS_ERR_EXISTS) {
+        if (ret != (int)IEC61850_MMS_DS_OK && ret != (int)IEC61850_MMS_DS_ERR_EXISTS) {
             continue;
         }
 

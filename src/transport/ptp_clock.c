@@ -20,7 +20,7 @@
 
 /* FD_TO_CLOCKID may not be defined in older glibc headers */
 #ifndef FD_TO_CLOCKID
-#define FD_TO_CLOCKID(fd) ((clockid_t) ((((unsigned int) ~(fd)) << 3) | 3))
+#define FD_TO_CLOCKID(fd) ((clockid_t) ((((unsigned int) ~(fd)) << 3U) | 3U))
 #endif
 
 int iec61850_ptp_clock_init(iec61850_ptp_clock_t *clock,

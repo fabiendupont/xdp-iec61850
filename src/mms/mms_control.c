@@ -63,7 +63,7 @@ int iec61850_control_register(iec61850_control_manager_t *mgr,
         return -EEXIST;
     }
 
-    if (mgr->count >= IEC61850_CONTROL_MAX_OBJECTS) {
+    if (mgr->count >= (uint32_t)IEC61850_CONTROL_MAX_OBJECTS) {
         (void)pthread_mutex_unlock(&mgr->mutex);
         return -ENOSPC;
     }
@@ -135,7 +135,7 @@ int iec61850_control_select(iec61850_control_manager_t *mgr,
     if (obj->state != MMS_CONTROL_STATE_READY) {
         /* Check if prior selection expired */
         uint64_t now = now_ms();
-        if (obj->selection_expires_at_ms > 0 &&
+        if (obj->selection_expires_at_ms > 0ULL &&
             now > obj->selection_expires_at_ms) {
             obj->state = MMS_CONTROL_STATE_READY;
             obj->selection_id = 0;
@@ -151,7 +151,7 @@ int iec61850_control_select(iec61850_control_manager_t *mgr,
     obj->state = MMS_CONTROL_STATE_SELECTED;
     obj->selection_id = mgr->next_selection_id++;
     obj->owner_session_id = session_id;
-    obj->selection_expires_at_ms = now_ms() + IEC61850_CONTROL_DEFAULT_TIMEOUT_MS;
+    obj->selection_expires_at_ms = now_ms() + (uint64_t)IEC61850_CONTROL_DEFAULT_TIMEOUT_MS;
     obj->has_preloaded_value = false;
 
     resp->state = obj->state;
@@ -235,7 +235,7 @@ int iec61850_control_operate(iec61850_control_manager_t *mgr,
     }
 
     /* Check selection timeout */
-    if (obj->selection_expires_at_ms > 0 &&
+    if (obj->selection_expires_at_ms > 0ULL &&
         now_ms() > obj->selection_expires_at_ms) {
         obj->state = MMS_CONTROL_STATE_READY;
         obj->selection_id = 0;
@@ -323,7 +323,7 @@ void iec61850_control_cleanup_expired(iec61850_control_manager_t *mgr)
 
         (void)pthread_mutex_lock(&obj->mutex);
         if (obj->state == MMS_CONTROL_STATE_SELECTED &&
-            obj->selection_expires_at_ms > 0 &&
+            obj->selection_expires_at_ms > 0ULL &&
             now > obj->selection_expires_at_ms) {
             obj->state = MMS_CONTROL_STATE_READY;
             obj->selection_id = 0;

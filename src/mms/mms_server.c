@@ -94,11 +94,11 @@ static int process_request(iec61850_mms_session_t *session,
 
         case MMS_SERVICE_TYPE_IDENTIFY: {
             (void)strncpy(resp->params.identify.vendor_name, "xdp-iec61850",
-                          MMS_MAX_VARIABLE_NAME - 1);
+                          (size_t)MMS_MAX_VARIABLE_NAME - 1U);
             (void)strncpy(resp->params.identify.model_name, "IEC 61850 XDP Stack",
-                          MMS_MAX_VARIABLE_NAME - 1);
+                          (size_t)MMS_MAX_VARIABLE_NAME - 1U);
             (void)strncpy(resp->params.identify.revision, "1.0.0",
-                          MMS_MAX_VARIABLE_NAME - 1);
+                          (size_t)MMS_MAX_VARIABLE_NAME - 1U);
             return 0;
         }
 
@@ -107,7 +107,7 @@ static int process_request(iec61850_mms_session_t *session,
                                                       req->params.read.variable_spec.domain,
                                                       req->params.read.variable_spec.item_id,
                                                       &resp->params.read.value);
-            if (ds_ret != IEC61850_MMS_DS_OK) {
+            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                 map_ds_error(ds_ret, &err->error);
                 return 1;
             }
@@ -119,7 +119,7 @@ static int process_request(iec61850_mms_session_t *session,
                                                        req->params.write.variable_spec.domain,
                                                        req->params.write.variable_spec.item_id,
                                                        &req->params.write.value);
-            if (ds_ret != IEC61850_MMS_DS_OK) {
+            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                 map_ds_error(ds_ret, &err->error);
                 return 1;
             }
@@ -147,17 +147,17 @@ static int process_request(iec61850_mms_session_t *session,
             if (req->params.getnamelist.continue_after) {
                 for (uint32_t i = 0; i < total; i++) {
                     if (strcmp(all_names[i], req->params.getnamelist.continue_after_id) == 0) {
-                        start = i + 1;
+                        start = i + 1U;
                         break;
                     }
                 }
             }
 
             /* Copy up to MMS_MAX_NAMELIST_ITEMS from the start position */
-            uint32_t remaining = (start < total) ? total - start : 0;
+            uint32_t remaining = (start < total) ? total - start : 0U;
             uint32_t to_copy = remaining;
-            if (to_copy > MMS_MAX_NAMELIST_ITEMS) {
-                to_copy = MMS_MAX_NAMELIST_ITEMS;
+            if (to_copy > (uint32_t)MMS_MAX_NAMELIST_ITEMS) {
+                to_copy = (uint32_t)MMS_MAX_NAMELIST_ITEMS;
             }
 
             resp->params.getnamelist.num_identifiers = to_copy;
@@ -177,7 +177,7 @@ static int process_request(iec61850_mms_session_t *session,
                 req->params.getvariableattrs.variable_spec.domain,
                 req->params.getvariableattrs.variable_spec.item_id,
                 &attrs);
-            if (ds_ret == IEC61850_MMS_DS_OK) {
+            if (ds_ret == (int)IEC61850_MMS_DS_OK) {
                 resp->params.getvariableattrs.attributes = attrs;
             } else {
                 map_ds_error(ds_ret, &err->error);
@@ -193,7 +193,7 @@ static int process_request(iec61850_mms_session_t *session,
                 req->params.definenamedvarlist.list_name,
                 req->params.definenamedvarlist.variables,
                 req->params.definenamedvarlist.num_variables);
-            if (ds_ret != IEC61850_MMS_DS_OK) {
+            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                 map_ds_error(ds_ret, &err->error);
                 return 1;
             }
@@ -205,7 +205,7 @@ static int process_request(iec61850_mms_session_t *session,
                 session->data_store,
                 req->params.deletenamedvarlist.domain,
                 req->params.deletenamedvarlist.list_name);
-            if (ds_ret != IEC61850_MMS_DS_OK) {
+            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                 map_ds_error(ds_ret, &err->error);
                 return 1;
             }
@@ -220,7 +220,7 @@ static int process_request(iec61850_mms_session_t *session,
                 req->params.getnamedvarlistattrs.list_name,
                 resp->params.getnamedvarlistattrs.variables,
                 &count, MMS_MAX_NAMED_VARIABLES);
-            if (ds_ret != IEC61850_MMS_DS_OK) {
+            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                 map_ds_error(ds_ret, &err->error);
                 return 1;
             }
@@ -348,7 +348,7 @@ static int process_request(iec61850_mms_session_t *session,
                 resp->params.fileread.data,
                 sizeof(resp->params.fileread.data),
                 &read_len, &more);
-            if (ds_ret != IEC61850_MMS_FILE_OK) {
+            if (ds_ret != (int)IEC61850_MMS_FILE_OK) {
                 err->error.error_class = MMS_ERROR_CLASS_ACCESS;
                 err->error.error_code = MMS_ACCESS_ERROR_OBJECT_NON_EXISTENT;
                 return 1;
@@ -367,7 +367,7 @@ static int process_request(iec61850_mms_session_t *session,
             ds_ret = iec61850_mms_file_close(
                 session->file_service,
                 (int)req->params.fileclose.file_handle);
-            if (ds_ret != IEC61850_MMS_FILE_OK) {
+            if (ds_ret != (int)IEC61850_MMS_FILE_OK) {
                 err->error.error_class = MMS_ERROR_CLASS_ACCESS;
                 err->error.error_code = MMS_ACCESS_ERROR_OBJECT_NON_EXISTENT;
                 return 1;
@@ -384,7 +384,7 @@ static int process_request(iec61850_mms_session_t *session,
             ds_ret = iec61850_mms_file_delete(
                 session->file_service,
                 req->params.filedelete.filename);
-            if (ds_ret != IEC61850_MMS_FILE_OK) {
+            if (ds_ret != (int)IEC61850_MMS_FILE_OK) {
                 err->error.error_class = MMS_ERROR_CLASS_ACCESS;
                 err->error.error_code = MMS_ACCESS_ERROR_OBJECT_NON_EXISTENT;
                 return 1;
@@ -404,7 +404,7 @@ static int process_request(iec61850_mms_session_t *session,
                 req->params.filedirectory.file_specification,
                 (iec61850_mms_file_entry_t *)resp->params.filedirectory.entries,
                 &count, MMS_MAX_NAMELIST_ITEMS);
-            if (ds_ret != IEC61850_MMS_FILE_OK) {
+            if (ds_ret != (int)IEC61850_MMS_FILE_OK) {
                 err->error.error_class = MMS_ERROR_CLASS_SERVICE;
                 err->error.error_code = MMS_SERVICE_ERROR_OTHER;
                 return 1;
@@ -422,26 +422,26 @@ static int process_request(iec61850_mms_session_t *session,
             }
             uint32_t j_count = 0;
             iec61850_journal_entry_t j_entries[MMS_MAX_JOURNAL_ENTRIES];
-            if (req->params.readjournal.start_entry_id > 0) {
+            if (req->params.readjournal.start_entry_id > 0ULL) {
                 (void)iec61850_journal_read_by_id(
                     session->journal,
                     req->params.readjournal.start_entry_id,
                     j_entries, &j_count,
-                    req->params.readjournal.max_entries > 0 ?
+                    req->params.readjournal.max_entries > 0U ?
                         req->params.readjournal.max_entries :
-                        MMS_MAX_JOURNAL_ENTRIES);
+                        (uint32_t)MMS_MAX_JOURNAL_ENTRIES);
             } else {
                 (void)iec61850_journal_read_by_time(
                     session->journal,
                     req->params.readjournal.start_time,
                     req->params.readjournal.end_time,
                     j_entries, &j_count,
-                    req->params.readjournal.max_entries > 0 ?
+                    req->params.readjournal.max_entries > 0U ?
                         req->params.readjournal.max_entries :
-                        MMS_MAX_JOURNAL_ENTRIES);
+                        (uint32_t)MMS_MAX_JOURNAL_ENTRIES);
             }
             for (uint32_t ji = 0;
-                 ji < j_count && ji < MMS_MAX_JOURNAL_ENTRIES; ji++) {
+                 ji < j_count && ji < (uint32_t)MMS_MAX_JOURNAL_ENTRIES; ji++) {
                 resp->params.readjournal.entries[ji].entry_id =
                     j_entries[ji].entry_id;
                 resp->params.readjournal.entries[ji].timestamp =
@@ -449,7 +449,7 @@ static int process_request(iec61850_mms_session_t *session,
                 (void)strncpy(
                     resp->params.readjournal.entries[ji].variable_ref,
                     j_entries[ji].variable_ref,
-                    MMS_MAX_VARIABLE_NAME - 1);
+                    (size_t)MMS_MAX_VARIABLE_NAME - 1U);
             }
             resp->params.readjournal.num_entries = j_count;
             resp->params.readjournal.more_follows = false;
@@ -476,7 +476,7 @@ static int process_request(iec61850_mms_session_t *session,
                 req->params.readnamedvarlist.domain,
                 req->params.readnamedvarlist.list_name,
                 list_vars, &list_count, MMS_MAX_NAMED_VARIABLES);
-            if (ds_ret != IEC61850_MMS_DS_OK) {
+            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                 map_ds_error(ds_ret, &err->error);
                 return 1;
             }
@@ -487,7 +487,7 @@ static int process_request(iec61850_mms_session_t *session,
                     list_vars[vi].domain,
                     list_vars[vi].item_id,
                     &resp->params.readnamedvarlist.values[vi]);
-                if (ds_ret != IEC61850_MMS_DS_OK) {
+                if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                     map_ds_error(ds_ret, &err->error);
                     return 1;
                 }
@@ -505,7 +505,7 @@ static int process_request(iec61850_mms_session_t *session,
                 req->params.writenamedvarlist.domain,
                 req->params.writenamedvarlist.list_name,
                 wl_vars, &wl_count, MMS_MAX_NAMED_VARIABLES);
-            if (ds_ret != IEC61850_MMS_DS_OK) {
+            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                 map_ds_error(ds_ret, &err->error);
                 return 1;
             }
@@ -520,7 +520,7 @@ static int process_request(iec61850_mms_session_t *session,
                     wl_vars[vi].domain,
                     wl_vars[vi].item_id,
                     &req->params.writenamedvarlist.values[vi]);
-                if (ds_ret != IEC61850_MMS_DS_OK) {
+                if (ds_ret != (int)IEC61850_MMS_DS_OK) {
                     map_ds_error(ds_ret, &err->error);
                     return 1;
                 }
@@ -594,7 +594,7 @@ static void *session_thread(void *arg)
         }
 
         /* Check for Conclude request */
-        if (recv_len >= 1 && (recv_buf[0] == MMS_TAG_CONCLUDE_REQUEST)) {
+        if (recv_len >= 1U && (recv_buf[0] == (uint8_t)MMS_TAG_CONCLUDE_REQUEST)) {
             /* Send Conclude response and exit */
             uint8_t conclude_resp[2] = { MMS_TAG_CONCLUDE_RESPONSE, 0x00 };
             (void)iec61850_iso_send(&session->iso, conclude_resp, 2);
@@ -662,7 +662,7 @@ static void *accept_thread(void *arg)
         /* Find a free session slot */
         bool assigned = false;
         for (uint32_t i = 0; i < server->config.max_sessions &&
-             i < IEC61850_MMS_MAX_SESSIONS; i++) {
+             i < (uint32_t)IEC61850_MMS_MAX_SESSIONS; i++) {
             if (!atomic_load(&server->sessions[i].active)) {
                 iec61850_mms_session_t *sess = &server->sessions[i];
                 iec61850_iso_conn_init(&sess->iso);
@@ -732,7 +732,7 @@ int iec61850_mms_server_stop(iec61850_mms_server_t *server)
 
     atomic_store(&server->stop_requested, true);
 
-    for (uint32_t i = 0; i < IEC61850_MMS_MAX_SESSIONS; i++) {
+    for (uint32_t i = 0; i < (uint32_t)IEC61850_MMS_MAX_SESSIONS; i++) {
         if (atomic_load(&server->sessions[i].active)) {
             atomic_store(&server->sessions[i].stop_requested, true);
         }
@@ -743,7 +743,7 @@ int iec61850_mms_server_stop(iec61850_mms_server_t *server)
     }
 
     /* Join all session threads to ensure clean shutdown */
-    for (uint32_t i = 0; i < IEC61850_MMS_MAX_SESSIONS; i++) {
+    for (uint32_t i = 0; i < (uint32_t)IEC61850_MMS_MAX_SESSIONS; i++) {
         if (atomic_load(&server->sessions[i].active)) {
             (void)pthread_join(server->sessions[i].thread, NULL);
         }

@@ -15,7 +15,7 @@ void iec61850_latency_stats_init(iec61850_latency_stats_t *stats,
     (void)memset(stats, 0, sizeof(*stats));
     stats->min_us = UINT64_MAX;
 
-    if (bucket_width_us > 0) {
+    if (bucket_width_us > 0U) {
         stats->bucket_width_us = bucket_width_us;
     } else {
         /* Auto: distribute IEC61850_LATENCY_MAX_US across buckets */
@@ -42,10 +42,10 @@ void iec61850_latency_stats_record(iec61850_latency_stats_t *stats,
     }
 
     /* Histogram bucket */
-    if (stats->bucket_width_us > 0) {
+    if (stats->bucket_width_us > 0U) {
         bucket = (uint32_t)(latency_us / stats->bucket_width_us);
-        if (bucket >= IEC61850_LATENCY_HIST_BUCKETS) {
-            bucket = IEC61850_LATENCY_HIST_BUCKETS - 1;
+        if (bucket >= (uint32_t)IEC61850_LATENCY_HIST_BUCKETS) {
+            bucket = (uint32_t)IEC61850_LATENCY_HIST_BUCKETS - 1U;
         }
         stats->histogram[bucket]++;
     }
@@ -68,7 +68,7 @@ void iec61850_latency_stats_get_summary(const iec61850_latency_stats_t *stats,
 
     summary->count = stats->count;
 
-    if (stats->count == 0) {
+    if (stats->count == 0ULL) {
         return;
     }
 
@@ -80,7 +80,7 @@ void iec61850_latency_stats_get_summary(const iec61850_latency_stats_t *stats,
     uint64_t p99_threshold = (stats->count * 99ULL + 99ULL) / 100ULL;
     uint64_t cumulative = 0;
 
-    for (uint32_t i = 0; i < IEC61850_LATENCY_HIST_BUCKETS; i++) {
+    for (uint32_t i = 0U; i < (uint32_t)IEC61850_LATENCY_HIST_BUCKETS; i++) {
         cumulative += stats->histogram[i];
         if (cumulative >= p99_threshold) {
             /* p99 is at the upper edge of this bucket */

@@ -61,14 +61,14 @@ static iec61850_sv_pub_state_t *find_or_create_pub(
         }
     }
 
-    if (sub->publisher_count >= IEC61850_SV_MAX_PUBLISHERS) {
+    if (sub->publisher_count >= (size_t)IEC61850_SV_MAX_PUBLISHERS) {
         return NULL;
     }
 
     iec61850_sv_pub_state_t *ps = &sub->publishers[sub->publisher_count];
     (void)memset(ps, 0, sizeof(*ps));
-    (void)strncpy(ps->sv_id, sv_id, SV_MAX_SVID_LEN - 1);
-    ps->sv_id[SV_MAX_SVID_LEN - 1] = '\0';
+    (void)strncpy(ps->sv_id, sv_id, (size_t)SV_MAX_SVID_LEN - 1U);
+    ps->sv_id[SV_MAX_SVID_LEN - 1U] = '\0';
     ps->valid = true;
     sub->publisher_count++;
 
@@ -106,7 +106,7 @@ bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
     msg.has_gap = false;
     msg.gap_count = 0;
 
-    if (ps->message_count == 0) {
+    if (ps->message_count == 0U) {
         msg.is_new_sample = true;
     } else if (asdu->smpCnt == ps->latest_smp_cnt) {
         msg.is_duplicate = true;
@@ -116,8 +116,8 @@ bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
 
         /* Gap detection with modular arithmetic for wraparound */
         uint16_t smp_rate = sub->config.smp_rate;
-        uint16_t wrap = (smp_rate > 0)
-            ? (uint16_t)(smp_rate * 50U) : 4000;
+        uint16_t wrap = (smp_rate > 0U)
+            ? (uint16_t)(smp_rate * 50U) : (uint16_t)4000U;
         uint16_t expected = (uint16_t)((ps->latest_smp_cnt + 1U) % wrap);
         if (asdu->smpCnt != expected) {
             msg.has_gap = true;
@@ -159,7 +159,7 @@ void iec61850_sv_subscriber_check_timeouts(iec61850_sv_subscriber_t *sub,
         if (!sub->publishers[i].valid || sub->publishers[i].timeout_detected) {
             continue;
         }
-        if (sub->publishers[i].last_recv_time_ns > 0 &&
+        if (sub->publishers[i].last_recv_time_ns > 0ULL &&
             current_time_ns > sub->publishers[i].last_recv_time_ns &&
             (current_time_ns - sub->publishers[i].last_recv_time_ns) > timeout_ns) {
             sub->publishers[i].timeout_detected = true;
@@ -243,7 +243,7 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
     const uint8_t *ext_data = &frame_data[after_apdu];
     size_t ext_remain = frame_len - after_apdu;
 
-    if (ext_remain < 4 || ext_data[0] != 0xA9) {
+    if (ext_remain < 4U || ext_data[0] != 0xA9U) {
         sub->total_security_failures++;
         return -1;
     }
@@ -255,15 +255,15 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
     size_t pos = 1;
     size_t inner_len;
 
-    if (ext_data[pos] < 0x80) {
+    if (ext_data[pos] < 0x80U) {
         inner_len = ext_data[pos++];
-    } else if (ext_data[pos] == 0x81) {
+    } else if (ext_data[pos] == 0x81U) {
         pos++;
         inner_len = ext_data[pos++];
-    } else if (ext_data[pos] == 0x82) {
+    } else if (ext_data[pos] == 0x82U) {
         pos++;
-        inner_len = ((size_t)ext_data[pos] << 8) | ext_data[pos + 1];
-        pos += 2;
+        inner_len = ((size_t)ext_data[pos] << 8U) | ext_data[pos + 1U];
+        pos += 2U;
     } else {
         sub->total_security_failures++;
         return -1;
@@ -279,26 +279,26 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
         uint8_t tag = ext_data[pos++];
         if (pos >= end) { break; }
         size_t len;
-        if (ext_data[pos] < 0x80) {
+        if (ext_data[pos] < 0x80U) {
             len = ext_data[pos++];
-        } else if (ext_data[pos] == 0x81) {
+        } else if (ext_data[pos] == 0x81U) {
             pos++;
             len = ext_data[pos++];
-        } else if (ext_data[pos] == 0x82) {
+        } else if (ext_data[pos] == 0x82U) {
             pos++;
-            len = ((size_t)ext_data[pos] << 8) | ext_data[pos + 1];
-            pos += 2;
+            len = ((size_t)ext_data[pos] << 8U) | ext_data[pos + 1U];
+            pos += 2U;
         } else {
             break;
         }
         if (pos + len > end) { break; }
 
-        if (tag == 0x80 && len == 8) {
-            msg_timestamp = ((uint32_t)ext_data[pos] << 24) |
-                            ((uint32_t)ext_data[pos + 1] << 16) |
-                            ((uint32_t)ext_data[pos + 2] << 8) |
-                            (uint32_t)ext_data[pos + 3];
-        } else if (tag == 0x82) {
+        if (tag == 0x80U && len == 8U) {
+            msg_timestamp = ((uint32_t)ext_data[pos] << 24U) |
+                            ((uint32_t)ext_data[pos + 1U] << 16U) |
+                            ((uint32_t)ext_data[pos + 2U] << 8U) |
+                            (uint32_t)ext_data[pos + 3U];
+        } else if (tag == 0x82U) {
             sig = &ext_data[pos];
             sig_len = len;
         }
@@ -323,7 +323,7 @@ static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
     }
 
     /* Forward-drift check: reject future timestamps */
-    if (msg_timestamp > 0) {
+    if (msg_timestamp > 0U) {
         uint64_t ts64 = (uint64_t)msg_timestamp;
         struct timespec now_ts;
         (void)clock_gettime(CLOCK_REALTIME, &now_ts);
@@ -346,11 +346,11 @@ static int sv_verify_security_replay(iec61850_sv_subscriber_t *sub,
                                        iec61850_sv_pub_state_t *pub_state,
                                        uint32_t msg_timestamp)
 {
-    if (pub_state == NULL || msg_timestamp == 0) { return 0; }
+    if (pub_state == NULL || msg_timestamp == 0U) { return 0; }
 
     uint64_t ts64 = (uint64_t)msg_timestamp;
 
-    if (pub_state->last_msg_timestamp > 0) {
+    if (pub_state->last_msg_timestamp > 0ULL) {
         uint64_t last64 = pub_state->last_msg_timestamp;
         if (ts64 < last64 &&
             (last64 - ts64) > SV_SEC_MAX_BACKWARD_DRIFT_S) {
@@ -380,7 +380,7 @@ int iec61850_sv_subscriber_process_frame(
     uint32_t sec_timestamp = 0;
 #endif
 
-    if (sub == NULL || frame_data == NULL || frame_len == 0) {
+    if (sub == NULL || frame_data == NULL || frame_len == 0U) {
         return 0;
     }
 
@@ -406,7 +406,7 @@ int iec61850_sv_subscriber_process_frame(
     }
 
     /* APPID filter */
-    if (sub->config.filter_appid != 0 && app_id != sub->config.filter_appid) {
+    if (sub->config.filter_appid != 0U && app_id != sub->config.filter_appid) {
         return 0;
     }
 
@@ -431,7 +431,7 @@ int iec61850_sv_subscriber_process_frame(
 
 #ifdef IEC61850_SECURITY_ENABLED
     /* Phase 2: Per-publisher replay check after decode */
-    if (sub->security_enabled && sec_timestamp > 0 && apdu.noASDU > 0) {
+    if (sub->security_enabled && sec_timestamp > 0U && apdu.noASDU > 0U) {
         iec61850_sv_pub_state_t *ps = find_or_create_pub(sub, apdu.asdu[0].svID);
         if (ps != NULL) {
             ret = sv_verify_security_replay(sub, ps, sec_timestamp);
@@ -447,7 +447,7 @@ int iec61850_sv_subscriber_process_frame(
         (void)iec61850_sv_subscriber_process(sub, &apdu.asdu[i], recv_time_ns);
     }
 
-    return apdu.noASDU > 0 ? 1 : 0;
+    return apdu.noASDU > 0U ? 1 : 0;
 }
 
 int iec61850_sv_subscriber_poll(iec61850_sv_subscriber_t *sub,

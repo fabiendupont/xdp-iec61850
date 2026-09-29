@@ -25,8 +25,8 @@ static void copy_attr(char *dst, size_t dst_size, xmlNode *node,
 {
     xmlChar *val = xmlGetProp(node, (const xmlChar *)attr_name);
     if (val != NULL) {
-        (void)strncpy(dst, (const char *)val, dst_size - 1);
-        dst[dst_size - 1] = '\0';
+        (void)strncpy(dst, (const char *)val, dst_size - 1U);
+        dst[dst_size - 1U] = '\0';
         xmlFree(val);
     } else {
         dst[0] = '\0';
@@ -37,13 +37,13 @@ static void copy_attr(char *dst, size_t dst_size, xmlNode *node,
 static void parse_gse_control(xmlNode *gse_node, const char *ied_name,
                                 const char *ld_inst, iec61850_scl_doc_t *doc)
 {
-    if (doc->goose_cb_count >= IEC61850_SCL_MAX_CBS) { return; }
+    if (doc->goose_cb_count >= (size_t)IEC61850_SCL_MAX_CBS) { return; }
 
     iec61850_scl_goose_cb_t *cb = &doc->goose_cbs[doc->goose_cb_count];
     (void)memset(cb, 0, sizeof(*cb));
 
-    (void)strncpy(cb->ied_name, ied_name, IEC61850_SCL_MAX_NAME - 1);
-    (void)strncpy(cb->ld_inst, ld_inst, IEC61850_SCL_MAX_NAME - 1);
+    (void)strncpy(cb->ied_name, ied_name, (size_t)IEC61850_SCL_MAX_NAME - 1U);
+    (void)strncpy(cb->ld_inst, ld_inst, (size_t)IEC61850_SCL_MAX_NAME - 1U);
     copy_attr(cb->cb_name, sizeof(cb->cb_name), gse_node, "name");
     copy_attr(cb->dataset, sizeof(cb->dataset), gse_node, "datSet");
 
@@ -73,13 +73,13 @@ static void parse_gse_control(xmlNode *gse_node, const char *ied_name,
 static void parse_sv_control(xmlNode *sv_node, const char *ied_name,
                                const char *ld_inst, iec61850_scl_doc_t *doc)
 {
-    if (doc->sv_cb_count >= IEC61850_SCL_MAX_CBS) { return; }
+    if (doc->sv_cb_count >= (size_t)IEC61850_SCL_MAX_CBS) { return; }
 
     iec61850_scl_sv_cb_t *cb = &doc->sv_cbs[doc->sv_cb_count];
     (void)memset(cb, 0, sizeof(*cb));
 
-    (void)strncpy(cb->ied_name, ied_name, IEC61850_SCL_MAX_NAME - 1);
-    (void)strncpy(cb->ld_inst, ld_inst, IEC61850_SCL_MAX_NAME - 1);
+    (void)strncpy(cb->ied_name, ied_name, (size_t)IEC61850_SCL_MAX_NAME - 1U);
+    (void)strncpy(cb->ld_inst, ld_inst, (size_t)IEC61850_SCL_MAX_NAME - 1U);
     copy_attr(cb->cb_name, sizeof(cb->cb_name), sv_node, "name");
     copy_attr(cb->dataset, sizeof(cb->dataset), sv_node, "datSet");
     copy_attr(cb->sv_id, sizeof(cb->sv_id), sv_node, "smvID");
@@ -116,13 +116,13 @@ static bool parse_bool_attr(xmlNode *node, const char *attr)
 static void parse_report_control(xmlNode *rcb_node, const char *ied_name,
                                    const char *ld_inst, iec61850_scl_doc_t *doc)
 {
-    if (doc->rcb_count >= IEC61850_SCL_MAX_RCBS) { return; }
+    if (doc->rcb_count >= (size_t)IEC61850_SCL_MAX_RCBS) { return; }
 
     iec61850_scl_rcb_t *rcb = &doc->rcbs[doc->rcb_count];
     (void)memset(rcb, 0, sizeof(*rcb));
 
-    (void)strncpy(rcb->ied_name, ied_name, IEC61850_SCL_MAX_NAME - 1);
-    (void)strncpy(rcb->ld_inst, ld_inst, IEC61850_SCL_MAX_NAME - 1);
+    (void)strncpy(rcb->ied_name, ied_name, (size_t)IEC61850_SCL_MAX_NAME - 1U);
+    (void)strncpy(rcb->ld_inst, ld_inst, (size_t)IEC61850_SCL_MAX_NAME - 1U);
     copy_attr(rcb->rpt_id, sizeof(rcb->rpt_id), rcb_node, "rptID");
     copy_attr(rcb->dataset, sizeof(rcb->dataset), rcb_node, "datSet");
     rcb->buffered = parse_bool_attr(rcb_node, "buffered");
@@ -181,7 +181,7 @@ static void parse_report_control(xmlNode *rcb_node, const char *ied_name,
 /* Parse DataSet inside LN0 */
 static void parse_dataset(xmlNode *ds_node, iec61850_scl_doc_t *doc)
 {
-    if (doc->dataset_count >= IEC61850_SCL_MAX_DATASETS) { return; }
+    if (doc->dataset_count >= (size_t)IEC61850_SCL_MAX_DATASETS) { return; }
 
     iec61850_scl_dataset_t *ds = &doc->datasets[doc->dataset_count];
     (void)memset(ds, 0, sizeof(*ds));
@@ -192,7 +192,7 @@ static void parse_dataset(xmlNode *ds_node, iec61850_scl_doc_t *doc)
     for (xmlNode *fcda = ds_node->children; fcda != NULL; fcda = fcda->next) {
         if (fcda->type != XML_ELEMENT_NODE) { continue; }
         if (strcmp((const char *)fcda->name, "FCDA") != 0) { continue; }
-        if (ds->member_count >= IEC61850_SCL_MAX_DS_MEMBERS) { break; }
+        if (ds->member_count >= (size_t)IEC61850_SCL_MAX_DS_MEMBERS) { break; }
 
         iec61850_scl_fcda_t *m = &ds->members[ds->member_count];
         (void)memset(m, 0, sizeof(*m));
@@ -235,7 +235,7 @@ static void parse_ln0(const xmlNode *ln0_node, const char *ied_name,
 static void parse_ldevice(xmlNode *ld_node, const char *ied_name,
                             iec61850_scl_doc_t *doc)
 {
-    if (doc->ld_count >= IEC61850_SCL_MAX_LDS) {
+    if (doc->ld_count >= (size_t)IEC61850_SCL_MAX_LDS) {
         return;
     }
 
@@ -245,7 +245,7 @@ static void parse_ldevice(xmlNode *ld_node, const char *ied_name,
 
     for (xmlNode *child = ld_node->children; child != NULL; child = child->next) {
         if (child->type != XML_ELEMENT_NODE) { continue; }
-        if (ld->ln_count >= IEC61850_SCL_MAX_LNS) { break; }
+        if (ld->ln_count >= (size_t)IEC61850_SCL_MAX_LNS) { break; }
 
         const char *name = (const char *)child->name;
 
@@ -291,7 +291,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
         const char *name = (const char *)child->name;
 
         if (strcmp(name, "LNodeType") == 0) {
-            if (doc->lnode_type_count >= IEC61850_SCL_MAX_LNODE_TYPES) { continue; }
+            if (doc->lnode_type_count >= (size_t)IEC61850_SCL_MAX_LNODE_TYPES) { continue; }
             iec61850_scl_lnode_type_t *lt = &doc->lnode_types[doc->lnode_type_count];
             (void)memset(lt, 0, sizeof(*lt));
             copy_attr(lt->id, sizeof(lt->id), child, "id");
@@ -301,7 +301,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
                  do_child = do_child->next) {
                 if (do_child->type != XML_ELEMENT_NODE) { continue; }
                 if (strcmp((const char *)do_child->name, "DO") != 0) { continue; }
-                if (lt->do_count >= IEC61850_SCL_MAX_TYPE_DOS) { break; }
+                if (lt->do_count >= (size_t)IEC61850_SCL_MAX_TYPE_DOS) { break; }
 
                 iec61850_scl_do_ref_t *doref = &lt->dos[lt->do_count];
                 copy_attr(doref->name, sizeof(doref->name), do_child, "name");
@@ -311,7 +311,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
             doc->lnode_type_count++;
 
         } else if (strcmp(name, "DOType") == 0) {
-            if (doc->do_type_count >= IEC61850_SCL_MAX_DO_TYPES) { continue; }
+            if (doc->do_type_count >= (size_t)IEC61850_SCL_MAX_DO_TYPES) { continue; }
             iec61850_scl_do_type_t *dt = &doc->do_types[doc->do_type_count];
             (void)memset(dt, 0, sizeof(*dt));
             copy_attr(dt->id, sizeof(dt->id), child, "id");
@@ -324,7 +324,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
                 if (strcmp(da_name, "DA") != 0 && strcmp(da_name, "SDO") != 0) {
                     continue;
                 }
-                if (dt->da_count >= IEC61850_SCL_MAX_TYPE_DAS) { break; }
+                if (dt->da_count >= (size_t)IEC61850_SCL_MAX_TYPE_DAS) { break; }
 
                 iec61850_scl_da_t *da = &dt->das[dt->da_count];
                 (void)memset(da, 0, sizeof(*da));
@@ -343,7 +343,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
             doc->do_type_count++;
 
         } else if (strcmp(name, "DAType") == 0) {
-            if (doc->da_type_count >= IEC61850_SCL_MAX_DA_TYPES) { continue; }
+            if (doc->da_type_count >= (size_t)IEC61850_SCL_MAX_DA_TYPES) { continue; }
             iec61850_scl_da_type_t *dat = &doc->da_types[doc->da_type_count];
             (void)memset(dat, 0, sizeof(*dat));
             copy_attr(dat->id, sizeof(dat->id), child, "id");
@@ -351,7 +351,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
             for (xmlNode *bda = child->children; bda != NULL; bda = bda->next) {
                 if (bda->type != XML_ELEMENT_NODE) { continue; }
                 if (strcmp((const char *)bda->name, "BDA") != 0) { continue; }
-                if (dat->bda_count >= IEC61850_SCL_MAX_TYPE_DAS) { break; }
+                if (dat->bda_count >= (size_t)IEC61850_SCL_MAX_TYPE_DAS) { break; }
 
                 iec61850_scl_da_t *b = &dat->bdas[dat->bda_count];
                 (void)memset(b, 0, sizeof(*b));
@@ -363,7 +363,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
             doc->da_type_count++;
 
         } else if (strcmp(name, "EnumType") == 0) {
-            if (doc->enum_type_count >= IEC61850_SCL_MAX_ENUM_TYPES) { continue; }
+            if (doc->enum_type_count >= (size_t)IEC61850_SCL_MAX_ENUM_TYPES) { continue; }
             iec61850_scl_enum_type_t *et = &doc->enum_types[doc->enum_type_count];
             (void)memset(et, 0, sizeof(*et));
             copy_attr(et->id, sizeof(et->id), child, "id");
@@ -371,7 +371,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
             for (xmlNode *ev = child->children; ev != NULL; ev = ev->next) {
                 if (ev->type != XML_ELEMENT_NODE) { continue; }
                 if (strcmp((const char *)ev->name, "EnumVal") != 0) { continue; }
-                if (et->val_count >= IEC61850_SCL_MAX_ENUM_VALS) { break; }
+                if (et->val_count >= (size_t)IEC61850_SCL_MAX_ENUM_VALS) { break; }
 
                 iec61850_scl_enum_val_t *v = &et->vals[et->val_count];
                 xmlChar *ord_str = xmlGetProp(ev, (const xmlChar *)"ord");
@@ -382,7 +382,7 @@ static void parse_data_type_templates(xmlNode *dtt_node, iec61850_scl_doc_t *doc
                 xmlChar *val_content = xmlNodeGetContent(ev);
                 if (val_content != NULL) {
                     (void)strncpy(v->val, (const char *)val_content,
-                                  IEC61850_SCL_MAX_NAME - 1);
+                                  (size_t)IEC61850_SCL_MAX_NAME - 1U);
                     xmlFree(val_content);
                 }
                 et->val_count++;
@@ -529,7 +529,7 @@ int iec61850_scl_parse_file(const char *filename, const char *ied_name,
                                             app_id = (uint16_t)strtoul((const char *)pval, NULL, 0);
                                         } else if (strcmp((const char *)ptype, "MAC-Address") == 0) {
                                             (void)strncpy(mac_address, (const char *)pval,
-                                                          IEC61850_SCL_MAX_MAC - 1);
+                                                          (size_t)IEC61850_SCL_MAX_MAC - 1U);
                                         }
                                     }
                                     if (ptype != NULL) { xmlFree(ptype); }
@@ -550,12 +550,12 @@ int iec61850_scl_parse_file(const char *filename, const char *ied_name,
                                 if (strcmp(doc->goose_cbs[i].cb_name, cb_name) == 0) {
                                     doc->goose_cbs[i].vlan_id = vlan_id;
                                     doc->goose_cbs[i].vlan_priority = vlan_priority;
-                                    if (app_id != 0) { doc->goose_cbs[i].app_id = app_id; }
-                                    if (min_time != 0) { doc->goose_cbs[i].min_time = min_time; }
-                                    if (max_time != 0) { doc->goose_cbs[i].max_time = max_time; }
+                                    if (app_id != 0U) { doc->goose_cbs[i].app_id = app_id; }
+                                    if (min_time != 0U) { doc->goose_cbs[i].min_time = min_time; }
+                                    if (max_time != 0U) { doc->goose_cbs[i].max_time = max_time; }
                                     if (mac_address[0] != '\0') {
                                         (void)strncpy(doc->goose_cbs[i].mac_address, mac_address,
-                                                      IEC61850_SCL_MAX_MAC - 1);
+                                                      (size_t)IEC61850_SCL_MAX_MAC - 1U);
                                     }
                                 }
                             }
@@ -564,10 +564,10 @@ int iec61850_scl_parse_file(const char *filename, const char *ied_name,
                                 if (strcmp(doc->sv_cbs[i].cb_name, cb_name) == 0) {
                                     doc->sv_cbs[i].vlan_id = vlan_id;
                                     doc->sv_cbs[i].vlan_priority = vlan_priority;
-                                    if (app_id != 0) { doc->sv_cbs[i].app_id = app_id; }
+                                    if (app_id != 0U) { doc->sv_cbs[i].app_id = app_id; }
                                     if (mac_address[0] != '\0') {
                                         (void)strncpy(doc->sv_cbs[i].mac_address, mac_address,
-                                                      IEC61850_SCL_MAX_MAC - 1);
+                                                      (size_t)IEC61850_SCL_MAX_MAC - 1U);
                                     }
                                 }
                             }

@@ -36,18 +36,18 @@ int iec61850_hsr_prp_config_init(iec61850_hsr_prp_config_t *cfg,
 
     if (port_a) {
         size_t len = strlen(port_a);
-        if (len >= IEC61850_HSR_PRP_IFNAMSIZ) {
+        if (len >= (size_t)IEC61850_HSR_PRP_IFNAMSIZ) {
             return -ENAMETOOLONG;
         }
-        (void)memcpy(cfg->port_a, port_a, len + 1);
+        (void)memcpy(cfg->port_a, port_a, len + 1U);
     }
 
     if (port_b) {
         size_t len = strlen(port_b);
-        if (len >= IEC61850_HSR_PRP_IFNAMSIZ) {
+        if (len >= (size_t)IEC61850_HSR_PRP_IFNAMSIZ) {
             return -ENAMETOOLONG;
         }
-        (void)memcpy(cfg->port_b, port_b, len + 1);
+        (void)memcpy(cfg->port_b, port_b, len + 1U);
     }
 
     return 0;
@@ -72,11 +72,11 @@ int iec61850_hsr_prp_config_validate(const iec61850_hsr_prp_config_t *cfg)
         return -EINVAL;
     }
 
-    if (cfg->supervision_interval_ms == 0) {
+    if (cfg->supervision_interval_ms == 0U) {
         return -EINVAL;
     }
 
-    if (cfg->node_timeout_ms == 0) {
+    if (cfg->node_timeout_ms == 0U) {
         return -EINVAL;
     }
 

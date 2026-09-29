@@ -404,7 +404,7 @@ int iec61850_mms_ds_define_list(iec61850_mms_data_store_t *ds,
     list->deletable = true;
 
     /* Copy variables into heap-allocated array */
-    if (variables != NULL && num_variables > 0) {
+    if (variables != NULL && num_variables > 0U) {
         list->variables = malloc(num_variables * sizeof(mms_variable_spec_t));
         if (list->variables == NULL) {
             result = IEC61850_MMS_DS_ERR_ALLOC;
@@ -443,8 +443,8 @@ int iec61850_mms_ds_delete_list(iec61850_mms_data_store_t *ds,
                 free(dom->lists[i].variables);
 
                 /* Shift remaining lists down */
-                for (size_t j = i; j + 1 < dom->list_count; j++) {
-                    dom->lists[j] = dom->lists[j + 1];
+                for (size_t j = i; j + 1U < dom->list_count; j++) {
+                    dom->lists[j] = dom->lists[j + 1U];
                 }
                 dom->list_count--;
 
@@ -480,7 +480,7 @@ int iec61850_mms_ds_get_list_attrs(const iec61850_mms_data_store_t *ds,
         if (strcmp(dom->lists[i].list_name, list_name) == 0) {
             uint32_t copy = dom->lists[i].num_variables;
             if (copy > max_variables) { copy = max_variables; }
-            if (dom->lists[i].variables != NULL && copy > 0) {
+            if (dom->lists[i].variables != NULL && copy > 0U) {
                 (void)memcpy(variables, dom->lists[i].variables,
                               copy * sizeof(mms_variable_spec_t));
             }

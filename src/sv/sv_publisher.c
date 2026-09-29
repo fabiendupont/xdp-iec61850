@@ -23,8 +23,8 @@ void iec61850_sv_config_init(iec61850_sv_config_t *cfg)
 
     (void)memset(cfg, 0, sizeof(*cfg));
     cfg->app_id = 0x4000;
-    (void)strncpy(cfg->sv_id, "SV_PUB_1", SV_MAX_SVID_LEN - 1);
-    (void)strncpy(cfg->dataset, "IED1LD0/MSVCB01", SV_MAX_DATSET_LEN - 1);
+    (void)strncpy(cfg->sv_id, "SV_PUB_1", (size_t)SV_MAX_SVID_LEN - 1U);
+    (void)strncpy(cfg->dataset, "IED1LD0/MSVCB01", (size_t)SV_MAX_DATSET_LEN - 1U);
     cfg->conf_rev = 1;
     cfg->smp_synch = 1;  /* LOCAL */
     cfg->smp_rate = 80;
@@ -134,9 +134,9 @@ int iec61850_sv_publisher_prepare(iec61850_sv_publisher_t *pub,
 
     /* smpCnt wraparound at smp_rate * 50 (match C++ behavior) */
     pub->smp_cnt++;
-    if (pub->config.smp_rate > 0) {
+    if (pub->config.smp_rate > 0U) {
         uint16_t wrap = (uint16_t)(pub->config.smp_rate * 50U);
-        if (wrap > 0 && pub->smp_cnt >= wrap) {
+        if (wrap > 0U && pub->smp_cnt >= wrap) {
             pub->smp_cnt = 0;
         }
     }
@@ -245,20 +245,20 @@ static int sv_append_security_extension(uint8_t *frame_buf, size_t frame_capacit
 
     /* [1] keyID — 4 bytes per IEC 62351-6 */
     ext_buf[ext_pos++] = 0x81;
-    ext_buf[ext_pos++] = IEC61850_CERT_KEYID_LEN;
-    (void)memcpy(&ext_buf[ext_pos], key_id, IEC61850_CERT_KEYID_LEN);
-    ext_pos += IEC61850_CERT_KEYID_LEN;
+    ext_buf[ext_pos++] = (uint8_t)IEC61850_CERT_KEYID_LEN;
+    (void)memcpy(&ext_buf[ext_pos], key_id, (size_t)IEC61850_CERT_KEYID_LEN);
+    ext_pos += (size_t)IEC61850_CERT_KEYID_LEN;
 
     /* [2] signature */
     ext_buf[ext_pos++] = 0x82;
-    if (sig_len < 128) {
+    if (sig_len < 128U) {
         ext_buf[ext_pos++] = (uint8_t)sig_len;
-    } else if (sig_len < 256) {
+    } else if (sig_len < 256U) {
         ext_buf[ext_pos++] = 0x81;
         ext_buf[ext_pos++] = (uint8_t)sig_len;
     } else {
         ext_buf[ext_pos++] = 0x82;
-        ext_buf[ext_pos++] = (uint8_t)(sig_len >> 8);
+        ext_buf[ext_pos++] = (uint8_t)(sig_len >> 8U);
         ext_buf[ext_pos++] = (uint8_t)(sig_len);
     }
     if (ext_pos + sig_len > sizeof(ext_buf)) {
@@ -271,14 +271,14 @@ static int sv_append_security_extension(uint8_t *frame_buf, size_t frame_capacit
     uint8_t outer[604];
     size_t outer_pos = 0;
     outer[outer_pos++] = 0xA9;
-    if (ext_pos < 128) {
+    if (ext_pos < 128U) {
         outer[outer_pos++] = (uint8_t)ext_pos;
-    } else if (ext_pos < 256) {
+    } else if (ext_pos < 256U) {
         outer[outer_pos++] = 0x81;
         outer[outer_pos++] = (uint8_t)ext_pos;
     } else {
         outer[outer_pos++] = 0x82;
-        outer[outer_pos++] = (uint8_t)(ext_pos >> 8);
+        outer[outer_pos++] = (uint8_t)(ext_pos >> 8U);
         outer[outer_pos++] = (uint8_t)(ext_pos);
     }
     if (outer_pos + ext_pos > sizeof(outer)) {
@@ -340,7 +340,7 @@ int iec61850_sv_publisher_build_frame(iec61850_sv_publisher_t *pub,
             return -EIO;
         }
         ret = iec61850_eth_frame_update_pdu_length(frame_buf, *frame_len,
-                                                     pub->config.vlan_id > 0);
+                                                     pub->config.vlan_id > 0U);
         if (ret != 0) {
             return ret;
         }

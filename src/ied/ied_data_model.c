@@ -119,7 +119,7 @@ int iec61850_do_add_attribute(iec61850_data_object_t *dobj,
                                const char *name, iec61850_fc_t fc,
                                iec61850_btype_t btype)
 {
-    if (dobj == NULL || dobj->attr_count >= IEC61850_MAX_DA_PER_DO) {
+    if (dobj == NULL || dobj->attr_count >= (size_t)IEC61850_MAX_DA_PER_DO) {
         return -1;
     }
 
@@ -131,7 +131,7 @@ int iec61850_do_add_sub_object(iec61850_data_object_t *dobj,
                                 iec61850_data_object_t *sub)
 {
     if (dobj == NULL || sub == NULL ||
-        dobj->sub_count >= IEC61850_MAX_SUBDO_PER_DO) {
+        dobj->sub_count >= (size_t)IEC61850_MAX_SUBDO_PER_DO) {
         return -1;
     }
 
@@ -206,7 +206,7 @@ int iec61850_ln_add_data_object(iec61850_logical_node_t *ln,
                                  iec61850_data_object_t *dobj)
 {
     if (ln == NULL || dobj == NULL ||
-        ln->do_count >= IEC61850_MAX_DO_PER_LN) {
+        ln->do_count >= (size_t)IEC61850_MAX_DO_PER_LN) {
         return -1;
     }
 
@@ -237,8 +237,8 @@ iec61850_data_attribute_t *iec61850_ln_find_attribute(
 
     if (ln == NULL || path == NULL) { return NULL; }
 
-    (void)strncpy(buf, path, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+    (void)strncpy(buf, path, sizeof(buf) - 1U);
+    buf[sizeof(buf) - 1U] = '\0';
 
     /* Split on first dot: "Pos.stVal" -> DO="Pos", rest="stVal" */
     dot = strchr(buf, '.');
@@ -304,7 +304,7 @@ int iec61850_ld_add_logical_node(iec61850_logical_device_t *ld,
                                   iec61850_logical_node_t *ln)
 {
     if (ld == NULL || ln == NULL ||
-        ld->ln_count >= IEC61850_MAX_LN_PER_LD) {
+        ld->ln_count >= (size_t)IEC61850_MAX_LN_PER_LD) {
         return -1;
     }
 
@@ -363,7 +363,7 @@ int iec61850_ied_model_add_ld(iec61850_ied_model_t *model,
                                iec61850_logical_device_t *ld)
 {
     if (model == NULL || ld == NULL ||
-        model->ld_count >= IEC61850_MAX_LD_PER_IED) {
+        model->ld_count >= (size_t)IEC61850_MAX_LD_PER_IED) {
         return -1;
     }
 
@@ -396,8 +396,8 @@ iec61850_data_attribute_t *iec61850_ied_model_find_attribute(
 
     if (model == NULL || path == NULL) { return NULL; }
 
-    (void)strncpy(buf, path, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+    (void)strncpy(buf, path, sizeof(buf) - 1U);
+    buf[sizeof(buf) - 1U] = '\0';
 
     /* Split on '/': "LD0/XCBR1.Pos.stVal" */
     slash = strchr(buf, '/');
@@ -422,7 +422,7 @@ iec61850_data_attribute_t *iec61850_ied_model_find_attribute(
 
 size_t iec61850_ied_model_count_ld(const iec61850_ied_model_t *model)
 {
-    return (model != NULL) ? model->ld_count : 0;
+    return (model != NULL) ? model->ld_count : 0U;
 }
 
 size_t iec61850_ied_model_count_ln(const iec61850_ied_model_t *model)

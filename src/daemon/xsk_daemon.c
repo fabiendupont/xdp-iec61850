@@ -147,7 +147,7 @@ static int create_xsk(const char *ifname, int queue_id,
 
     /* Bind: prefer zero-copy, fall back to copy mode. */
     unsigned int ifindex = if_nametoindex(ifname);
-    if (ifindex == 0) {
+    if (ifindex == 0U) {
         (void)fprintf(stderr, "if_nametoindex(%s): %s\n", ifname, strerror(errno));
         close(xsk_fd);
         return -1;
@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
     struct sockaddr_un addr;
     (void)memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    (void)strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1);
+    (void)strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path) - 1U);
 
     if (bind(srv_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         perror("bind AF_UNIX");

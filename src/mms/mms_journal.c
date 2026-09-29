@@ -50,8 +50,8 @@ uint64_t iec61850_journal_add_entry(iec61850_journal_t *journal,
         (void)memset(&entry->value, 0, sizeof(entry->value));
     }
 
-    journal->head = (journal->head + 1U) % IEC61850_JOURNAL_MAX_ENTRIES;
-    if (journal->count < IEC61850_JOURNAL_MAX_ENTRIES) {
+    journal->head = (journal->head + 1U) % (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES;
+    if (journal->count < (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES) {
         journal->count++;
     }
 
@@ -72,26 +72,26 @@ int iec61850_journal_read_by_time(const iec61850_journal_t *journal,
 
     *count = 0;
 
-    if (journal->count == 0) {
+    if (journal->count == 0U) {
         return 0;
     }
 
     /* Start from oldest entry */
-    if (journal->count < IEC61850_JOURNAL_MAX_ENTRIES) {
-        start = 0;
+    if (journal->count < (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES) {
+        start = 0U;
     } else {
         start = journal->head;
     }
 
-    for (uint32_t i = 0; i < journal->count && found < max_count; i++) {
-        uint32_t idx = (start + i) % IEC61850_JOURNAL_MAX_ENTRIES;
+    for (uint32_t i = 0U; i < journal->count && found < max_count; i++) {
+        uint32_t idx = (start + i) % (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES;
         const iec61850_journal_entry_t *e = &journal->entries[idx];
 
         if (!e->valid) { continue; }
 
         /* Time range filter */
-        if (start_ms > 0 && e->timestamp_ms < start_ms) { continue; }
-        if (end_ms > 0 && e->timestamp_ms > end_ms) { continue; }
+        if (start_ms > 0ULL && e->timestamp_ms < start_ms) { continue; }
+        if (end_ms > 0ULL && e->timestamp_ms > end_ms) { continue; }
 
         out[found++] = *e;
     }
@@ -114,18 +114,18 @@ int iec61850_journal_read_by_id(const iec61850_journal_t *journal,
 
     *count = 0;
 
-    if (journal->count == 0) {
+    if (journal->count == 0U) {
         return 0;
     }
 
-    if (journal->count < IEC61850_JOURNAL_MAX_ENTRIES) {
-        start = 0;
+    if (journal->count < (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES) {
+        start = 0U;
     } else {
         start = journal->head;
     }
 
-    for (uint32_t i = 0; i < journal->count && found < max_count; i++) {
-        uint32_t idx = (start + i) % IEC61850_JOURNAL_MAX_ENTRIES;
+    for (uint32_t i = 0U; i < journal->count && found < max_count; i++) {
+        uint32_t idx = (start + i) % (uint32_t)IEC61850_JOURNAL_MAX_ENTRIES;
         const iec61850_journal_entry_t *e = &journal->entries[idx];
 
         if (!e->valid) { continue; }

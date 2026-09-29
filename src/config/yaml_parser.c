@@ -45,9 +45,9 @@ static size_t count_indent(const char *line)
 static void strip_trailing(char *s)
 {
     size_t len = strlen(s);
-    while (len > 0 && (s[len - 1] == '\n' || s[len - 1] == '\r' ||
-                        s[len - 1] == ' ' || s[len - 1] == '\t')) {
-        s[len - 1] = '\0';
+    while (len > 0U && (s[len - 1U] == '\n' || s[len - 1U] == '\r' ||
+                        s[len - 1U] == ' ' || s[len - 1U] == '\t')) {
+        s[len - 1U] = '\0';
         len--;
     }
 }
@@ -65,7 +65,7 @@ static void strip_comment(char *s)
             in_double = !in_double;
         } else if (s[i] == '#' && !in_single && !in_double) {
             /* Check that there's a space before # (YAML rule) */
-            if (i == 0 || s[i - 1] == ' ') {
+            if (i == 0U || s[i - 1U] == ' ') {
                 s[i] = '\0';
                 strip_trailing(s);
                 return;
@@ -78,11 +78,11 @@ static void strip_comment(char *s)
 static void strip_quotes(char *s)
 {
     size_t len = strlen(s);
-    if (len >= 2) {
-        if ((s[0] == '"' && s[len - 1] == '"') ||
-            (s[0] == '\'' && s[len - 1] == '\'')) {
-            (void)memmove(s, s + 1, len - 2);
-            s[len - 2] = '\0';
+    if (len >= 2U) {
+        if ((s[0] == '"' && s[len - 1U] == '"') ||
+            (s[0] == '\'' && s[len - 1U] == '\'')) {
+            (void)memmove(s, s + 1U, len - 2U);
+            s[len - 2U] = '\0';
         }
     }
 }
@@ -99,13 +99,13 @@ static iec61850_yaml_entry_t *find_or_create(iec61850_yaml_doc_t *doc,
     }
 
     /* Create new */
-    if (doc->count >= IEC61850_YAML_MAX_ENTRIES) {
+    if (doc->count >= (size_t)IEC61850_YAML_MAX_ENTRIES) {
         return NULL;
     }
 
     iec61850_yaml_entry_t *entry = &doc->entries[doc->count];
-    (void)strncpy(entry->key, key, IEC61850_YAML_MAX_KEY_LEN - 1);
-    entry->key[IEC61850_YAML_MAX_KEY_LEN - 1] = '\0';
+    (void)strncpy(entry->key, key, (size_t)IEC61850_YAML_MAX_KEY_LEN - 1U);
+    entry->key[(size_t)IEC61850_YAML_MAX_KEY_LEN - 1U] = '\0';
     entry->type = IEC61850_YAML_STRING;
     entry->value[0] = '\0';
     entry->list_count = 0;
@@ -155,18 +155,18 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
         }
 
         /* List item: "  - value" */
-        if (line[indent] == '-' && line[indent + 1] == ' ') {
+        if (line[indent] == '-' && line[indent + 1U] == ' ') {
             if (list_entry != NULL &&
-                list_entry->list_count < IEC61850_YAML_MAX_LIST_ITEMS) {
-                value_start = &line[indent + 2];
+                list_entry->list_count < (size_t)IEC61850_YAML_MAX_LIST_ITEMS) {
+                value_start = &line[indent + 2U];
                 /* Skip leading whitespace */
                 while (*value_start == ' ') { value_start++; }
                 strip_quotes(value_start);
                 (void)strncpy(
                     list_entry->list[list_entry->list_count],
                     value_start,
-                    IEC61850_YAML_MAX_VALUE_LEN - 1);
-                list_entry->list[list_entry->list_count][IEC61850_YAML_MAX_VALUE_LEN - 1] = '\0';
+                    (size_t)IEC61850_YAML_MAX_VALUE_LEN - 1U);
+                list_entry->list[list_entry->list_count][(size_t)IEC61850_YAML_MAX_VALUE_LEN - 1U] = '\0';
                 list_entry->list_count++;
                 list_entry->type = IEC61850_YAML_LIST;
             }
@@ -184,7 +184,7 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
 
         /* Extract key */
         key_len = (size_t)(colon - &line[indent]);
-        if (key_len == 0 || key_len >= IEC61850_YAML_MAX_KEY_LEN) {
+        if (key_len == 0U || key_len >= (size_t)IEC61850_YAML_MAX_KEY_LEN) {
             continue;
         }
 
@@ -198,12 +198,12 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
         value_start = colon + 1;
         while (*value_start == ' ') { value_start++; }
 
-        if (indent == 0) {
+        if (indent == 0U) {
             /* Top-level key */
             if (*value_start == '\0') {
                 /* Section header (no value = next lines are nested or list) */
-                (void)strncpy(section, raw_key, IEC61850_YAML_MAX_KEY_LEN - 1);
-                section[IEC61850_YAML_MAX_KEY_LEN - 1] = '\0';
+                (void)strncpy(section, raw_key, (size_t)IEC61850_YAML_MAX_KEY_LEN - 1U);
+                section[(size_t)IEC61850_YAML_MAX_KEY_LEN - 1U] = '\0';
                 /* Pre-create entry for direct lists under top-level key */
                 list_entry = find_or_create(doc, raw_key);
             } else {
@@ -224,8 +224,8 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
                 (void)snprintf(full_key, sizeof(full_key), "%s.%s",
                                section, raw_key);
             } else {
-                (void)strncpy(full_key, raw_key, sizeof(full_key) - 1);
-                full_key[sizeof(full_key) - 1] = '\0';
+                (void)strncpy(full_key, raw_key, sizeof(full_key) - 1U);
+                full_key[sizeof(full_key) - 1U] = '\0';
             }
 
             if (*value_start == '\0') {
@@ -323,7 +323,7 @@ const char **iec61850_yaml_get_list(const iec61850_yaml_doc_t *doc,
 {
     const iec61850_yaml_entry_t *entry = find_entry(doc, key);
     if (entry == NULL || entry->type != IEC61850_YAML_LIST ||
-        entry->list_count == 0) {
+        entry->list_count == 0U) {
         if (count != NULL) { *count = 0; }
         return NULL;
     }

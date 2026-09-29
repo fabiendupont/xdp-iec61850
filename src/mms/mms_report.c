@@ -19,7 +19,7 @@ static void *integrity_thread_func(void *arg)
     iec61850_rcb_t *rcb = (iec61850_rcb_t *)arg;
 
     while (atomic_load(&rcb->running)) {
-        if (rcb->attrs.intg_pd == 0) {
+        if (rcb->attrs.intg_pd == 0U) {
             /* No integrity period configured, sleep and check */
             struct timespec ts = {1, 0};
             (void)nanosleep(&ts, NULL);
@@ -29,7 +29,7 @@ static void *integrity_thread_func(void *arg)
         /* Sleep for integrity period */
         struct timespec ts;
         ts.tv_sec = (long)(rcb->attrs.intg_pd / 1000U);
-        ts.tv_nsec = (long)((rcb->attrs.intg_pd % 1000U) * 1000000L);
+        ts.tv_nsec = (long)((rcb->attrs.intg_pd % 1000U) * 1000000UL);
         (void)nanosleep(&ts, NULL);
 
         if (!atomic_load(&rcb->running) || !rcb->attrs.rpt_ena) {
@@ -43,7 +43,7 @@ static void *integrity_thread_func(void *arg)
             mms_information_report_t report;
             (void)memset(&report, 0, sizeof(report));
             (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
-                           MMS_MAX_VARIABLE_NAME - 1);
+                           (size_t)MMS_MAX_VARIABLE_NAME - 1U);
             report.num_values = 0;  /* Integrity: snapshot of all data */
 
             rcb->attrs.sq_num++;
@@ -64,7 +64,7 @@ void iec61850_rcb_init(iec61850_rcb_t *rcb, const char *rpt_id,
     (void)memset(rcb, 0, sizeof(*rcb));
     rcb->type = type;
     if (rpt_id != NULL) {
-        (void)strncpy(rcb->attrs.rpt_id, rpt_id, IEC61850_RCB_MAX_NAME - 1);
+        (void)strncpy(rcb->attrs.rpt_id, rpt_id, (size_t)IEC61850_RCB_MAX_NAME - 1U);
     }
     rcb->attrs.rpt_ena = false;
     rcb->attrs.conf_rev = 1;
@@ -114,7 +114,7 @@ int iec61850_rcb_enable(iec61850_rcb_t *rcb)
 
     /* Start integrity scanner if intgPd > 0 */
     rcb->has_integrity_thread = false;
-    if (rcb->attrs.intg_pd > 0 || rcb->attrs.trg_ops.integrity) {
+    if (rcb->attrs.intg_pd > 0U || rcb->attrs.trg_ops.integrity) {
         ret = pthread_create(&rcb->integrity_thread, NULL,
                                integrity_thread_func, rcb);
         if (ret != 0) {
@@ -176,14 +176,14 @@ void iec61850_rcb_on_data_change(iec61850_rcb_t *rcb,
         mms_information_report_t report;
         (void)memset(&report, 0, sizeof(report));
         (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
-                       MMS_MAX_VARIABLE_NAME - 1);
+                       (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
         if (var_ref != NULL) {
             (void)strncpy(report.config_ref, var_ref,
-                           MMS_MAX_DOMAIN_NAME - 1);
+                           (size_t)MMS_MAX_DOMAIN_NAME - 1U);
         }
 
-        if (new_val != NULL && report.num_values < MMS_MAX_NAMED_VARIABLES) {
+        if (new_val != NULL && report.num_values < (uint32_t)MMS_MAX_NAMED_VARIABLES) {
             report.values[report.num_values] = *new_val;
             report.num_values++;
         }
@@ -212,7 +212,7 @@ static void generate_report(iec61850_rcb_t *rcb,
     mms_information_report_t report;
     (void)memset(&report, 0, sizeof(report));
     (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
-                   MMS_MAX_VARIABLE_NAME - 1);
+                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
     /* Optional fields */
     if (rcb->attrs.opt_flds.sequence_number) {
@@ -233,7 +233,7 @@ static void generate_report(iec61850_rcb_t *rcb,
     if (rcb->attrs.opt_flds.data_reference && var_ref != NULL) {
         report.data_references_present = true;
         (void)strncpy(report.data_references[0], var_ref,
-                       MMS_MAX_VARIABLE_NAME - 1);
+                       (size_t)MMS_MAX_VARIABLE_NAME - 1U);
     }
     if (rcb->attrs.opt_flds.buffer_overflow &&
         rcb->type == IEC61850_RCB_BUFFERED) {
@@ -251,7 +251,7 @@ static void generate_report(iec61850_rcb_t *rcb,
                         "%u", rcb->attrs.conf_rev);
     }
 
-    if (value != NULL && report.num_values < MMS_MAX_NAMED_VARIABLES) {
+    if (value != NULL && report.num_values < (uint32_t)MMS_MAX_NAMED_VARIABLES) {
         report.values[report.num_values] = *value;
         report.num_values++;
     }
@@ -301,7 +301,7 @@ void iec61850_rcb_trigger_gi(iec61850_rcb_t *rcb)
         mms_information_report_t report;
         (void)memset(&report, 0, sizeof(report));
         (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
-                       MMS_MAX_VARIABLE_NAME - 1);
+                       (size_t)MMS_MAX_VARIABLE_NAME - 1U);
 
         /* Snapshot all data values from data store if available */
         if (rcb->data_store != NULL) {
@@ -309,7 +309,7 @@ void iec61850_rcb_trigger_gi(iec61850_rcb_t *rcb)
                 (iec61850_mms_data_store_t *)rcb->data_store;
             /* Parse domain from dat_set (format: "domain/item") */
             char domain[IEC61850_RCB_MAX_NAME] = {0};
-            (void)strncpy(domain, rcb->attrs.dat_set, IEC61850_RCB_MAX_NAME - 1);
+            (void)strncpy(domain, rcb->attrs.dat_set, (size_t)IEC61850_RCB_MAX_NAME - 1U);
             char *slash = strchr(domain, '/');
             if (slash != NULL) {
                 *slash = '\0';
@@ -321,12 +321,12 @@ void iec61850_rcb_trigger_gi(iec61850_rcb_t *rcb)
                                                   var_names, &name_count,
                                                   MMS_MAX_NAMED_VARIABLES);
             /* Read each variable value */
-            for (uint32_t i = 0; i < name_count &&
-                 report.num_values < MMS_MAX_NAMED_VARIABLES; i++) {
+            for (uint32_t i = 0U; i < name_count &&
+                 report.num_values < (uint32_t)MMS_MAX_NAMED_VARIABLES; i++) {
                 mms_value_t val;
                 (void)memset(&val, 0, sizeof(val));
                 if (iec61850_mms_ds_read_variable(ds, domain, var_names[i],
-                                                    &val) == IEC61850_MMS_DS_OK) {
+                                                    &val) == (int)IEC61850_MMS_DS_OK) {
                     report.values[report.num_values] = val;
                     if (rcb->attrs.opt_flds.reason_for_inclusion) {
                         report.reasons[report.num_values] =
@@ -374,8 +374,8 @@ void iec61850_report_buffer_init(iec61850_report_buffer_t *buf,
 {
     if (buf == NULL) { return; }
     (void)memset(buf, 0, sizeof(*buf));
-    if (capacity > IEC61850_RCB_MAX_BUFFER) {
-        capacity = IEC61850_RCB_MAX_BUFFER;
+    if (capacity > (uint32_t)IEC61850_RCB_MAX_BUFFER) {
+        capacity = (uint32_t)IEC61850_RCB_MAX_BUFFER;
     }
     buf->capacity = capacity;
     buf->next_entry_id = 1;
@@ -389,7 +389,7 @@ uint64_t iec61850_report_buffer_add(iec61850_report_buffer_t *buf,
 {
     iec61850_report_entry_t *entry;
 
-    if (buf == NULL || buf->capacity == 0) { return 0; }
+    if (buf == NULL || buf->capacity == 0U) { return 0; }
 
     /* Purge oldest if full */
     if (buf->count >= buf->capacity) {
@@ -404,8 +404,8 @@ uint64_t iec61850_report_buffer_add(iec61850_report_buffer_t *buf,
     entry->valid = true;
 
     if (var_ref != NULL) {
-        (void)strncpy(entry->var_ref, var_ref, IEC61850_RCB_MAX_NAME - 1);
-        entry->var_ref[IEC61850_RCB_MAX_NAME - 1] = '\0';
+        (void)strncpy(entry->var_ref, var_ref, (size_t)IEC61850_RCB_MAX_NAME - 1U);
+        entry->var_ref[(size_t)IEC61850_RCB_MAX_NAME - 1U] = '\0';
     } else {
         entry->var_ref[0] = '\0';
     }
@@ -438,7 +438,7 @@ int iec61850_report_buffer_get_entries(const iec61850_report_buffer_t *buf,
 
     *count = 0;
 
-    if (buf->count == 0) {
+    if (buf->count == 0U) {
         return 0;
     }
 
@@ -481,7 +481,7 @@ void iec61850_rcb_manager_init(iec61850_rcb_manager_t *mgr,
     if (mgr == NULL) { return; }
     (void)memset(mgr, 0, sizeof(*mgr));
     if (ld_name != NULL) {
-        (void)strncpy(mgr->ld_name, ld_name, IEC61850_RCB_MAX_NAME - 1);
+        (void)strncpy(mgr->ld_name, ld_name, (size_t)IEC61850_RCB_MAX_NAME - 1U);
     }
 }
 
@@ -504,7 +504,7 @@ int iec61850_rcb_manager_add_rcb(iec61850_rcb_manager_t *mgr,
         return -EINVAL;
     }
 
-    if (mgr->rcb_count >= IEC61850_RCB_MANAGER_MAX_RCBS) {
+    if (mgr->rcb_count >= (uint32_t)IEC61850_RCB_MANAGER_MAX_RCBS) {
         return -ENOMEM;
     }
 
@@ -512,7 +512,7 @@ int iec61850_rcb_manager_add_rcb(iec61850_rcb_manager_t *mgr,
     iec61850_rcb_init(&mgr->rcbs[idx], rpt_id, type);
 
     /* Initialize report buffer for buffered RCBs */
-    if (type == IEC61850_RCB_BUFFERED && buf_size > 0) {
+    if (type == IEC61850_RCB_BUFFERED && buf_size > 0U) {
         iec61850_report_buffer_init(&mgr->buffers[idx], buf_size);
     }
 

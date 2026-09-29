@@ -84,7 +84,7 @@ iec61850_binding_result_t iec61850_binding_bind_variable(
     }
 
     /* Check capacity */
-    if (mgr->count >= MMS_MAX_BINDINGS) {
+    if (mgr->count >= (uint32_t)MMS_MAX_BINDINGS) {
         (void)pthread_mutex_unlock(&mgr->mutex);
         return IEC61850_BINDING_ERR_FULL;
     }

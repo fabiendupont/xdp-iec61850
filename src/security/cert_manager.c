@@ -65,7 +65,7 @@ static void extract_dn(X509_NAME *name, char *buf, size_t buf_size)
         return;
     }
     X509_NAME_oneline(name, buf, (int)buf_size);
-    buf[buf_size - 1] = '\0';
+    buf[buf_size - 1U] = '\0';
 }
 
 int iec61850_cert_manager_load(iec61850_cert_manager_t *cm, const char *path)
@@ -190,7 +190,7 @@ int iec61850_cert_manager_verify_chain(iec61850_cert_manager_t *cm,
     X509_STORE_CTX *ctx = NULL;
     int result = IEC61850_SEC_ERR_VERIFY;
 
-    if (cm == NULL || !cm->valid || ca_paths == NULL || ca_count == 0) {
+    if (cm == NULL || !cm->valid || ca_paths == NULL || ca_count == 0U) {
         return IEC61850_SEC_ERR_ARGS;
     }
 

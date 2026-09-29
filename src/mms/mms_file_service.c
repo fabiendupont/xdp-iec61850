@@ -163,7 +163,7 @@ int iec61850_mms_file_open(iec61850_mms_file_service_t *fs,
     }
 
     ret = build_path(fs, filename, fullpath, sizeof(fullpath));
-    if (ret != IEC61850_MMS_FILE_OK) {
+    if (ret != (int)IEC61850_MMS_FILE_OK) {
         return ret;
     }
 
@@ -222,8 +222,8 @@ int iec61850_mms_file_read(iec61850_mms_file_service_t *fs,
 
     /* Limit chunk size */
     size_t to_read = buf_size;
-    if (to_read > IEC61850_MMS_FILE_MAX_CHUNK) {
-        to_read = IEC61850_MMS_FILE_MAX_CHUNK;
+    if (to_read > (size_t)IEC61850_MMS_FILE_MAX_CHUNK) {
+        to_read = (size_t)IEC61850_MMS_FILE_MAX_CHUNK;
     }
 
     n = read(h->fd, buf, to_read);
@@ -275,7 +275,7 @@ int iec61850_mms_file_delete(iec61850_mms_file_service_t *fs,
     }
 
     ret = build_path(fs, filename, fullpath, sizeof(fullpath));
-    if (ret != IEC61850_MMS_FILE_OK) {
+    if (ret != (int)IEC61850_MMS_FILE_OK) {
         return ret;
     }
 
@@ -305,10 +305,10 @@ int iec61850_mms_file_rename(iec61850_mms_file_service_t *fs,
     }
 
     ret = build_path(fs, old_name, old_path, sizeof(old_path));
-    if (ret != IEC61850_MMS_FILE_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_FILE_OK) { return ret; }
 
     ret = build_path(fs, new_name, new_path, sizeof(new_path));
-    if (ret != IEC61850_MMS_FILE_OK) { return ret; }
+    if (ret != (int)IEC61850_MMS_FILE_OK) { return ret; }
 
     if (rename(old_path, new_path) != 0) {
         if (errno == ENOENT) {

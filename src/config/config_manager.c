@@ -58,8 +58,8 @@ int iec61850_parse_core_list(const char *str, unsigned *cores,
     }
 
     *count = 0;
-    (void)strncpy(buf, str, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+    (void)strncpy(buf, str, sizeof(buf) - 1U);
+    buf[sizeof(buf) - 1U] = '\0';
 
     token = strtok_r(buf, ",", &saveptr);
     while (token != NULL) {
@@ -98,8 +98,8 @@ int iec61850_parse_pci_list(const char *str,
     }
 
     *count = 0;
-    (void)strncpy(buf, str, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
+    (void)strncpy(buf, str, sizeof(buf) - 1U);
+    buf[sizeof(buf) - 1U] = '\0';
 
     const char *token = strtok_r(buf, ",", &saveptr);
     while (token != NULL && *count < max_devices) {
@@ -145,9 +145,9 @@ static void apply_yaml(const iec61850_yaml_doc_t *doc,
     }
 
     list = iec61850_yaml_get_list(doc, "scl.control_blocks", &list_count);
-    if (list != NULL && list_count > 0) {
+    if (list != NULL && list_count > 0U) {
         cfg->scl.control_blocks_count = 0;
-        for (size_t i = 0; i < list_count && i < IEC61850_MAX_CONTROL_BLOCKS; i++) {
+        for (size_t i = 0U; i < list_count && i < (size_t)IEC61850_MAX_CONTROL_BLOCKS; i++) {
             (void)strncpy(cfg->scl.control_blocks[i], list[i],
                           IEC61850_MAX_PATH_LEN - 1);
             cfg->scl.control_blocks[i][IEC61850_MAX_PATH_LEN - 1] = '\0';
@@ -168,8 +168,8 @@ static void apply_yaml(const iec61850_yaml_doc_t *doc,
 
     val = iec61850_yaml_get_string(doc, "dpdk.file_prefix");
     if (val != NULL && val[0] != '\0') {
-        (void)strncpy(cfg->dpdk.file_prefix, val, sizeof(cfg->dpdk.file_prefix) - 1);
-        cfg->dpdk.file_prefix[sizeof(cfg->dpdk.file_prefix) - 1] = '\0';
+        (void)strncpy(cfg->dpdk.file_prefix, val, sizeof(cfg->dpdk.file_prefix) - 1U);
+        cfg->dpdk.file_prefix[sizeof(cfg->dpdk.file_prefix) - 1U] = '\0';
     }
 
     /* Logging */

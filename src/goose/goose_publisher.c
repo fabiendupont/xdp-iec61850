@@ -23,9 +23,9 @@ void iec61850_goose_config_init(iec61850_goose_config_t *cfg)
 
     (void)memset(cfg, 0, sizeof(*cfg));
     cfg->app_id = 0x0001;
-    (void)strncpy(cfg->goose_id, "GOOSE_PUB_1", GOOSE_MAX_GOID_LEN - 1);
-    (void)strncpy(cfg->gocb_ref, "IED1LD0/LLN0$GO$gcb01", GOOSE_MAX_GOCBREF_LEN - 1);
-    (void)strncpy(cfg->dataset, "IED1LD0/LLN0$DS1", GOOSE_MAX_DATSET_LEN - 1);
+    (void)strncpy(cfg->goose_id, "GOOSE_PUB_1", (size_t)GOOSE_MAX_GOID_LEN - 1U);
+    (void)strncpy(cfg->gocb_ref, "IED1LD0/LLN0$GO$gcb01", (size_t)GOOSE_MAX_GOCBREF_LEN - 1U);
+    (void)strncpy(cfg->dataset, "IED1LD0/LLN0$DS1", (size_t)GOOSE_MAX_DATSET_LEN - 1U);
     cfg->time_allowed_to_live = 2000;
     cfg->vlan_id = 100;
     cfg->vlan_priority = 4;
@@ -116,7 +116,7 @@ int iec61850_goose_publisher_set_bitstring(iec61850_goose_publisher_t *pub,
     if (pub == NULL || data == NULL || ensure_data_index(pub, index) != 0) {
         return -1;
     }
-    if (len > IEC61850_GOOSE_MAX_BYTE_ENTRY_LEN) { return -1; }
+    if (len > (size_t)IEC61850_GOOSE_MAX_BYTE_ENTRY_LEN) { return -1; }
 
     /* Copy to owned storage */
     (void)memcpy(pub->byte_storage[index].data, data, len);
@@ -135,7 +135,7 @@ int iec61850_goose_publisher_set_octetstring(iec61850_goose_publisher_t *pub,
     if (pub == NULL || data == NULL || ensure_data_index(pub, index) != 0) {
         return -1;
     }
-    if (len > IEC61850_GOOSE_MAX_BYTE_ENTRY_LEN) { return -1; }
+    if (len > (size_t)IEC61850_GOOSE_MAX_BYTE_ENTRY_LEN) { return -1; }
 
     (void)memcpy(pub->byte_storage[index].data, data, len);
     pub->byte_storage[index].len = len;
@@ -334,20 +334,20 @@ static int append_security_extension(uint8_t *frame_buf, size_t frame_capacity,
 
     /* [1] IMPLICIT OCTET STRING keyID — tag 0x81, 4 bytes per IEC 62351-6 */
     ext_buf[ext_pos++] = 0x81;
-    ext_buf[ext_pos++] = IEC61850_CERT_KEYID_LEN;
-    (void)memcpy(&ext_buf[ext_pos], key_id, IEC61850_CERT_KEYID_LEN);
-    ext_pos += IEC61850_CERT_KEYID_LEN;
+    ext_buf[ext_pos++] = (uint8_t)IEC61850_CERT_KEYID_LEN;
+    (void)memcpy(&ext_buf[ext_pos], key_id, (size_t)IEC61850_CERT_KEYID_LEN);
+    ext_pos += (size_t)IEC61850_CERT_KEYID_LEN;
 
     /* [2] IMPLICIT OCTET STRING signature — tag 0x82 */
     ext_buf[ext_pos++] = 0x82;
-    if (sig_len < 128) {
+    if (sig_len < 128U) {
         ext_buf[ext_pos++] = (uint8_t)sig_len;
-    } else if (sig_len < 256) {
+    } else if (sig_len < 256U) {
         ext_buf[ext_pos++] = 0x81;
         ext_buf[ext_pos++] = (uint8_t)sig_len;
     } else {
         ext_buf[ext_pos++] = 0x82;
-        ext_buf[ext_pos++] = (uint8_t)(sig_len >> 8);
+        ext_buf[ext_pos++] = (uint8_t)(sig_len >> 8U);
         ext_buf[ext_pos++] = (uint8_t)(sig_len);
     }
     if (ext_pos + sig_len > sizeof(ext_buf)) {
@@ -360,14 +360,14 @@ static int append_security_extension(uint8_t *frame_buf, size_t frame_capacity,
     uint8_t outer[604];
     size_t outer_pos = 0;
     outer[outer_pos++] = 0xAC;  /* [12] CONSTRUCTED */
-    if (ext_pos < 128) {
+    if (ext_pos < 128U) {
         outer[outer_pos++] = (uint8_t)ext_pos;
-    } else if (ext_pos < 256) {
+    } else if (ext_pos < 256U) {
         outer[outer_pos++] = 0x81;
         outer[outer_pos++] = (uint8_t)ext_pos;
     } else {
         outer[outer_pos++] = 0x82;
-        outer[outer_pos++] = (uint8_t)(ext_pos >> 8);
+        outer[outer_pos++] = (uint8_t)(ext_pos >> 8U);
         outer[outer_pos++] = (uint8_t)(ext_pos);
     }
     if (outer_pos + ext_pos > sizeof(outer)) {
@@ -430,7 +430,7 @@ int iec61850_goose_publisher_build_frame(iec61850_goose_publisher_t *pub,
             return -EIO;
         }
         ret = iec61850_eth_frame_update_pdu_length(frame_buf, *frame_len,
-                                                     pub->config.vlan_id > 0);
+                                                     pub->config.vlan_id > 0U);
         if (ret != 0) {
             return ret;
         }

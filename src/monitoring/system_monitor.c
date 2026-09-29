@@ -31,8 +31,8 @@ void iec61850_monitor_set_mempool(iec61850_system_monitor_t *mon,
     if (mon == NULL) { return; }
     mon->mempool.total_capacity = total;
     mon->mempool.available = available;
-    mon->mempool.in_use = (total > available) ? (total - available) : 0;
-    mon->mempool.usage_percent = (total > 0)
+    mon->mempool.in_use = (total > available) ? (total - available) : 0ULL;
+    mon->mempool.usage_percent = (total > 0ULL)
         ? ((float)mon->mempool.in_use / (float)total) * 100.0f
         : 0.0f;
 }
@@ -102,7 +102,7 @@ iec61850_system_health_t iec61850_monitor_get_health(
     } else if (!h.publisher_healthy || !h.subscriber_healthy) {
         h.status = IEC61850_HEALTH_DEGRADED;
     } else if (h.mempool.usage_percent > 60.0f ||
-               h.pub_total_errors > 0 || h.sub_total_timeouts > 0) {
+               h.pub_total_errors > 0ULL || h.sub_total_timeouts > 0ULL) {
         h.status = IEC61850_HEALTH_WARNING;
     } else {
         h.status = IEC61850_HEALTH_HEALTHY;
@@ -129,7 +129,7 @@ const char *iec61850_health_status_to_string(iec61850_health_status_t status)
 int iec61850_metrics_to_json(const iec61850_system_health_t *health,
                               char *buf, size_t buf_size)
 {
-    if (health == NULL || buf == NULL || buf_size < 64) {
+    if (health == NULL || buf == NULL || buf_size < 64U) {
         return -1;
     }
 
