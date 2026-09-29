@@ -317,13 +317,13 @@ int sv_encode_apdu(uint8_t *buf, size_t buf_size,
         /* Need to shift and use long form */
         if (seq_len <= 0xFFU && (offset + 1U) <= buf_size) {
             /* Shift data right by 1 byte for 1-byte long form */
-            (void)memmove(buf + seq_start + 1U, buf + seq_start, seq_len);
+            (void)memmove(&buf[seq_start + 1U], &buf[seq_start], seq_len);
             buf[seq_length_offset] = 0x81U;
             buf[seq_length_offset + 1U] = (uint8_t)seq_len;
             offset++;
         } else if (seq_len <= 0xFFFFU && (offset + 2U) <= buf_size) {
             /* Shift data right by 2 bytes for 2-byte long form */
-            (void)memmove(buf + seq_start + 2U, buf + seq_start, seq_len);
+            (void)memmove(&buf[seq_start + 2U], &buf[seq_start], seq_len);
             buf[seq_length_offset] = 0x82U;
             buf[seq_length_offset + 1U] = (uint8_t)(seq_len >> 8U);
             buf[seq_length_offset + 2U] = (uint8_t)(seq_len & 0xFFU);
@@ -341,13 +341,13 @@ int sv_encode_apdu(uint8_t *buf, size_t buf_size,
         /* Need to shift and use long form */
         if (apdu_len <= 0xFFU && (offset + 1U) <= buf_size) {
             /* Shift data right by 1 byte */
-            (void)memmove(buf + apdu_start + 1U, buf + apdu_start, apdu_len);
+            (void)memmove(&buf[apdu_start + 1U], &buf[apdu_start], apdu_len);
             buf[apdu_length_offset] = 0x81U;
             buf[apdu_length_offset + 1U] = (uint8_t)apdu_len;
             offset++;
         } else if (apdu_len <= 0xFFFFU && (offset + 2U) <= buf_size) {
             /* Shift data right by 2 bytes */
-            (void)memmove(buf + apdu_start + 2U, buf + apdu_start, apdu_len);
+            (void)memmove(&buf[apdu_start + 2U], &buf[apdu_start], apdu_len);
             buf[apdu_length_offset] = 0x82U;
             buf[apdu_length_offset + 1U] = (uint8_t)(apdu_len >> 8U);
             buf[apdu_length_offset + 2U] = (uint8_t)(apdu_len & 0xFFU);
@@ -819,7 +819,7 @@ int sv_encode_security(uint8_t *buf, size_t buf_size, size_t *offset,
     if (ret != SV_BER_OK) {
         return ret;
     }
-    (void)memcpy(buf + *offset, asdu->key_id, SV_KEYID_LEN);
+    (void)memcpy(&buf[*offset], asdu->key_id, SV_KEYID_LEN);
     *offset += SV_KEYID_LEN;
 
     /* [2] Security timestamp - UtcTime - use default quality for security timestamp */
@@ -850,7 +850,7 @@ int sv_encode_security(uint8_t *buf, size_t buf_size, size_t *offset,
     if (ret != SV_BER_OK) {
         return ret;
     }
-    (void)memcpy(buf + *offset, asdu->signature, asdu->signature_len);
+    (void)memcpy(&buf[*offset], asdu->signature, asdu->signature_len);
     *offset += asdu->signature_len;
 
     /* Calculate and encode length */
@@ -858,12 +858,12 @@ int sv_encode_security(uint8_t *buf, size_t buf_size, size_t *offset,
     if (sec_len >= 128U) {
         /* Need to shift and use long form */
         if (sec_len <= 0xFFU && (*offset + 1U) <= buf_size) {
-            (void)memmove(buf + sec_start + 1U, buf + sec_start, sec_len);
+            (void)memmove(&buf[sec_start + 1U], &buf[sec_start], sec_len);
             buf[length_offset] = 0x81U;
             buf[length_offset + 1U] = (uint8_t)sec_len;
             (*offset)++;
         } else if (sec_len <= 0xFFFFU && (*offset + 2U) <= buf_size) {
-            (void)memmove(buf + sec_start + 2U, buf + sec_start, sec_len);
+            (void)memmove(&buf[sec_start + 2U], &buf[sec_start], sec_len);
             buf[length_offset] = 0x82U;
             buf[length_offset + 1U] = (uint8_t)(sec_len >> 8U);
             buf[length_offset + 2U] = (uint8_t)(sec_len & 0xFFU);

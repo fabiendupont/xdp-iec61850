@@ -193,6 +193,7 @@ int iec61850_goose_subscriber_enable_security(iec61850_goose_subscriber_t *sub,
     }
 
 #ifdef IEC61850_SECURITY_ENABLED
+    /* MISRA 11.5: opaque cert_manager handle, deviation Cat. 3 */
     iec61850_cert_manager_t *cm = (iec61850_cert_manager_t *)cert_manager;
     if (!iec61850_cert_manager_is_loaded(cm)) {
         return -EINVAL;
@@ -301,6 +302,7 @@ static int verify_security_signature(iec61850_goose_subscriber_t *sub,
                                        const uint8_t *apdu_data, size_t apdu_len,
                                        uint32_t *timestamp_out)
 {
+    /* MISRA 11.5: opaque cert_manager handle, deviation Cat. 3 */
     iec61850_cert_manager_t *cm = (iec61850_cert_manager_t *)sub->cert_manager;
     EVP_PKEY *pubkey;
     const uint8_t *sig = NULL;

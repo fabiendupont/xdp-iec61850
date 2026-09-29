@@ -16,6 +16,7 @@
 /* Integrity scan thread */
 static void *integrity_thread_func(void *arg)
 {
+    /* MISRA 11.5: pthread arg is opaque void*, deviation Cat. 3 */
     iec61850_rcb_t *rcb = (iec61850_rcb_t *)arg;
 
     while (atomic_load(&rcb->running)) {
@@ -305,6 +306,7 @@ void iec61850_rcb_trigger_gi(iec61850_rcb_t *rcb)
 
         /* Snapshot all data values from data store if available */
         if (rcb->data_store != NULL) {
+            /* MISRA 11.5: opaque data_store handle, deviation Cat. 3 */
             iec61850_mms_data_store_t *ds =
                 (iec61850_mms_data_store_t *)rcb->data_store;
             /* Parse domain from dat_set (format: "domain/item") */

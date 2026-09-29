@@ -68,7 +68,7 @@ int iec61850_parse_core_list(const char *str, unsigned *cores,
         if (dash != NULL) {
             *dash = '\0';
             unsigned start = (unsigned)strtoul(token, NULL, 10);
-            unsigned end = (unsigned)strtoul(dash + 1, NULL, 10);
+            unsigned end = (unsigned)strtoul(&dash[1], NULL, 10);
             for (unsigned i = start; i <= end && *count < max_cores; i++) {
                 cores[*count] = i;
                 (*count)++;

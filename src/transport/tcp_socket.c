@@ -197,7 +197,7 @@ int iec61850_tcp_recv_exact(iec61850_tcp_conn_t *conn, uint8_t *buffer,
             return IEC61850_TRANSPORT_ERR_TIMEOUT;
         }
 
-        ssize_t n = recv(conn->sockfd, buffer + received, len - received, 0);
+        ssize_t n = recv(conn->sockfd, &buffer[received], len - received, 0);
         if (n < 0) {
             return IEC61850_TRANSPORT_ERR_RECV;
         }
@@ -237,7 +237,7 @@ int iec61850_tcp_recv_tpkt(iec61850_tcp_conn_t *conn, uint8_t *buffer,
     /* Read remaining payload */
     size_t remaining = (size_t)total_len - 4U;
     if (remaining > 0U) {
-        ret = iec61850_tcp_recv_exact(conn, buffer + 4, remaining, timeout_ms);
+        ret = iec61850_tcp_recv_exact(conn, &buffer[4], remaining, timeout_ms);
         if (ret < 0) { return ret; }
     }
 

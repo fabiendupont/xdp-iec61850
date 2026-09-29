@@ -27,6 +27,10 @@ struct packet_io_raw_priv {
     uint32_t rx_len;
 };
 
+/* MISRA 11.5: io->priv is an opaque dispatch field (void*). All assignments
+ * to struct packet_io_raw_priv* throughout this file are accepted deviations
+ * per misra_deviations.md Category 3. */
+
 static int raw_open(struct packet_io *io, const char *ifname, int queue_id)
 {
     struct packet_io_raw_priv *priv = io->priv;

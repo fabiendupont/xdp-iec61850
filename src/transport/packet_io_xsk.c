@@ -25,6 +25,10 @@ struct packet_io_xsk_priv {
     struct xgl_graph *graph;  /* if non-NULL, use xgl_graph_create_xsk */
 };
 
+/* MISRA 11.5: io->priv is an opaque dispatch field (void*). All assignments
+ * to struct packet_io_xsk_priv* throughout this file are accepted deviations
+ * per misra_deviations.md Category 3. */
+
 static int xsk_open(struct packet_io *io, const char *ifname, int queue_id)
 {
     struct packet_io_xsk_priv *priv = io->priv;

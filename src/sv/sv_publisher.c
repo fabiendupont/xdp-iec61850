@@ -175,6 +175,7 @@ int iec61850_sv_publisher_enable_security(iec61850_sv_publisher_t *pub,
     }
 
 #ifdef IEC61850_SECURITY_ENABLED
+    /* MISRA 11.5: opaque key_manager/cert_manager handles, deviation Cat. 3 */
     iec61850_key_manager_t *km = (iec61850_key_manager_t *)key_manager;
     iec61850_cert_manager_t *cm = (iec61850_cert_manager_t *)cert_manager;
 
@@ -332,6 +333,7 @@ int iec61850_sv_publisher_build_frame(iec61850_sv_publisher_t *pub,
 
 #ifdef IEC61850_SECURITY_ENABLED
     if (pub->security_enabled) {
+        /* MISRA 11.5: opaque key_manager/cert_manager handles, deviation Cat. 3 */
         ret = sv_append_security_extension(frame_buf, frame_size,
                                              frame_len, apdu_buf, apdu_len,
                                              (iec61850_key_manager_t *)pub->key_manager,

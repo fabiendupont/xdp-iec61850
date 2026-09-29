@@ -137,8 +137,9 @@ static int create_xsk(const char *ifname, int queue_id,
         return -1;
     }
 
-    uint32_t *prod = (uint32_t *)((uint8_t *)fill_map + off.fr.producer);
-    uint64_t *ring = (uint64_t *)((uint8_t *)fill_map + off.fr.desc);
+    /* MISRA 11.5/18.4: mmap returns void*; byte arithmetic via char* cast is required here */
+    uint32_t *prod = (uint32_t *)&((uint8_t *)fill_map)[off.fr.producer];
+    uint64_t *ring = (uint64_t *)&((uint8_t *)fill_map)[off.fr.desc];
     for (uint32_t i = 0; i < RING_SIZE; i++)
         ring[i] = (uint64_t)i * UMEM_FRAME_SIZE;
     __atomic_store_n(prod, RING_SIZE, __ATOMIC_RELEASE);

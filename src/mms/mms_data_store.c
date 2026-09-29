@@ -71,7 +71,8 @@ static int grow_array(void **ptr, size_t *capacity, size_t elem_size,
         return -1;
     }
     /* Zero the new portion */
-    (void)memset((char *)new_ptr + (*capacity * elem_size), 0,
+    /* MISRA 11.5: void*→char* cast required for byte arithmetic on opaque buffer */
+    (void)memset(&((char *)new_ptr)[*capacity * elem_size], 0,
                   (new_cap - *capacity) * elem_size);
     *ptr = new_ptr;
     *capacity = new_cap;
@@ -405,6 +406,7 @@ int iec61850_mms_ds_define_list(iec61850_mms_data_store_t *ds,
 
     /* Copy variables into heap-allocated array */
     if (variables != NULL && num_variables > 0U) {
+        /* MISRA 11.5: malloc returns void*, deviation Cat. 3 */
         list->variables = malloc(num_variables * sizeof(mms_variable_spec_t));
         if (list->variables == NULL) {
             result = IEC61850_MMS_DS_ERR_ALLOC;

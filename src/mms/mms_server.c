@@ -558,6 +558,7 @@ static int process_request(iec61850_mms_session_t *session,
 /* Session thread */
 static void *session_thread(void *arg)
 {
+    /* MISRA 11.5: pthread arg is opaque void*, deviation Cat. 3 */
     iec61850_mms_session_t *session = (iec61850_mms_session_t *)arg;
     uint8_t recv_buf[IEC61850_MMS_MAX_PDU_SIZE];
     uint8_t resp_buf[IEC61850_MMS_MAX_PDU_SIZE];
@@ -644,6 +645,7 @@ done:
 /* Accept thread */
 static void *accept_thread(void *arg)
 {
+    /* MISRA 11.5: pthread arg is opaque void*, deviation Cat. 3 */
     iec61850_mms_server_t *server = (iec61850_mms_server_t *)arg;
 
     while (!atomic_load(&server->stop_requested)) {

@@ -248,7 +248,7 @@ iec61850_data_attribute_t *iec61850_ln_find_attribute(
     }
 
     *dot = '\0';
-    char *rest = dot + 1;
+    char *rest = &dot[1];
 
     dobj = iec61850_ln_find_do(ln, buf);
     if (dobj == NULL) { return NULL; }
@@ -263,7 +263,7 @@ iec61850_data_attribute_t *iec61850_ln_find_attribute(
             break;
         }
         dobj = sub;
-        rest = dot + 1;
+        rest = &dot[1];
         dot = strchr(rest, '.');
     }
 
@@ -408,7 +408,7 @@ iec61850_data_attribute_t *iec61850_ied_model_find_attribute(
     if (ld == NULL) { return NULL; }
 
     /* Rest: "XCBR1.Pos.stVal" - split on first dot for LN name */
-    char *ln_and_rest = slash + 1;
+    char *ln_and_rest = &slash[1];
     dot = strchr(ln_and_rest, '.');
     if (dot == NULL) { return NULL; }
     *dot = '\0';
@@ -417,7 +417,7 @@ iec61850_data_attribute_t *iec61850_ied_model_find_attribute(
     if (ln == NULL) { return NULL; }
 
     /* Rest: "Pos.stVal" */
-    return iec61850_ln_find_attribute(ln, dot + 1, fc);
+    return iec61850_ln_find_attribute(ln, &dot[1], fc);
 }
 
 size_t iec61850_ied_model_count_ld(const iec61850_ied_model_t *model)

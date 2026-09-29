@@ -35,11 +35,11 @@ int iec61850_eth_frame_build(uint8_t *frame_buf, size_t frame_size,
     }
 
     /* Destination MAC */
-    (void)memcpy(frame_buf + offset, cfg->dst_mac, 6U);
+    (void)memcpy(&frame_buf[offset], cfg->dst_mac, 6U);
     offset += 6U;
 
     /* Source MAC */
-    (void)memcpy(frame_buf + offset, cfg->src_mac, 6U);
+    (void)memcpy(&frame_buf[offset], cfg->src_mac, 6U);
     offset += 6U;
 
     /* VLAN tag (802.1Q) if configured */
@@ -83,7 +83,7 @@ int iec61850_eth_frame_build(uint8_t *frame_buf, size_t frame_size,
     frame_buf[offset] = 0; offset++;
 
     /* APDU data */
-    (void)memcpy(frame_buf + offset, apdu, apdu_len);
+    (void)memcpy(&frame_buf[offset], apdu, apdu_len);
     offset += apdu_len;
 
     /* Update PDU length: from APPID to end (includes APPID + Length + Reserved + APDU) */
@@ -174,7 +174,7 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
         return -EBADMSG;
     }
 
-    *apdu = frame_buf + offset;
+    *apdu = &frame_buf[offset];
     *apdu_len = apdu_data_len;
 
     return 0;

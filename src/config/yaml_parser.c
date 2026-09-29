@@ -81,7 +81,7 @@ static void strip_quotes(char *s)
     if (len >= 2U) {
         if ((s[0] == '"' && s[len - 1U] == '"') ||
             (s[0] == '\'' && s[len - 1U] == '\'')) {
-            (void)memmove(s, s + 1U, len - 2U);
+            (void)memmove(s, &s[1U], len - 2U);
             s[len - 2U] = '\0';
         }
     }
@@ -195,7 +195,7 @@ int iec61850_yaml_parse_file(const char *path, iec61850_yaml_doc_t *doc)
         strip_trailing(raw_key);
 
         /* Value part (after colon) */
-        value_start = colon + 1;
+        value_start = &colon[1];
         while (*value_start == ' ') { value_start++; }
 
         if (indent == 0U) {

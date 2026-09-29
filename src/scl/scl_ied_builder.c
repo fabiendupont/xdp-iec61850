@@ -269,6 +269,7 @@ int iec61850_ied_model_register_mms(const iec61850_ied_model_t *model,
 int iec61850_scl_auto_configure_rcbs(const iec61850_scl_doc_t *doc,
                                        void *mgr_ptr)
 {
+    /* MISRA 11.5: opaque mgr_ptr handle, deviation Cat. 3 */
     iec61850_rcb_manager_t *mgr = (iec61850_rcb_manager_t *)mgr_ptr;
     int configured = 0;
 
