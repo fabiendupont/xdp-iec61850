@@ -100,3 +100,32 @@ All deviations are mitigated by one or more of:
 
 **Action Required**: This document requires sign-off before deployment.
 Contact the Project Lead to initiate the approval process.
+
+---
+
+## Violation Inventory (MISRA CI Baseline — 2026-09-29)
+
+The MISRA CI job runs cppcheck with `--addon=misra` on the subset of files
+listed above and produces a full report **without blocking CI** (the job uses
+`|| true`). Violations are fixed incrementally; this section records the
+baseline count at the time the CI job was introduced.
+
+All violations below are **pre-existing** — none were introduced by the
+XDP/AF_XDP rootless transport work added in this release.
+
+| Rule | Count | Classification | Fix Plan |
+|------|------:|---------------|----------|
+| 15.5 | 401 | Advisory | Refactor functions to single-exit; tracked in backlog |
+| 10.4 | 201 | Required | Explicit `(int)` casts for enum arithmetic; tracked in backlog |
+| 12.1 | 163 | Advisory | Add explicit parentheses; tracked in backlog |
+| 17.7 | 123 | Required | Add `(void)` casts to all unchecked return values |
+| 2.5  | 109 | Advisory | Remove unused macros from public headers |
+| 8.7  | 105 | Advisory | Move internal-only functions to `.c` files or mark `static` |
+| 13.3 | 66  | Advisory | Split compound expressions with side effects |
+| 17.3 | 47  | Mandatory | Add function declarations to headers (priority fix) |
+| 18.4 | 30  | Advisory | Replace pointer arithmetic with array indexing |
+| 11.5 | 17  | Advisory | Review void* casts; add explicit type conversion |
+
+**Priority**: Rule 17.3 (implicit function declarations) is Mandatory and
+should be fixed first. Rules 10.4 and 17.7 are Required. All Advisory rules
+may be addressed after Required and Mandatory rules are clean.
