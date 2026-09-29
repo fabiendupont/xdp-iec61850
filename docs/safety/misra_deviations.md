@@ -67,7 +67,7 @@ analysis or because the rule classification is Advisory.
 |------|---------------|---------------|
 | 8.7 | Advisory | Requires whole-program analysis. Public API functions (declared in headers) are called from multiple translation units; cppcheck cannot verify this from a single-TU analysis. |
 | 8.5 | Required | Requires whole-program analysis. All external object declarations are in headers; the project uses standard include-guard discipline. |
-| 17.3 | Required | False positive: cppcheck suppresses system headers via `--suppress=missingIncludeSystem`, causing declared functions (pthread, stdio) to appear as implicit. The project includes all required headers correctly. |
+| 17.3 | Required | **FIXED**: `--library=posix` added to cppcheck command provides POSIX function signatures without requiring system header parsing. All 47 prior violations were false positives; Rule 17.3 count is now 0. |
 | 17.7 | Required | False positive: cppcheck flags `(void)func()` as ignoring return value. The `(void)` cast IS the MISRA-approved way to explicitly discard a return value. |
 | 2.5 | Advisory | Generic typed container macros (fixed_array, fixed_string, ring_buffer) are defined for a full API surface; not all instantiated types are used in every translation unit analyzed. |
 | 13.3 | Required | Post-increment operators (`i++`) in standalone statements (not in expressions) are flagged. These are safe and standard C; the violation is in the cppcheck MISRA addon's conservative rule interpretation. |
@@ -103,12 +103,15 @@ Contact the Project Lead to initiate the approval process.
 
 ---
 
-## Violation Inventory (MISRA CI Baseline — 2026-09-29)
+## Violation Inventory (MISRA CI Baseline — 2026-09-29, updated 2026-09-29)
 
-The MISRA CI job runs cppcheck with `--addon=misra` on the subset of files
-listed above and produces a full report **without blocking CI** (the job uses
-`|| true`). Violations are fixed incrementally; this section records the
-baseline count at the time the CI job was introduced.
+The MISRA CI job runs cppcheck with `--addon=misra --library=posix` on the
+subset of files listed above and produces a full report **without blocking CI**
+(the job uses `|| true`). Violations are fixed incrementally; this section
+records the current baseline. `--library=posix` was added to give cppcheck
+knowledge of POSIX function signatures, which eliminated all 47 Rule 17.3
+false positives and also revealed additional pre-existing violations for
+rules 21.3, 21.6, 21.10, 21.14, 21.16, and 19.2.
 
 All violations below are **pre-existing** — none were introduced by the
 XDP/AF_XDP rootless transport work added in this release.
@@ -118,14 +121,19 @@ XDP/AF_XDP rootless transport work added in this release.
 | 15.5 | 401 | Advisory | Refactor functions to single-exit; tracked in backlog |
 | 10.4 | 201 | Required | Explicit `(int)` casts for enum arithmetic; tracked in backlog |
 | 12.1 | 163 | Advisory | Add explicit parentheses; tracked in backlog |
-| 17.7 | 123 | Required | Add `(void)` casts to all unchecked return values |
+| 17.7 | 104 | Required | Add `(void)` casts to all unchecked return values |
 | 2.5  | 109 | Advisory | Remove unused macros from public headers |
 | 8.7  | 105 | Advisory | Move internal-only functions to `.c` files or mark `static` |
 | 13.3 | 66  | Advisory | Split compound expressions with side effects |
-| 17.3 | 47  | Mandatory | Add function declarations to headers (priority fix) |
+| 17.3 | 0   | Mandatory | **FIXED**: added `--library=posix` to cppcheck; all 47 were false positives |
 | 18.4 | 30  | Advisory | Replace pointer arithmetic with array indexing |
 | 11.5 | 17  | Advisory | Review void* casts; add explicit type conversion |
+| 19.2 | 8   | Advisory | Union types in goose_ber.h and mms_ber.h structures |
+| 21.6 | 9   | Advisory | stdio I/O functions in logger.c; required for logging subsystem |
+| 21.10 | 8  | Advisory | `<time.h>` functions (`clock_gettime`, `localtime_r`) used for timestamps |
+| 21.3 | 6   | Advisory | `malloc`/`free` in ied_data_model.c tree construction (init-time only) |
+| 21.16 | 3  | Advisory | `memcmp` in fixed_string.c with non-character pointer type |
+| 10.8 | 3   | Required | Cast of composite expression to wider type; tracked in backlog |
 
-**Priority**: Rule 17.3 (implicit function declarations) is Mandatory and
-should be fixed first. Rules 10.4 and 17.7 are Required. All Advisory rules
-may be addressed after Required and Mandatory rules are clean.
+**Priority**: Rules 10.4, 17.7, and 10.8 are Required. All Advisory rules
+may be addressed after Required rules are clean.
