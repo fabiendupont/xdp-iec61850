@@ -703,9 +703,7 @@ int ber_decode_octetstring(const uint8_t *buf, size_t buf_size, size_t *offset,
             ret = ber_decode_length(buf, buf_size, offset, &length);
             if (ret != GOOSE_BER_OK) {
                 result = ret;
-            } else if (length > max_len) {
-                result = GOOSE_BER_ERR_BUFFER_FULL;
-            } else if ((*offset + length) > buf_size) {
+            } else if ((length > max_len) || ((*offset + length) > buf_size)) {
                 result = GOOSE_BER_ERR_BUFFER_FULL;
             } else {
                 /* Decode data */

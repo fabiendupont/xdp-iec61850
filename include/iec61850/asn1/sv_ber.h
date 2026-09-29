@@ -72,10 +72,10 @@ extern "C" {
 
 /* Error codes */
 #define SV_BER_OK                   0
-#define SV_BER_ERR_BUFFER_FULL      -1
-#define SV_BER_ERR_INVALID_ARG      -2
-#define SV_BER_ERR_ENCODING         -3
-#define SV_BER_ERR_DECODING         -4
+#define SV_BER_ERR_BUFFER_FULL      (-1)
+#define SV_BER_ERR_INVALID_ARG      (-2)
+#define SV_BER_ERR_ENCODING         (-3)
+#define SV_BER_ERR_DECODING         (-4)
 
 /**
  * IEC 62351-6 Signature Algorithms

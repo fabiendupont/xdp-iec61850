@@ -75,7 +75,7 @@ static inline int NAME##_push(NAME##_t *arr, ELEM_TYPE value)                  \
   @ assigns *out, arr->size;                                                   \
   @ ensures \result == 0 ==> arr->size == \old(arr->size) - 1;                 \
   @*/                                                                          \
-static inline int NAME##_pop(NAME##_t *arr, ELEM_TYPE *out)                    \
+static inline int NAME##_pop(NAME##_t *arr, ELEM_TYPE *out)  /* NOLINT(bugprone-macro-parentheses) */ \
 {                                                                              \
     if (arr->size == 0U) {                                                     \
         return -1;                                                             \
@@ -92,7 +92,7 @@ static inline int NAME##_pop(NAME##_t *arr, ELEM_TYPE *out)                    \
   @ assigns \nothing;                                                          \
   @ ensures \result != \null ==> \valid(\result);                              \
   @*/                                                                          \
-static inline ELEM_TYPE *NAME##_get(NAME##_t *arr, size_t idx)                 \
+static inline ELEM_TYPE *NAME##_get(NAME##_t *arr, size_t idx)  /* NOLINT(bugprone-macro-parentheses) */ \
 {                                                                              \
     if (idx >= arr->size) {                                                    \
         return NULL;                                                           \
@@ -135,7 +135,7 @@ static inline bool NAME##_full(const NAME##_t *arr)                            \
     return arr->size >= (size_t)(CAPACITY);                                    \
 }                                                                              \
                                                                                \
-static inline ELEM_TYPE *NAME##_data(NAME##_t *arr)                            \
+static inline ELEM_TYPE *NAME##_data(NAME##_t *arr)  /* NOLINT(bugprone-macro-parentheses) */ \
 {                                                                              \
     return arr->data;                                                          \
 }

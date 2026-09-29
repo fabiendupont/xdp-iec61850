@@ -217,7 +217,7 @@ int iec61850_sv_subscriber_enable_security(iec61850_sv_subscriber_t *sub,
  * Stores parsed msg_timestamp in *timestamp_out for Phase 2 replay check.
  */
 static int sv_verify_security_signature(iec61850_sv_subscriber_t *sub,
-                                          const uint8_t *frame_data, size_t frame_len,
+                                          const uint8_t *frame_data, size_t frame_len, // NOLINT(bugprone-easily-swappable-parameters)
                                           size_t apdu_offset, size_t apdu_len,
                                           uint32_t *timestamp_out)
 {
@@ -368,7 +368,7 @@ static int sv_verify_security_replay(iec61850_sv_subscriber_t *sub,
 
 int iec61850_sv_subscriber_process_frame(
     iec61850_sv_subscriber_t *sub,
-    const uint8_t *frame_data, size_t frame_len,
+    const uint8_t *frame_data, size_t frame_len, // NOLINT(bugprone-easily-swappable-parameters)
     uint64_t recv_time_ns)
 {
     uint16_t ethertype = 0;

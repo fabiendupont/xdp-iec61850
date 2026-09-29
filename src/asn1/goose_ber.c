@@ -109,7 +109,7 @@ int ber_encode_boolean(uint8_t *buf, size_t buf_size, size_t *offset,
 }
 
 int ber_encode_int32(uint8_t *buf, size_t buf_size, size_t *offset,
-                     uint8_t tag, int32_t value)
+                     uint8_t tag, int32_t value) // NOLINT(bugprone-easily-swappable-parameters)
 {
     int result;
     int ret;
@@ -179,7 +179,7 @@ int ber_encode_int32(uint8_t *buf, size_t buf_size, size_t *offset,
 }
 
 int ber_encode_uint32(uint8_t *buf, size_t buf_size, size_t *offset,
-                      uint8_t tag, uint32_t value)
+                      uint8_t tag, uint32_t value) // NOLINT(bugprone-easily-swappable-parameters)
 {
     int result;
     int ret;
@@ -279,7 +279,8 @@ int ber_encode_visiblestring(uint8_t *buf, size_t buf_size, size_t *offset,
 }
 
 int ber_encode_utctime(uint8_t *buf, size_t buf_size, size_t *offset,
-                       uint8_t tag, uint64_t timestamp_us, uint8_t time_quality)
+                       uint8_t tag, uint64_t timestamp_us, // NOLINT(bugprone-easily-swappable-parameters)
+                       uint8_t time_quality)
 {
     int result;
     int ret;
@@ -478,9 +479,7 @@ int goose_encode_alldata(uint8_t *buf, size_t buf_size, size_t *offset,
     size_t alldata_content_start;
     size_t alldata_len;
 
-    if ((!buf) || (!offset) || (!data)) {
-        result = GOOSE_BER_ERR_INVALID_ARG;
-    } else if (count > GOOSE_MAX_ALLDATA_ENTRIES) {
+    if ((!buf) || (!offset) || (!data) || (count > GOOSE_MAX_ALLDATA_ENTRIES)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         ret = ber_encode_tag(buf, buf_size, offset, GOOSE_TAG_ALLDATA);
@@ -865,7 +864,7 @@ int goose_add_visiblestring(goose_apdu_t *apdu, const char *str)
     return result;
 }
 
-int goose_add_utctime(goose_apdu_t *apdu, uint64_t timestamp_us,
+int goose_add_utctime(goose_apdu_t *apdu, uint64_t timestamp_us, // NOLINT(bugprone-easily-swappable-parameters)
                       uint8_t time_quality)
 {
     int result;
@@ -960,9 +959,7 @@ int goose_set_security(goose_apdu_t *apdu,
     size_t i;
     struct timespec ts;
 
-    if ((!apdu) || (!key_id) || (!signature)) {
-        result = GOOSE_BER_ERR_INVALID_ARG;
-    } else if (signature_len > GOOSE_MAX_SIGNATURE_LEN) {
+    if ((!apdu) || (!key_id) || (!signature) || (signature_len > GOOSE_MAX_SIGNATURE_LEN)) {
         result = GOOSE_BER_ERR_INVALID_ARG;
     } else {
         /* Enable security */

@@ -86,9 +86,9 @@ extern "C" {
 
 /* Error codes */
 #define GOOSE_BER_OK                0
-#define GOOSE_BER_ERR_BUFFER_FULL   -1
-#define GOOSE_BER_ERR_INVALID_ARG   -2
-#define GOOSE_BER_ERR_ENCODING      -3
+#define GOOSE_BER_ERR_BUFFER_FULL   (-1)
+#define GOOSE_BER_ERR_INVALID_ARG   (-2)
+#define GOOSE_BER_ERR_ENCODING      (-3)
 
 /**
  * IEC 62351-6 Signature Algorithms
