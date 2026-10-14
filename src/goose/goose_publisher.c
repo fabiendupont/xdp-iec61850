@@ -146,6 +146,18 @@ int iec61850_goose_publisher_set_octetstring(iec61850_goose_publisher_t *pub,
     return 0;
 }
 
+int iec61850_goose_publisher_set_utctime(iec61850_goose_publisher_t *pub,
+                                          size_t index,
+                                          uint64_t timestamp_us,
+                                          uint8_t time_quality)
+{
+    if ((pub == NULL) || (ensure_data_index(pub, index) != 0)) { return -1; }
+    pub->data[index].type = GOOSE_DATA_UTCTIME;
+    pub->data[index].value.utctime.timestamp_us = timestamp_us;
+    pub->data[index].value.utctime.time_quality  = time_quality;
+    return 0;
+}
+
 /*
  * WARNING: prepare() encodes the APDU only — it does NOT apply IEC 62351-6
  * security (signing). The output is unsigned. For signed frames, use

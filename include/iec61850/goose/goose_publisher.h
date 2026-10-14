@@ -88,6 +88,10 @@ int iec61850_goose_publisher_set_bitstring(iec61850_goose_publisher_t *pub,
 int iec61850_goose_publisher_set_octetstring(iec61850_goose_publisher_t *pub,
                                               size_t index,
                                               const uint8_t *data, size_t len);
+int iec61850_goose_publisher_set_utctime(iec61850_goose_publisher_t *pub,
+                                          size_t index,
+                                          uint64_t timestamp_us,
+                                          uint8_t time_quality);
 
 /**
  * Prepare a GOOSE APDU into a buffer (encode only, no networking).
