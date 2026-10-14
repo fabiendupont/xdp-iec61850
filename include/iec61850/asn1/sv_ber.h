@@ -36,8 +36,9 @@
 extern "C" {
 #endif
 
-/* SV Application Tag */
-#define SV_APDU_TAG                 0x62U  /* APPLICATION 2 | CONSTRUCTED */
+/* SV Application Tag: APPLICATION 0 | CONSTRUCTED = 0x60 per IEC 61850-9-2.
+ * Some implementations emit 0x62 (APPLICATION 2); the decoder accepts both. */
+#define SV_APDU_TAG                 0x60U  /* APPLICATION 0 | CONSTRUCTED */
 
 /* SV APDU Field Tags (Context-Specific) */
 #define SV_TAG_NOASDU               0x80U  /* [0] */
