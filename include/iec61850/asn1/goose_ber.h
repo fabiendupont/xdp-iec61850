@@ -111,6 +111,7 @@ typedef enum {
     GOOSE_DATA_OCTETSTRING,
     GOOSE_DATA_VISIBLESTRING,
     GOOSE_DATA_UTCTIME,
+    GOOSE_DATA_BTIME6,      /**< Binary Time 6-byte (IEC 61850 tag [12]=0x8C): ms_since_midnight(4)+days(2) */
     GOOSE_DATA_STRUCTURE
 } goose_data_type_t;
 
@@ -136,6 +137,10 @@ typedef struct goose_data {
             uint64_t timestamp_us;     /* UTC microseconds since epoch */
             uint8_t time_quality;      /* Time quality flags */
         } utctime;                     /* GOOSE_DATA_UTCTIME */
+        struct {
+            uint32_t ms_since_midnight; /* Milliseconds since midnight */
+            uint16_t days;              /* Days since epoch */
+        } btime6;                      /* GOOSE_DATA_BTIME6 */
         struct {
             struct goose_data *elements;
             size_t count;

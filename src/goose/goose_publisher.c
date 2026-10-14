@@ -146,6 +146,18 @@ int iec61850_goose_publisher_set_octetstring(iec61850_goose_publisher_t *pub,
     return 0;
 }
 
+int iec61850_goose_publisher_set_btime6(iec61850_goose_publisher_t *pub,
+                                         size_t index,
+                                         uint32_t ms_since_midnight,
+                                         uint16_t days)
+{
+    if ((pub == NULL) || (ensure_data_index(pub, index) != 0)) { return -1; }
+    pub->data[index].type = GOOSE_DATA_BTIME6;
+    pub->data[index].value.btime6.ms_since_midnight = ms_since_midnight;
+    pub->data[index].value.btime6.days = days;
+    return 0;
+}
+
 int iec61850_goose_publisher_set_utctime(iec61850_goose_publisher_t *pub,
                                           size_t index,
                                           uint64_t timestamp_us,

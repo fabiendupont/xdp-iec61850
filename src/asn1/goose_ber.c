@@ -425,11 +425,36 @@ static int goose_encode_data_elements(uint8_t *buf, size_t buf_size,
                 break;
 
             case GOOSE_DATA_UTCTIME:
+                /* IEC 61850-8-1 Annex A: UTC-Time uses context tag [12] = 0x8C.
+                 * Length is 8 bytes (4s + 3frac + 1quality). */
                 ret = ber_encode_utctime(buf, buf_size, offset,
-                                        ASN1_CLASS_CONTEXT | 0x11U,
+                                        ASN1_CLASS_CONTEXT | 0x0CU,
                                         data[i].value.utctime.timestamp_us,
                                         data[i].value.utctime.time_quality);
                 break;
+
+            case GOOSE_DATA_BTIME6: {
+                /* IEC 61850 Binary Time 6-byte: tag [12] = 0x8C, 6 bytes.
+                 * Wireshark GOOSE dissector: binary-time(12), 6 bytes.
+                 *   Bytes 0-3: ms_since_midnight (big-endian uint32)
+                 *   Bytes 4-5: days (big-endian uint16) */
+                uint8_t raw[6];
+                uint32_t ms = data[i].value.btime6.ms_since_midnight;
+                uint16_t dy = data[i].value.btime6.days;
+                raw[0] = (uint8_t)(ms >> 24); raw[1] = (uint8_t)(ms >> 16);
+                raw[2] = (uint8_t)(ms >>  8); raw[3] = (uint8_t)(ms);
+                raw[4] = (uint8_t)(dy >>  8); raw[5] = (uint8_t)(dy);
+                ret = ber_encode_tag(buf, buf_size, offset, ASN1_CLASS_CONTEXT | 0x0CU);
+                if (ret == GOOSE_BER_OK)
+                    ret = ber_encode_length(buf, buf_size, offset, 6U);
+                if (ret == GOOSE_BER_OK && (*offset + 6U) <= buf_size) {
+                    (void)memcpy(buf + *offset, raw, 6U);
+                    *offset += 6U;
+                } else if (ret == GOOSE_BER_OK) {
+                    ret = GOOSE_BER_ERR_BUFFER_FULL;
+                }
+                break;
+            }
 
             case GOOSE_DATA_STRUCTURE:
             {

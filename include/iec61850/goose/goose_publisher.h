@@ -92,6 +92,10 @@ int iec61850_goose_publisher_set_utctime(iec61850_goose_publisher_t *pub,
                                           size_t index,
                                           uint64_t timestamp_us,
                                           uint8_t time_quality);
+int iec61850_goose_publisher_set_btime6(iec61850_goose_publisher_t *pub,
+                                         size_t index,
+                                         uint32_t ms_since_midnight,
+                                         uint16_t days);
 
 /**
  * Prepare a GOOSE APDU into a buffer (encode only, no networking).
