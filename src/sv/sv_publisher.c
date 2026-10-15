@@ -116,11 +116,21 @@ int iec61850_sv_publisher_prepare(iec61850_sv_publisher_t *pub,
         (void)sv_set_datset(&apdu.asdu[0], pub->config.dataset);
     }
 
-    apdu.asdu[0].smpCnt = pub->smp_cnt;
+    apdu.asdu[0].smpCnt  = pub->smp_cnt;
     apdu.asdu[0].confRev = pub->config.conf_rev;
     apdu.asdu[0].smpSynch = pub->config.smp_synch;
     apdu.asdu[0].smpRate = pub->config.smp_rate;
-    apdu.asdu[0].has_smpRate = true;
+    apdu.asdu[0].has_smpRate = (pub->config.smp_rate > 0U);
+
+    /* refrTm: include current UTC timestamp (normalizer strips it for comparison) */
+    {
+        struct timespec ts;
+        if (clock_gettime(CLOCK_REALTIME, &ts) == 0) {
+            apdu.asdu[0].has_refrTm = true;
+            apdu.asdu[0].refrTm = (uint64_t)ts.tv_sec * 1000000ULL
+                                  + (uint64_t)ts.tv_nsec / 1000ULL;
+        }
+    }
 
     /* Add samples */
     for (uint8_t i = 0; i < pub->sample_count; i++) {

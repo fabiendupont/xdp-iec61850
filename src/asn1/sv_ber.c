@@ -74,6 +74,20 @@ static void bytes_to_quality(const uint8_t in[4], sv_quality_t *q)
  * 4 bytes value (big-endian int32) + 4 bytes quality (big-endian uint32)
  * per channel.
  */
+/* Fixed-width unsigned integer encoder: always emits exactly `width` value bytes.
+ * IEC 61850-9-2 mandates fixed widths: smpCnt=2 bytes (UINT16), confRev=4 bytes. */
+static int ber_encode_uint_fixed(uint8_t *buf, size_t buf_size, size_t *offset,
+                                  uint8_t tag, uint32_t value, size_t width)
+{
+    if (!buf || !offset) return SV_BER_ERR_INVALID_ARG;
+    if (*offset + 2U + width > buf_size) return SV_BER_ERR_BUFFER_FULL;
+    buf[(*offset)++] = tag;
+    buf[(*offset)++] = (uint8_t)width;
+    for (size_t i = width; i > 0U; i--)
+        buf[(*offset)++] = (uint8_t)(value >> ((i - 1U) * 8U));
+    return SV_BER_OK;
+}
+
 static int encode_samples(uint8_t *buf, size_t buf_size, size_t *offset,
                          const sv_asdu_t *asdu)
 {
@@ -160,16 +174,16 @@ static int encode_asdu(uint8_t *buf, size_t buf_size, size_t *offset,
         }
     }
 
-    /* [2] smpCnt - INTEGER */
-    ret = ber_encode_uint32(buf, buf_size, offset,
-                           SV_TAG_SMPCNT, asdu->smpCnt);
+    /* [2] smpCnt - INTEGER, fixed 2 bytes (UINT16 per IEC 61850-9-2) */
+    ret = ber_encode_uint_fixed(buf, buf_size, offset,
+                                SV_TAG_SMPCNT, asdu->smpCnt, 2U);
     if (ret != SV_BER_OK) {
         return ret;
     }
 
-    /* [3] confRev - INTEGER */
-    ret = ber_encode_uint32(buf, buf_size, offset,
-                           SV_TAG_CONFREV, asdu->confRev);
+    /* [3] confRev - INTEGER, fixed 4 bytes (UINT32 per IEC 61850-9-2) */
+    ret = ber_encode_uint_fixed(buf, buf_size, offset,
+                                SV_TAG_CONFREV, asdu->confRev, 4U);
     if (ret != SV_BER_OK) {
         return ret;
     }
