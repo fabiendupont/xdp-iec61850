@@ -97,8 +97,11 @@ int ber_encode_boolean(uint8_t *buf, size_t buf_size, size_t *offset,
             if (ret != GOOSE_BER_OK) {
                 result = ret;
             } else {
-                /* Value: 0x00 = false, 0xFF = true */
-                buf[*offset] = value ? 0xFFU : 0x00U;
+                /* Value: 0x00 = false, 0x01 = true.
+                 * BER allows any non-zero for TRUE; DER requires 0xFF.
+                 * IEC 61850-8-1 uses BER, and implementations consistently
+                 * use 0x01 for TRUE in GOOSE allData boolean entries. */
+                buf[*offset] = value ? 0x01U : 0x00U;
                 (*offset)++;
                 result = GOOSE_BER_OK;
             }
