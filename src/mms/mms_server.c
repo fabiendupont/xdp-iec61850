@@ -107,11 +107,46 @@ static int process_request(iec61850_mms_session_t *session,
                                                       req->params.read.variable_spec.domain,
                                                       req->params.read.variable_spec.item_id,
                                                       &resp->params.read.value);
-            if (ds_ret != (int)IEC61850_MMS_DS_OK) {
-                map_ds_error(ds_ret, &err->error);
-                return 1;
+            if (ds_ret == (int)IEC61850_MMS_DS_OK) {
+                return 0;
             }
-            return 0;
+
+            /* IEC 61850-8-1 §8.8: reading a named variable list by item_id returns
+             * a STRUCTURE containing the list member values as AccessResults.
+             * This is how RCB objects (e.g. LLN0$RP$EventsRCB01) are read whole. */
+            {
+                mms_variable_spec_t list_vars[MMS_MAX_NAMED_VARIABLES];
+                uint32_t list_count = 0;
+                int list_ret = iec61850_mms_ds_get_list_attrs(
+                    session->data_store,
+                    req->params.read.variable_spec.domain,
+                    req->params.read.variable_spec.item_id,
+                    list_vars, &list_count, MMS_MAX_NAMED_VARIABLES);
+                if (list_ret == (int)IEC61850_MMS_DS_OK && list_count > 0U) {
+                    /* Encode each member value directly into the response buffer as a
+                     * structure [2] IMPLICIT SEQUENCE OF AccessResult. The caller's
+                     * mms_encode_response() for MMS_SERVICE_TYPE_READ wraps it in
+                     * listOfAccessResult [1]; we return the inner structure value. */
+                    resp->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+                    resp->params.readnamedvarlist.num_values = 0;
+                    for (uint32_t vi = 0; vi < list_count && vi < MMS_MAX_NAMED_VARIABLES; vi++) {
+                        int vr = iec61850_mms_ds_read_variable(
+                            session->data_store,
+                            list_vars[vi].domain,
+                            list_vars[vi].item_id,
+                            &resp->params.readnamedvarlist.values[vi]);
+                        if (vr != (int)IEC61850_MMS_DS_OK) {
+                            map_ds_error(vr, &err->error);
+                            return 1;
+                        }
+                        resp->params.readnamedvarlist.num_values++;
+                    }
+                    return 0;
+                }
+            }
+
+            map_ds_error(ds_ret, &err->error);
+            return 1;
         }
 
         case MMS_SERVICE_TYPE_WRITE: {
