@@ -1993,9 +1993,25 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                         }
                     } else {
                         /* variableListName — ReadNamedVariableList.
-                         * Content is bare domain_len + domain + list_name_len + list_name */
+                         * Format: [1] CONSTRUCTED (domain-specific ObjectName)
+                         *   containing two GraphicString (0x1A) entries:
+                         *   domain name, then list name.
+                         * Skip the inner [1] CONSTRUCTED wrapper, then read GraphicStrings. */
                         request->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
-                        if (offset < vas_end) {
+                        /* Skip all CONSTRUCTED wrappers (variableListName and domain-specific
+                         * ObjectName are each wrapped in A1/A3 tags — skip until GraphicString). */
+                        while (offset < vas_end &&
+                               (buffer[offset] == 0xA1 || buffer[offset] == 0xA3 ||
+                                buffer[offset] == 0xA0 || buffer[offset] == 0xA4)) {
+                            offset++;  /* skip CONSTRUCTED tag */
+                            size_t wrap_len;
+                            int wrap_ret = mms_decode_length(buffer + offset, vas_end - offset, &wrap_len);
+                            if (wrap_ret >= 0) offset += (size_t)wrap_ret;
+                            else break;
+                        }
+                        /* Read domain GraphicString (0x1A or 0x1B) */
+                        if (offset < vas_end && buffer[offset] == 0x1A) {
+                            offset++;  /* skip 0x1A tag */
                             size_t rnvl_dom_len = buffer[offset++];
                             if (rnvl_dom_len < MMS_MAX_DOMAIN_NAME) {
                                 memcpy(request->params.readnamedvarlist.domain,
@@ -2003,7 +2019,10 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                                 request->params.readnamedvarlist.domain[rnvl_dom_len] = '\0';
                             }
                             offset += rnvl_dom_len;
-
+                        }
+                        /* Read list name GraphicString (0x1A) */
+                        if (offset < vas_end && buffer[offset] == 0x1A) {
+                            offset++;  /* skip 0x1A tag */
                             size_t rnvl_name_len = buffer[offset++];
                             if (rnvl_name_len < MMS_MAX_VARIABLE_NAME) {
                                 memcpy(request->params.readnamedvarlist.list_name,
