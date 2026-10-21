@@ -727,17 +727,22 @@ int mms_encode_initiate_response(const mms_initiate_response_t* response,
          * 15: getNamedTypeAttributes, 16: deleteNamedType,
          * ... (see ISO 9506-2 Table 38) */
         /* Set bits for all 27 services we support */
-        detail[detail_offset++] = 0xEE;  /* bits 0-7: status,getNameList,identify,X,read,write,getVarAttrs,defNamedVar */
-        detail[detail_offset++] = 0x08;  /* bits 8-15: X,X,X,defNamedVarList,getNamedVarListAttrs,delNamedVarList,X,X */
+        /* Match standard IEC 61850 servicesSupportedCalled bitmap.
+         * Verified from oracle_basic.pcap frame 9: ee 1c 00 00 00 00 00 00 00 01 18
+         * Critical: bytes 9-10 (0x01 0x18) include informationReport unconfirmed
+         * service and other reporting services. Without these bits, IEC 61850 clients
+         * (client_example1) does not attempt to enable the RCB. */
+        detail[detail_offset++] = 0xEE;  /* bits 0-7 */
+        detail[detail_offset++] = 0x1C;  /* bits 8-15: defNamedVarList,getNamedVarListAttrs,delNamedVarList */
         detail[detail_offset++] = 0x00;  /* bits 16-23 */
         detail[detail_offset++] = 0x00;  /* bits 24-31 */
-        detail[detail_offset++] = 0x04;  /* bits 32-39: conclude(bit 37) */
-        detail[detail_offset++] = 0x08;  /* bits 40-47: abort(bit 44) */
+        detail[detail_offset++] = 0x00;  /* bits 32-39 */
+        detail[detail_offset++] = 0x00;  /* bits 40-47 */
         detail[detail_offset++] = 0x00;  /* bits 48-55 */
         detail[detail_offset++] = 0x00;  /* bits 56-63 */
         detail[detail_offset++] = 0x00;  /* bits 64-71 */
-        detail[detail_offset++] = 0x00;  /* bits 72-79 */
-        detail[detail_offset++] = 0x00;  /* bits 80-87 */
+        detail[detail_offset++] = 0x01;  /* bits 72-79: includes informationReport */
+        detail[detail_offset++] = 0x18;  /* bits 80-87: additional reporting services */
 
         /* Wrap in [4] IMPLICIT SEQUENCE */
         content[content_offset++] = 0xA4;  /* [4] CONSTRUCTED */
@@ -1694,7 +1699,7 @@ int mms_encode_confirmed_request(const mms_confirmed_request_t* request,
     uint8_t content[MMS_MAX_PDU_SIZE];
     size_t content_offset = 0;
 
-    /* invokeID — encoded as UNIVERSAL INTEGER (0x02) for interop with libiec61850 */
+    /* invokeID — encoded as UNIVERSAL INTEGER (0x02) per MMS ISO 9506-2 */
     content[content_offset++] = 0x02;  /* INTEGER */
     uint8_t temp_buf[16];
     int ret = encode_integer(request->invoke_id, temp_buf, sizeof(temp_buf));
@@ -4443,6 +4448,139 @@ int mms_encode_information_report(const mms_information_report_t* report,
     offset += content_offset;
 
     return (int)offset;
+}
+
+/* ============================================================================
+ * Full IEC 61850-7-2 URCB InformationReport
+ *
+ * Format per IEC 61850-7-2 §14.2 and IEC 61850-8-1 Annex A:
+ *
+ *   A3 xx  -- unconfirmedPDU [3] CONSTRUCTED
+ *     A0 xx  -- informationReport [0] CONSTRUCTED
+ *       A1 05 80 03 52 50 54  -- variableAccessSpecification [1]
+ *                                  vmd-specific [0] "RPT"
+ *       A0 xx  -- listOfAccessResult [0] CONSTRUCTED
+ *         8A xx rptID        -- visible-string [10]
+ *         84 03 xx xx xx     -- optFlds bit-string [4]  (padding+value)
+ *         86 xx seqNum       -- unsigned [6]             (if sq_num_present)
+ *         8C 06 xx...        -- binary-time [12]         (if time_present)
+ *         8A xx datSet       -- visible-string [10]
+ *         86 xx confRev      -- unsigned [6]             (if conf_rev_present)
+ *         84 xx inclBitStr   -- bit-string [4]
+ *         (data values: 83 boolean / 87 float / 86 unsigned per member)
+ *         (reason codes: 84 02 padding reason  per member)
+ * ============================================================================ */
+
+int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
+                                uint8_t *buffer, size_t buflen)
+{
+    if (!report || !buffer) return MMS_ERROR_INVALID_PARAM;
+
+    /* Build from the inside out into a staging buffer */
+    uint8_t acr[MMS_MAX_PDU_SIZE];  /* listOfAccessResult content */
+    size_t  ao = 0;
+
+#define ACR_BYTE(b) do { if (ao < sizeof(acr)) acr[ao++] = (uint8_t)(b); } while(0)
+#define ACR_STR(tag, s) do { \
+    size_t _l = strlen(s); \
+    ACR_BYTE(tag); ACR_BYTE((uint8_t)_l); \
+    memcpy(acr + ao, s, _l); ao += _l; } while(0)
+#define ACR_UINT(val) do { \
+    uint8_t _tb[4]; int _tl = 0; uint32_t _v = (val); \
+    if (_v == 0) { _tb[_tl++] = 0; } \
+    else { uint32_t _t = _v; while (_t) { _tb[_tl++] = (uint8_t)(_t & 0xFF); _t >>= 8; } \
+           for (int _i = 0; _i < _tl/2; _i++) { uint8_t _x = _tb[_i]; _tb[_i] = _tb[_tl-1-_i]; _tb[_tl-1-_i] = _x; } } \
+    ACR_BYTE(0x86); ACR_BYTE((uint8_t)_tl); \
+    memcpy(acr + ao, _tb, (size_t)_tl); ao += (size_t)_tl; } while(0)
+
+    /* rptID [10] VisibleString */
+    ACR_STR(0x8A, report->rpt_id);
+
+    /* optFlds [4] BIT-STRING: 3-byte encoding (1 padding + 2 value bytes).
+     * Format: 84 03 <padding-bits> <byte0> <byte1>
+     * opt_flds_byte maps to: b0=reserved b1=seqNum b2=timestamp b3=reason
+     *   b4=datSet b5=dataRef b6=bufOvfl b7=entryID, next byte b0=confRev */
+    {
+        uint8_t of0 = report->opt_flds_byte;
+        uint8_t of1 = report->conf_rev_present ? 0x80U : 0x00U;
+        ACR_BYTE(0x84); ACR_BYTE(3); ACR_BYTE(6); ACR_BYTE(of0); ACR_BYTE(of1);
+    }
+
+    /* seqNum [6] UNSIGNED */
+    if (report->sq_num_present) {
+        ACR_UINT(report->sq_num);
+    }
+
+    /* timeOfEntry [12] BINARY-TIME 6 bytes */
+    if (report->time_of_entry_present) {
+        ACR_BYTE(0x8C); ACR_BYTE(6);
+        memcpy(acr + ao, report->time_of_entry, 6); ao += 6;
+    }
+
+    /* datSet [10] VisibleString */
+    ACR_STR(0x8A, report->dat_set);
+
+    /* confRev [6] UNSIGNED */
+    if (report->conf_rev_present) {
+        ACR_UINT(report->conf_rev);
+    }
+
+    /* inclBitStr [4] BIT-STRING — one bit per member, MSB first, 2 unused bits */
+    {
+        uint32_t n = report->num_members;
+        /* Build bit string: n bits set, padded to 8 bits */
+        uint32_t pad = (n < 8) ? (8u - n) : 0u;
+        uint8_t  bv  = (n >= 8) ? 0xFFu : (uint8_t)(0xFFu << pad);
+        ACR_BYTE(0x84); ACR_BYTE(2); ACR_BYTE((uint8_t)pad); ACR_BYTE(bv);
+    }
+
+    /* Data values — one per included member */
+    for (uint32_t i = 0; i < report->num_values; i++) {
+        int rv = mms_encode_value(&report->values[i], acr + ao, sizeof(acr) - ao);
+        if (rv < 0) return rv;
+        ao += (size_t)rv;
+    }
+
+    /* Reason codes [4] BIT-STRING — one per member: 2 bits padding, 6 bits reason */
+    for (uint32_t i = 0; i < report->num_members; i++) {
+        ACR_BYTE(0x84); ACR_BYTE(2); ACR_BYTE(2); ACR_BYTE(report->reason_code);
+    }
+
+#undef ACR_BYTE
+#undef ACR_STR
+#undef ACR_UINT
+
+    /* Assemble informationReport [0] CONSTRUCTED content */
+    uint8_t ir[MMS_MAX_PDU_SIZE];
+    size_t  io = 0;
+
+    /* variableAccessSpecification [1] CONSTRUCTED → vmd-specific [0] "RPT" */
+    ir[io++] = 0xA1; ir[io++] = 0x05;
+    ir[io++] = 0x80; ir[io++] = 0x03;
+    ir[io++] = 0x52; ir[io++] = 0x50; ir[io++] = 0x54;  /* "RPT" */
+
+    /* listOfAccessResult [0] CONSTRUCTED */
+    ir[io++] = 0xA0;
+    if (ao > 127) { ir[io++] = 0x81; }
+    ir[io++] = (uint8_t)ao;
+    memcpy(ir + io, acr, ao); io += ao;
+
+    /* Wrap in unconfirmedPDU [3] CONSTRUCTED → informationReport [0] CONSTRUCTED */
+    size_t needed = 4 + io;  /* A3 len A0 len + io */
+    if (needed + 4 > buflen) return MMS_ERROR_BUFFER_TOO_SMALL;
+
+    size_t off = 0;
+    buffer[off++] = 0xA3;  /* unconfirmedPDU [3] */
+    size_t outer_len_pos = off++;
+    buffer[off++] = 0xA0;  /* informationReport [0] */
+    size_t inner_len_pos = off++;
+
+    memcpy(buffer + off, ir, io); off += io;
+
+    buffer[inner_len_pos] = (uint8_t)(io);
+    buffer[outer_len_pos] = (uint8_t)(2 + io);
+
+    return (int)off;
 }
 
 int mms_decode_information_report(const uint8_t* buffer, size_t buflen,

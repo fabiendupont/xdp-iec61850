@@ -558,6 +558,47 @@ typedef struct {
     bool config_ref_present;                ///< Include config ref in report
 } mms_information_report_t;
 
+/**
+ * @brief Full IEC 61850-7-2 URCB InformationReport.
+ *
+ * Encodes the complete IEC 61850-7-2 URCB report format as expected
+ * by IEC 61850 MMS clients. The listOfAccessResult carries report metadata
+ * (rptID, optFlds, seqNum, timeOfEntry, datSet, confRev, inclBitStr) followed
+ * by the data values and per-member reason codes — all as sequential
+ * AccessResult success entries.
+ *
+ * variableAccessSpecification uses vmd-specific "RPT" (not the dataset name).
+ */
+typedef struct {
+    char rpt_id[MMS_MAX_STRING_LENGTH];    /* rptID [10] VisibleString */
+    char dat_set[MMS_MAX_STRING_LENGTH];   /* datSet [10] VisibleString */
+    uint32_t sq_num;                       /* seqNum [6] UNSIGNED (0 if not present) */
+    bool sq_num_present;
+    uint8_t time_of_entry[6];             /* timeOfEntry [12] BINARY-TIME 6 bytes */
+    bool time_of_entry_present;
+    uint32_t conf_rev;                     /* confRev [6] UNSIGNED (0 if not present) */
+    bool conf_rev_present;
+    /* optFlds bit string: which metadata fields are present in the report */
+    uint8_t opt_flds_byte;                 /* 8 bits: see IEC 61850-7-2 §8.3.2 */
+    /* incl_bit_str: one bit per dataset member, set if member is included */
+    uint8_t incl_bit_str_byte;            /* first byte of inclusion bit string */
+    uint32_t num_members;                 /* number of dataset members included */
+    /* reason code for each member: 8 bits, 2 bits padding, IEC 61850-7-2 §8.1.3 */
+    uint8_t reason_code;                  /* same reason applied to all members */
+    /* data values — one per included member */
+    mms_value_t values[MMS_MAX_NAMED_VARIABLES];
+    uint32_t num_values;
+} mms_iec61850_report_t;
+
+/**
+ * @brief Encode a full IEC 61850-7-2 URCB InformationReport PDU.
+ *
+ * 
+ * by IEC 61850 MMS clients.
+ */
+int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
+                                uint8_t *buffer, size_t buflen);
+
 /* ============================================================================
  * Phase 7: Control Service Structures
  * ============================================================================ */

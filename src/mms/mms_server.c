@@ -657,9 +657,23 @@ static void *session_thread(void *arg)
              * InformationReport) immediately after a specific request, without
              * sleeping or polling. */
             if (session->after_response != NULL) {
-                session->after_response(session,
-                                        req.params.read.variable_spec.domain,
-                                        req.params.read.variable_spec.item_id,
+                /* Pass the correct domain/item for the service type */
+                const char *cb_domain = "";
+                const char *cb_item   = "";
+                switch (req.service) {
+                    case MMS_SERVICE_TYPE_READ:
+                    case MMS_SERVICE_TYPE_READ_NAMED_VARLIST:
+                        cb_domain = req.params.read.variable_spec.domain;
+                        cb_item   = req.params.read.variable_spec.item_id;
+                        break;
+                    case MMS_SERVICE_TYPE_WRITE:
+                        cb_domain = req.params.write.variable_spec.domain;
+                        cb_item   = req.params.write.variable_spec.item_id;
+                        break;
+                    default:
+                        break;
+                }
+                session->after_response(session, cb_domain, cb_item,
                                         session->after_response_user_data);
             }
         } else if (proc_ret == 1) {
