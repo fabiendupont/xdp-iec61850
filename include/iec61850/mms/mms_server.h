@@ -31,11 +31,31 @@ extern "C" {
 #define IEC61850_MMS_MAX_PDU_SIZE   65000
 
 /* Server configuration */
+/* Forward declaration for use in callback typedef */
+struct iec61850_mms_session_s;
+
+/* Callback invoked after the server sends each confirmed response, while the
+ * session is still active. Use to send unsolicited PDUs (e.g. InformationReport)
+ * immediately after a specific request is serviced — no sleep/polling needed.
+ *
+ * Parameters:
+ *   session   — active session (use iec61850_iso_send() to push unsolicited data)
+ *   req_domain, req_item — domain and item_id from the just-served request
+ *   user_data — opaque pointer registered in iec61850_mms_server_config_t
+ */
+typedef void (*iec61850_mms_after_response_cb)(
+    struct iec61850_mms_session_s *session,
+    const char *req_domain,
+    const char *req_item,
+    void *user_data);
+
 typedef struct {
     uint16_t port;          /* TCP port (default 102) */
     uint32_t max_pdu_size;  /* Max MMS PDU size */
     uint32_t max_sessions;  /* Max concurrent sessions */
     int accept_timeout_ms;  /* Accept timeout */
+    iec61850_mms_after_response_cb after_response;  /* optional post-response hook */
+    void *after_response_user_data;
 } iec61850_mms_server_config_t;
 
 /* Server result codes */
@@ -49,7 +69,7 @@ typedef enum {
 } iec61850_mms_server_result_t;
 
 /* Per-session state */
-typedef struct {
+typedef struct iec61850_mms_session_s {
     iec61850_iso_conn_t iso;
     pthread_t thread;
     atomic_bool active;
@@ -61,6 +81,8 @@ typedef struct {
     uint32_t max_pdu_size;
     uint32_t invoke_id;
     uint32_t session_id;
+    iec61850_mms_after_response_cb after_response;   /* optional, copied from config */
+    void *after_response_user_data;
 } iec61850_mms_session_t;
 
 /* MMS Server */

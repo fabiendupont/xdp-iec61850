@@ -652,6 +652,16 @@ static void *session_thread(void *arg)
             if (ret <= 0) { break; }
             ret = iec61850_iso_send(&session->iso, resp_buf, (size_t)ret);
             if (ret < 0) { break; }
+            /* Invoke post-response callback while session is still active.
+             * This allows the application to send unsolicited PDUs (e.g.
+             * InformationReport) immediately after a specific request, without
+             * sleeping or polling. */
+            if (session->after_response != NULL) {
+                session->after_response(session,
+                                        req.params.read.variable_spec.domain,
+                                        req.params.read.variable_spec.item_id,
+                                        session->after_response_user_data);
+            }
         } else if (proc_ret == 1) {
             /* Error — send confirmed error */
             ret = mms_encode_confirmed_error(&err, resp_buf,
@@ -706,6 +716,8 @@ static void *accept_thread(void *arg)
                 sess->max_pdu_size = server->config.max_pdu_size;
                 sess->invoke_id = 0;
                 sess->session_id = server->next_session_id; server->next_session_id++;
+                sess->after_response = server->config.after_response;
+                sess->after_response_user_data = server->config.after_response_user_data;
                 atomic_store(&sess->active, true);
                 atomic_store(&sess->stop_requested, false);
                 atomic_fetch_add(&server->active_session_count, 1);

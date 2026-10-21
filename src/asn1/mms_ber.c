@@ -4309,19 +4309,34 @@ int mms_encode_information_report(const mms_information_report_t* report,
     uint8_t report_buf[MMS_MAX_PDU_SIZE];
     size_t report_offset = 0;
 
-    /* variableAccessSpecification [0] VariableAccessSpecification */
-    report_buf[report_offset++] = 0xA0;  /* [0] IMPLICIT - listOfVariable */
-    size_t varlist_start = report_offset + 1;
-    report_offset++;
+    /* variableAccessSpecification [1] variableListName domain-specific ObjectName.
+     * Format: A1(outer) A1(domain-specific) 1A(domain) 1A(list-name).
+     * Split variable_list_name on '/' to get domain and item. */
+    {
+        const char *slash = strchr(report->variable_list_name, '/');
+        const char *dom_str = report->variable_list_name;
+        size_t dom_len = slash ? (size_t)(slash - dom_str) : strlen(dom_str);
+        const char *item_str = slash ? slash + 1 : "";
+        size_t item_len = strlen(item_str);
 
-    /* For simplicity, use variable list name as a single identifier */
-    /* In full implementation, this would reference a named variable list */
-    size_t list_name_len = strlen(report->variable_list_name);
-    report_buf[report_offset++] = (uint8_t)list_name_len;
-    memcpy(report_buf + report_offset, report->variable_list_name, list_name_len);
-    report_offset += list_name_len;
+        /* Inner domain-specific content: 1A + dom + 1A + item */
+        size_t inner_content = 2 + dom_len + 2 + item_len;
+        /* Outer [1] wraps domain-specific [1] + inner */
+        size_t ds_content = 2 + inner_content;
 
-    report_buf[varlist_start - 1] = (uint8_t)(report_offset - varlist_start);
+        report_buf[report_offset++] = 0xA1;                  /* [1] CONSTRUCTED (variableListName) */
+        report_buf[report_offset++] = (uint8_t)(2 + ds_content);
+        report_buf[report_offset++] = 0xA1;                  /* [1] CONSTRUCTED (domain-specific) */
+        report_buf[report_offset++] = (uint8_t)inner_content;
+        report_buf[report_offset++] = 0x1A;                  /* GraphicString domain */
+        report_buf[report_offset++] = (uint8_t)dom_len;
+        memcpy(report_buf + report_offset, dom_str, dom_len);
+        report_offset += dom_len;
+        report_buf[report_offset++] = 0x1A;                  /* GraphicString item */
+        report_buf[report_offset++] = (uint8_t)item_len;
+        memcpy(report_buf + report_offset, item_str, item_len);
+        report_offset += item_len;
+    }
 
     /* listOfAccessResult [1] SEQUENCE OF AccessResult */
     report_buf[report_offset++] = 0xA1;  /* [1] IMPLICIT */
