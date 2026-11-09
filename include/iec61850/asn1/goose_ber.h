@@ -68,12 +68,18 @@ extern "C" {
 #define GOOSE_TAG_NUMDATSETENTRIES  0x8AU  /* [10] */
 #define GOOSE_TAG_ALLDATA           0xABU  /* [11] | CONSTRUCTED */
 
-/* IEC 62351-6 Security Extension Tags (Context-Specific) */
-#define GOOSE_TAG_SECURITY          0xACU  /* [12] | CONSTRUCTED - Security extension */
-#define GOOSE_TAG_SECURITY_ALGO     0x80U  /* [0] - Signature algorithm */
-#define GOOSE_TAG_SECURITY_KEYID    0x81U  /* [1] - Key identifier */
-#define GOOSE_TAG_SECURITY_TIMESTAMP 0x82U /* [2] - Security timestamp */
-#define GOOSE_TAG_SECURITY_SIGNATURE 0x83U /* [3] - Digital signature */
+/* IEC 62351-6 Security Extension Tags (Context-Specific).
+ * The wire layout produced by the publisher (append_security_extension)
+ * and parsed by the subscriber (parse_security_extension):
+ *   [12] CONSTRUCTED wrapper (0xAC)
+ *     [0] timeOfCurrentKey  UtcTime, 8 bytes
+ *     [1] keyID             OCTET STRING, 4 bytes
+ *     [2] signature         OCTET STRING, variable
+ */
+#define GOOSE_TAG_SECURITY            0xACU /* [12] | CONSTRUCTED - Security extension */
+#define GOOSE_TAG_SECURITY_TIME_OF_KEY 0x80U /* [0] - timeOfCurrentKey (UtcTime) */
+#define GOOSE_TAG_SECURITY_KEYID      0x81U /* [1] - Key identifier */
+#define GOOSE_TAG_SECURITY_SIGNATURE  0x82U /* [2] - Digital signature */
 
 /* Maximum sizes */
 #define GOOSE_MAX_GOCBREF_LEN       129U

@@ -210,6 +210,10 @@ iec61850_dep = declare_dependency(
     dependencies: core_deps,
 )
 
+# Exposed to the parent project (option-forwarding verification):
+# true iff this subproject was configured with -Denable_security=true.
+iec61850_security_enabled = get_option('enable_security')
+
 # Tests
 if get_option('enable_tests')
     subdir('tests')

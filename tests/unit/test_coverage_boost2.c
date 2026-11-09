@@ -297,10 +297,9 @@ static void test_decode_security(void)
 {
     /* Build security extension:
      * [12] CONSTRUCTED {
-     *   [0] algo (uint32)
+     *   [0] timeOfCurrentKey (utctime, 8 bytes)
      *   [1] keyID (octet string, 4 bytes)
-     *   [2] timestamp (utctime, 8 bytes)
-     *   [3] signature (octet string, variable)
+     *   [2] signature (octet string, variable)
      * }
      */
     uint8_t sec_buf[128];
@@ -314,21 +313,8 @@ static void test_decode_security(void)
     offset++;  /* reserve 1 byte for length (short form) */
     size_t content_start = offset;
 
-    /* [0] algo = 1 (RSA-PSS) */
-    sec_buf[offset++] = 0x80;  /* GOOSE_TAG_SECURITY_ALGO */
-    sec_buf[offset++] = 0x01;
-    sec_buf[offset++] = 0x01;
-
-    /* [1] keyID = 4 bytes */
-    sec_buf[offset++] = 0x81;  /* GOOSE_TAG_SECURITY_KEYID */
-    sec_buf[offset++] = 0x04;
-    sec_buf[offset++] = 0xDE;
-    sec_buf[offset++] = 0xAD;
-    sec_buf[offset++] = 0xBE;
-    sec_buf[offset++] = 0xEF;
-
-    /* [2] timestamp (utctime 8 bytes) */
-    sec_buf[offset++] = 0x82;  /* GOOSE_TAG_SECURITY_TIMESTAMP */
+    /* [0] timeOfCurrentKey (utctime 8 bytes) */
+    sec_buf[offset++] = 0x80;  /* GOOSE_TAG_SECURITY_TIME_OF_KEY */
     sec_buf[offset++] = 0x08;
     /* seconds=1000 big-endian */
     sec_buf[offset++] = 0x00;
@@ -342,8 +328,16 @@ static void test_decode_security(void)
     /* quality=0 */
     sec_buf[offset++] = 0x00;
 
-    /* [3] signature = 8 bytes */
-    sec_buf[offset++] = 0x83;  /* GOOSE_TAG_SECURITY_SIGNATURE */
+    /* [1] keyID = 4 bytes */
+    sec_buf[offset++] = 0x81;  /* GOOSE_TAG_SECURITY_KEYID */
+    sec_buf[offset++] = 0x04;
+    sec_buf[offset++] = 0xDE;
+    sec_buf[offset++] = 0xAD;
+    sec_buf[offset++] = 0xBE;
+    sec_buf[offset++] = 0xEF;
+
+    /* [2] signature = 8 bytes */
+    sec_buf[offset++] = 0x82;  /* GOOSE_TAG_SECURITY_SIGNATURE */
     sec_buf[offset++] = 0x08;
     for (int i = 0; i < 8; i++) {
         sec_buf[offset++] = (uint8_t)(0x10 + i);
@@ -359,7 +353,6 @@ static void test_decode_security(void)
     int ret = goose_decode_security(sec_buf, offset, &sec_offset, &apdu);
     TEST_ASSERT(ret == GOOSE_BER_OK, "security decode should succeed");
     TEST_ASSERT(apdu.secure == true, "secure flag should be set");
-    TEST_ASSERT(apdu.signature_algo == GOOSE_SIGNATURE_RSA_PSS, "algo should be RSA-PSS");
     TEST_ASSERT(apdu.key_id[0] == 0xDE, "keyID byte 0");
     TEST_ASSERT(apdu.key_id[3] == 0xEF, "keyID byte 3");
     TEST_ASSERT(apdu.signature_len == 8, "sig len should be 8");

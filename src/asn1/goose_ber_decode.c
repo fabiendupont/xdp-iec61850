@@ -728,7 +728,6 @@ int goose_decode_security(const uint8_t *buf, size_t buf_size, size_t *offset,
     uint8_t tag;
     size_t length;
     size_t sec_end;
-    uint32_t algo;
     size_t key_id_len;
 
     if ((!buf) || (!offset) || (!apdu)) {
@@ -756,14 +755,22 @@ int goose_decode_security(const uint8_t *buf, size_t buf_size, size_t *offset,
                     if (sec_end > buf_size) {
                         result = GOOSE_BER_ERR_BUFFER_FULL;
                     } else {
-                        /* [0] Signature algorithm */
-                        ret = ber_decode_uint32(buf, buf_size, offset,
-                                                GOOSE_TAG_SECURITY_ALGO, &algo);
+                        /* IEC 62351-6 security extension, the layout
+                         * the publisher emits (goose_publisher.c
+                         * append_security_extension) and the subscriber
+                         * parses (goose_subscriber.c
+                         * parse_security_extension):
+                         *   [0] timeOfCurrentKey  UtcTime (8 bytes)
+                         *   [1] keyID             OCTET STRING (4 bytes)
+                         *   [2] signature         OCTET STRING
+                         */
+                        /* [0] timeOfCurrentKey */
+                        ret = ber_decode_utctime(buf, buf_size, offset,
+                                                 GOOSE_TAG_SECURITY_TIME_OF_KEY,
+                                                 &apdu->security_timestamp, NULL);
                         if (ret != GOOSE_BER_OK) {
                             result = ret;
                         } else {
-                            apdu->signature_algo = (goose_signature_algo_t)algo;
-
                             /* [1] Key ID */
                             ret = ber_decode_octetstring(buf, buf_size, offset,
                                                           GOOSE_TAG_SECURITY_KEYID,
@@ -774,25 +781,17 @@ int goose_decode_security(const uint8_t *buf, size_t buf_size, size_t *offset,
                             } else if (key_id_len != GOOSE_KEYID_LEN) {
                                 result = GOOSE_BER_ERR_ENCODING;  /* Key ID length mismatch */
                             } else {
-                                /* [2] Security timestamp */
-                                ret = ber_decode_utctime(buf, buf_size, offset,
-                                                         GOOSE_TAG_SECURITY_TIMESTAMP,
-                                                         &apdu->security_timestamp, NULL);
+                                /* [2] Signature */
+                                ret = ber_decode_octetstring(buf, buf_size, offset,
+                                                              GOOSE_TAG_SECURITY_SIGNATURE,
+                                                              apdu->signature, GOOSE_MAX_SIGNATURE_LEN,
+                                                              &apdu->signature_len);
                                 if (ret != GOOSE_BER_OK) {
                                     result = ret;
                                 } else {
-                                    /* [3] Signature */
-                                    ret = ber_decode_octetstring(buf, buf_size, offset,
-                                                                  GOOSE_TAG_SECURITY_SIGNATURE,
-                                                                  apdu->signature, GOOSE_MAX_SIGNATURE_LEN,
-                                                                  &apdu->signature_len);
-                                    if (ret != GOOSE_BER_OK) {
-                                        result = ret;
-                                    } else {
-                                        /* Successfully decoded security extension */
-                                        apdu->secure = true;
-                                        result = GOOSE_BER_OK;
-                                    }
+                                    /* Successfully decoded security extension */
+                                    apdu->secure = true;
+                                    result = GOOSE_BER_OK;
                                 }
                             }
                         }

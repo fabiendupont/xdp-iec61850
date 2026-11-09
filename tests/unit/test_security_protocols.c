@@ -208,14 +208,20 @@ static int build_goose_with_security(uint8_t *out, size_t out_size,
     /* Tag: [12] CONSTRUCTED = 0xAC */
     sec[sec_off++] = GOOSE_TAG_SECURITY;
 
-    /* Build inner content first to know its length */
+    /* Build inner content first to know its length — the IEC 62351-6
+     * wire layout the publisher emits:
+     *   [0] timeOfCurrentKey, [1] keyID, [2] signature */
     uint8_t inner[1024];
     size_t inner_off = 0;
 
-    /* [0] Signature algorithm */
-    inner[inner_off++] = GOOSE_TAG_SECURITY_ALGO;
-    inner[inner_off++] = 0x01;
-    inner[inner_off++] = 0x01; /* RSA-PSS */
+    /* [0] timeOfCurrentKey (8 bytes UtcTime) */
+    inner[inner_off++] = GOOSE_TAG_SECURITY_TIME_OF_KEY;
+    inner[inner_off++] = 0x08;
+    /* Dummy timestamp: 4 bytes seconds + 3 bytes fraction + 1 byte quality */
+    inner[inner_off++] = 0x00; inner[inner_off++] = 0x01;
+    inner[inner_off++] = 0x02; inner[inner_off++] = 0x03;
+    inner[inner_off++] = 0x00; inner[inner_off++] = 0x00;
+    inner[inner_off++] = 0x00; inner[inner_off++] = 0x00;
 
     /* [1] Key ID */
     uint8_t key_id[GOOSE_KEYID_LEN];
@@ -225,16 +231,7 @@ static int build_goose_with_security(uint8_t *out, size_t out_size,
     memcpy(&inner[inner_off], key_id, GOOSE_KEYID_LEN);
     inner_off += GOOSE_KEYID_LEN;
 
-    /* [2] Security timestamp (8 bytes UtcTime) */
-    inner[inner_off++] = GOOSE_TAG_SECURITY_TIMESTAMP;
-    inner[inner_off++] = 0x08;
-    /* Dummy timestamp: 4 bytes seconds + 3 bytes fraction + 1 byte quality */
-    inner[inner_off++] = 0x00; inner[inner_off++] = 0x01;
-    inner[inner_off++] = 0x02; inner[inner_off++] = 0x03;
-    inner[inner_off++] = 0x00; inner[inner_off++] = 0x00;
-    inner[inner_off++] = 0x00; inner[inner_off++] = 0x00;
-
-    /* [3] Signature */
+    /* [2] Signature */
     inner[inner_off++] = GOOSE_TAG_SECURITY_SIGNATURE;
     if (sig_len < 128U) {
         inner[inner_off++] = (uint8_t)sig_len;
@@ -334,7 +331,6 @@ static void test_goose_security_roundtrip(void)
     ret = goose_decode_apdu(buf, buf_len, &decoded);
     ASSERT_EQ(ret, GOOSE_BER_OK);
     ASSERT_TRUE(decoded.secure);
-    ASSERT_EQ((int)decoded.signature_algo, (int)GOOSE_SIGNATURE_RSA_PSS);
 
     uint8_t expected_key[GOOSE_KEYID_LEN];
     memset(expected_key, 0xCC, sizeof(expected_key));
