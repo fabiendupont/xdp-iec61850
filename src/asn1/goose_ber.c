@@ -428,10 +428,13 @@ static int goose_encode_data_elements(uint8_t *buf, size_t buf_size,
                 break;
 
             case GOOSE_DATA_UTCTIME:
-                /* IEC 61850-8-1 Annex A: UTC-Time uses context tag [12] = 0x8C.
-                 * Length is 8 bytes (4s + 3frac + 1quality). */
+                /* IEC 61850-8-1: UTC-Time in allData uses context tag
+                 * [17] = 0x91 (matches the decoder and libiec61850).
+                 * [12] (0x8C) is BTIME6 — the encoder and decoder
+                 * disagreed, so decoded UtcTime entries were skipped
+                 * as unknown data and the entry count came back short. */
                 ret = ber_encode_utctime(buf, buf_size, offset,
-                                        ASN1_CLASS_CONTEXT | 0x0CU,
+                                        ASN1_CLASS_CONTEXT | 0x11U,
                                         data[i].value.utctime.timestamp_us,
                                         data[i].value.utctime.time_quality);
                 break;
