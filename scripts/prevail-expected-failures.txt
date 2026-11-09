@@ -1,0 +1,7 @@
+# Programs PREVAIL currently rejects while the kernel verifier
+# accepts them.  PREVAIL's path-insensitive analysis cannot prove
+# the bounded scan loops in the parse nodes.  The CI gate asserts
+# these still fail; remove an entry when a PREVAIL release starts
+# verifying it.
+node_goose_parse.bpf.o	xdp/node_goose_parse
+node_sv_parse.bpf.o	xdp/node_sv_parse

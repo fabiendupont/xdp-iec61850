@@ -28,7 +28,9 @@ XGL_NODE(node_sv_filter)
 
     void *data = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
-    __u32 pkt_len = (__u32)(data_end - data);
+    /* 64-bit: u32 forces 32-bit pointer arithmetic,
+         * which PREVAIL rejects */
+    __u64 pkt_len = data_end - data;
 
     XGL_STATS_INC_RX(egl_node_stats, idx, pkt_len);
 
