@@ -5,7 +5,7 @@
  * Tests: load RSA/ECDSA keys, sign/verify round-trip, wrong key type,
  * corrupt key, DER format, reload, signature size, unloaded state.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "security/key_manager.h"

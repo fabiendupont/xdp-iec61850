@@ -5,7 +5,7 @@
  * Tracks system health, aggregates statistics from GOOSE/SV/MMS,
  * and exports metrics in JSON format.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_SYSTEM_MONITOR_H

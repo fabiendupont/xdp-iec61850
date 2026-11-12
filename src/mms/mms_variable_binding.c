@@ -7,7 +7,7 @@
  * the binding mutex before calling into the DataAttribute (which
  * has its own mutex) to avoid ABBA deadlocks.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

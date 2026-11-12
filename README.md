@@ -41,4 +41,4 @@ meson test -C builddir
 
 ## License
 
-BSD-3-Clause
+BSD-2-Clause

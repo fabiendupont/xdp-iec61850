@@ -16,7 +16,7 @@
 #include "iec61850_maps.bpf.h"
 #include "ber_shallow.bpf.h"
 
-char LICENSE[] SEC("license") = "BSD-3-Clause";
+char LICENSE[] SEC("license") = "BSD-2-Clause";
 
 /* GOOSE APDU context-specific tags */
 #define GOOSE_BPF_TAG_STNUM  0x85  /* [5] stNum */

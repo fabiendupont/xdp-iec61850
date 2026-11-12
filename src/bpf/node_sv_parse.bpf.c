@@ -12,7 +12,7 @@
 
 #include "iec61850_maps.bpf.h"
 
-char LICENSE[] SEC("license") = "BSD-3-Clause";
+char LICENSE[] SEC("license") = "BSD-2-Clause";
 
 /* SV APDU tags */
 #define SV_BPF_APDU_TAG     0x60  /* APPLICATION 0 | CONSTRUCTED (savPdu) */

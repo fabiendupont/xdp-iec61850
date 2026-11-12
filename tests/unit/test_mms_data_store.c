@@ -5,7 +5,7 @@
  * Tests: domain CRUD, variable CRUD, named variable lists,
  * concurrent access (thread safety).
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "mms/mms_data_store.h"

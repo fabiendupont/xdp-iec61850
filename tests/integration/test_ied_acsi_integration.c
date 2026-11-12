@@ -6,7 +6,7 @@
  * register into MMS data store, then verify domains, hierarchy, and
  * variable access via the data store API.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "scl/scl_parser.h"

@@ -5,7 +5,7 @@
  * All collections use malloc/realloc with doubling growth.
  * Thread-safe via pthread_mutex_t.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

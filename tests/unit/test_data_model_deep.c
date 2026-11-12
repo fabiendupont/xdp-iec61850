@@ -6,7 +6,7 @@
  * roundtrip for multiple types, FC filtering, nested sub-DOs, and
  * full model traversal with element counting.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "ied/ied_data_model.h"

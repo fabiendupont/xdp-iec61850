@@ -7,7 +7,7 @@
  *   2. IED DataAttribute change -> DA callback fires
  *   3. Multiple independent attributes bound and written
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "mms/mms_variable_binding.h"

@@ -5,7 +5,7 @@
  * Parses SCD/SCL files using libxml2 to extract GOOSE, SV, and RCB
  * control block configurations plus IED structure.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_SCL_PARSER_H

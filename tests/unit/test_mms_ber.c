@@ -6,7 +6,7 @@
  * InitiateRequest/Response, ConfirmedRequest/Response (Read, Write,
  * GetNameList), Error PDU, InformationReport, helper functions.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "asn1/mms_ber.h"

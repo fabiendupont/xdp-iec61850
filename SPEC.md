@@ -5,7 +5,7 @@
 - **Purpose**: IEC 61850 GOOSE + SV + MMS stack on XDP, functionally equivalent to the iec-61850 C++ stack
 - **Language**: Pure C11
 - **Build system**: Meson
-- **License**: BSD-3-Clause
+- **License**: BSD-2-Clause
 - **Depends on**: xdp-graph-lib (which depends on ebpf-graph-lib), optionally xdp-hsr-prp
 - **Research doc**: `~/Work/Sandbox/research/03-iec61850-xdp-stack.md`
 - **Primary reference**: `~/Code/github.com/smgglrs/iec-61850/` (C++/DPDK — the complete implementation being replaced)
@@ -887,7 +887,7 @@ also fixed (subproject matches standalone, uses egl_graph_get_map_fd).
 
 **GPL NOTE**: libiec61850 is GPL. We MUST NOT read its source code. We
 verify against the IEC 61850 STANDARD and test interop as a black box.
-GPL contamination audit: CLEAN (all files BSD-3-Clause, no GPL references).
+GPL contamination audit: CLEAN (all files BSD-2-Clause, no GPL references).
 
 **INTEROP-1: GOOSE BitString encoding missing ASN.1 "unused bits" prefix**
 
@@ -1018,10 +1018,10 @@ all gate the pipeline (no `allow_failure: true`).
 
 ### GPL Boundary
 
-libiec61850 is GPL. Our code is BSD-3-Clause. The interop test suite uses
+libiec61850 is GPL. Our code is BSD-2-Clause. The interop test suite uses
 **subprocess isolation**: our test harness (BSD-3) launches libiec61850 helper
 programs (GPL binaries) as subprocesses. Communication is wire-only. No linking
-against GPL in our binaries. GPL audit: CLEAN (all 131 files BSD-3-Clause).
+against GPL in our binaries. GPL audit: CLEAN (all 131 files BSD-2-Clause).
 
 ### Test Architecture
 

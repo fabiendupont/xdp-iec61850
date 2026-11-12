@@ -6,7 +6,7 @@
  * data attribute get/set with mutex, change callbacks,
  * FC/BType enum conversions.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "ied/ied_data_model.h"

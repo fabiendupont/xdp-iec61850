@@ -10,7 +10,7 @@
  * - Comments (# ...)
  * - Quoted strings (double and single)
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_YAML_PARSER_H

@@ -4,7 +4,7 @@
  *
  * Handles: defaults, YAML loading, CLI parsing, and precedence merge.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "config/config_manager.h"

@@ -5,7 +5,7 @@
  * Tests: load PEM/DER cert, extract subject, compute key ID,
  * extract public key, invalid cert handling, reload.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "security/cert_manager.h"

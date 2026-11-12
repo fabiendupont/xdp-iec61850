@@ -6,7 +6,7 @@
  * extension, empty signature, oversized signature, publisher/subscriber
  * security enable/disable.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "security/key_manager.h"

@@ -5,7 +5,7 @@
  * Provides PTP-synchronized timestamps for GOOSE and SV publishers.
  * Can read from Linux PTP hardware clock (/dev/ptp*) or system clock.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_PTP_CLOCK_H

@@ -4,7 +4,7 @@
  *
  * Exponential backoff: T0, 2*T0, 4*T0, ..., Tmax
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_GOOSE_RETRANSMISSION_H

@@ -5,7 +5,7 @@
  * Combined SV security detail tests and GOOSE security edge cases.
  * Tests BER-level security extension encoding/decoding for both protocols.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "asn1/sv_ber.h"

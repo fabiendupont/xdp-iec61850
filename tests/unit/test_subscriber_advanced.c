@@ -5,7 +5,7 @@
  * Tests: SV gap detection with wraparound, GOOSE multicast MAC validation,
  * multi-publisher tracking, out-of-order rejection, timeout detection.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

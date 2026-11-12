@@ -6,7 +6,7 @@
  * duplicate prevention, null arg validation, empty SCL,
  * data store binding, real SCD file parsing.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "scl/scl_rcb_config.h"

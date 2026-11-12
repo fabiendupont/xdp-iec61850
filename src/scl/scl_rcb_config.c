@@ -6,7 +6,7 @@
  * and creates RCBs in an RCB manager with proper trigger options,
  * optional fields, timing, and data set references.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "scl/scl_rcb_config.h"

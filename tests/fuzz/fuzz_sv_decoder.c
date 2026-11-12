@@ -4,7 +4,7 @@
  *
  * Feed random bytes to sv_decode_apdu. Must not crash or trigger UB.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "asn1/sv_ber.h"

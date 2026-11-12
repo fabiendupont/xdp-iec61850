@@ -6,7 +6,7 @@
  * Processes received GOOSE packets, tracks publisher state,
  * detects duplicates and timeouts.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_GOOSE_SUBSCRIBER_H

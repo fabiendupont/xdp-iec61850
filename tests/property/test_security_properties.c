@@ -8,7 +8,7 @@
  *   3. Cross-validation: sign with key1, verify with key2 always fails
  *   4. Tampered signature always fails
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "property_test.h"

@@ -2,7 +2,7 @@
 /*
  * Unit Tests for IEC 61850 GOOSE Publisher, Subscriber, Retransmission
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

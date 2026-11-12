@@ -4,7 +4,7 @@
  *
  * Uses OpenSSL EVP API with goto-cleanup pattern for resource management.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "security/key_manager.h"

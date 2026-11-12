@@ -5,7 +5,7 @@
  * Enums and constants for the ACSI data model:
  * FunctionalConstraint, BasicType, CdcType, TriggerCondition.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_IED_TYPES_H

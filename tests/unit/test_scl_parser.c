@@ -6,7 +6,7 @@
  * extract RCB (URCB/BRCB), extract DataSet/FCDA,
  * query by name, nonexistent IED, communication section.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "scl/scl_parser.h"

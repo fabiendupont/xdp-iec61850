@@ -4,7 +4,7 @@
  *
  * C11 replacement for C++ SvSubscriber class.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_SV_SUBSCRIBER_H

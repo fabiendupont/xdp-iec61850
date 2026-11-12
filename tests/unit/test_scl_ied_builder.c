@@ -6,7 +6,7 @@
  * CDC factory produced correct data objects, path-based attribute
  * lookup, RCB auto-configuration.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "scl/scl_ied_builder.h"

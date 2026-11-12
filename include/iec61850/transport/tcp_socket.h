@@ -5,7 +5,7 @@
  * POSIX TCP sockets with keep-alive and TCP_NODELAY.
  * Replaces C++ TcpSocketConnection and TcpSocketListener.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_TCP_SOCKET_H

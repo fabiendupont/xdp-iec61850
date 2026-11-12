@@ -5,7 +5,7 @@
  * Uses malloc for tree construction (init-time, not hot path).
  * DataAttribute value access is thread-safe via pthread_mutex_t.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

@@ -8,7 +8,7 @@
  *   3. Timeout detection correctness: always triggers after timeout_ms
  *   4. Duplicate detection: same stNum+sqNum always classified as duplicate
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "property_test.h"

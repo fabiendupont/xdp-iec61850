@@ -9,7 +9,7 @@
  * and fed directly to the subscriber's process_frame path.
  * Short timeouts (100ms) keep test execution fast.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

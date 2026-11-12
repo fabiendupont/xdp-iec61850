@@ -5,7 +5,7 @@
  * Hand-written parser for the YAML subset used in IEC 61850 config files.
  * No external dependencies (no libyaml, no yaml-cpp).
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

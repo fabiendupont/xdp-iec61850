@@ -9,7 +9,7 @@
  * This test does NOT require networking — it passes the encoded
  * frame buffer directly from publisher to subscriber decode path.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

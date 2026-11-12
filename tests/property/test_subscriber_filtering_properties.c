@@ -8,7 +8,7 @@
  *   3. SV svID filter: matching ID always accepted, non-matching always rejected
  *   4. No-filter subscriber accepts all messages
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "property_test.h"

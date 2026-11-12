@@ -8,7 +8,7 @@
  * - Config manager with YAML + CLI merge (iec61850_config_manager_load)
  * - Utility parsers (core list, PCI list)
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_CONFIG_MANAGER_H

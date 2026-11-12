@@ -15,7 +15,7 @@
 
 #include "iec61850_maps.bpf.h"
 
-char LICENSE[] SEC("license") = "BSD-3-Clause";
+char LICENSE[] SEC("license") = "BSD-2-Clause";
 
 XGL_NODE(node_goose_filter)
 {

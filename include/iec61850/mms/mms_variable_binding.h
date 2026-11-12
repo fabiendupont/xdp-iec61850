@@ -9,7 +9,7 @@
  *
  * Thread-safe: all operations acquire the manager mutex.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_MMS_VARIABLE_BINDING_H

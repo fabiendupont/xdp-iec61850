@@ -2,7 +2,7 @@
 /*
  * GOOSE Subscriber Implementation
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "goose/goose_subscriber.h"

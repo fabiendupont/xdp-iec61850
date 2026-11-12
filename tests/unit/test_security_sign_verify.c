@@ -5,7 +5,7 @@
  * Tests sign+verify round-trip, tamper detection, wrong key rejection,
  * and NULL input handling for the key_manager and cert_manager APIs.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "property_test.h"

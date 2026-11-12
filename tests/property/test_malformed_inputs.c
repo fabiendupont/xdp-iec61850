@@ -10,7 +10,7 @@
  *
  * Uses property-based testing with random bit flips, truncation, etc.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "property_test.h"

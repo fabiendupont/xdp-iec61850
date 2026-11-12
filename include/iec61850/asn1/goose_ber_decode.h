@@ -5,7 +5,7 @@
  * This is a minimal, formally verified implementation of BER decoding
  * for GOOSE APDUs. Written in C (not C++) for Frama-C verification.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef GOOSE_BER_DECODE_H

@@ -2,7 +2,7 @@
 /*
  * GOOSE Retransmission Scheduler Implementation
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "goose/goose_retransmission.h"

@@ -6,7 +6,7 @@
  * single and multiple connections, stop, and post-stop behaviour.
  * Uses real POSIX TCP sockets — no MMS or ISO stack involved.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

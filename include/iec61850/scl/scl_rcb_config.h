@@ -6,7 +6,7 @@
  * and auto-creates RCBs in an RCB manager, using the binding manager
  * to connect RCBs to data sets.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_SCL_RCB_CONFIG_H

@@ -6,7 +6,7 @@
  * timestamp ordering, thread-safe concurrent producer/consumer,
  * overflow detection flag, clear preserves next_entry_id.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "mms/mms_report.h"

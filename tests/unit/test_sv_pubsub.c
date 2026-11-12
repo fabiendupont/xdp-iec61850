@@ -2,7 +2,7 @@
 /*
  * Unit Tests for IEC 61850 Sampled Values Publisher/Subscriber
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

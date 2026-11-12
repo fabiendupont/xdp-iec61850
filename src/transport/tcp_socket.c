@@ -4,7 +4,7 @@
  *
  * POSIX IPv4 TCP with keep-alive and TCP_NODELAY.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

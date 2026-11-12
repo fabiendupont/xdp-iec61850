@@ -2,7 +2,7 @@
 /*
  * SCL Parser Implementation using libxml2
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "scl/scl_parser.h"

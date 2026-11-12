@@ -5,7 +5,7 @@
  * Systematic NULL pointer, buffer overflow, and invalid enum coverage
  * across all public API functions.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "asn1/goose_ber.h"

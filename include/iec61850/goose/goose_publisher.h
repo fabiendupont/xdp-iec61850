@@ -5,7 +5,7 @@
  * C11 replacement for C++ GoosePublisher class.
  * Uses embedded fixed-capacity arrays (no heap allocation on hot path).
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_GOOSE_PUBLISHER_H

@@ -2,7 +2,7 @@
 /*
  * System Monitor and Metrics Exporter Implementation
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

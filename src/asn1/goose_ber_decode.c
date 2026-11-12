@@ -4,7 +4,7 @@
  *
  * Minimal, formally verified implementation for safety-critical systems.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "asn1/goose_ber_decode.h"

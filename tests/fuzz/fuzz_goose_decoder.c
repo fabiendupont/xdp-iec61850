@@ -13,7 +13,7 @@
  * Or run as standalone for 10 seconds with random input:
  *   ./fuzz_goose_decoder --standalone
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "asn1/goose_ber.h"

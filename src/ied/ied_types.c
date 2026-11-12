@@ -2,7 +2,7 @@
 /*
  * IED Type Conversions
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "ied/ied_types.h"

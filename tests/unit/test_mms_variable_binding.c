@@ -6,7 +6,7 @@
  * unbind_all, on_mms_write propagation, unbound write error,
  * null-arg validation, concurrent bind+write (2 threads).
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #include "mms/mms_variable_binding.h"

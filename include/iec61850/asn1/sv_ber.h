@@ -22,7 +22,7 @@
  *     }
  *   }
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef SV_BER_H

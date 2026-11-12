@@ -6,7 +6,7 @@
  * PTP_DEVICE:   opens /dev/ptpN, reads via FD_TO_CLOCKID, smpSynch=2.
  * Graceful fallback to system clock if PTP device unavailable.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 

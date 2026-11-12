@@ -10,7 +10,7 @@
  *   - ECDSA-SHA256 (alternative)
  *   - Pre-allocated buffer signing (zero-allocation hot path)
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_KEY_MANAGER_H

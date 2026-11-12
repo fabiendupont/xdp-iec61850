@@ -12,7 +12,7 @@
  * sizes (< 2000 variables) this is acceptable. If needed, a hash map
  * can be substituted later without changing the API.
  *
- * License: BSD-3-Clause
+ * License: BSD-2-Clause
  */
 
 #ifndef IEC61850_MMS_DATA_STORE_H
