@@ -1019,7 +1019,7 @@ all gate the pipeline (no `allow_failure: true`).
 ### GPL Boundary
 
 libiec61850 is GPL. Our code is BSD-2-Clause. The interop test suite uses
-**subprocess isolation**: our test harness (BSD-3) launches libiec61850 helper
+**subprocess isolation**: our test harness (BSD test harness) launches libiec61850 helper
 programs (GPL binaries) as subprocesses. Communication is wire-only. No linking
 against GPL in our binaries. GPL audit: CLEAN (all 131 files BSD-2-Clause).
 
@@ -1036,7 +1036,7 @@ tests/interop/
 │   ├── mms_client_helper.c    # libiec61850 MMS client
 │   ├── Makefile               # Builds against pkg-config libiec61850
 │   └── build_libiec61850_helpers.sh
-├── goose/                     # BSD-3 test harnesses
+├── goose/                     # BSD test harnesses
 │   ├── test_goose_interop_sub.c   # lib61850 pub → xdp sub (12 scenarios)
 │   └── test_goose_interop_pub.c   # xdp pub → lib61850 sub (8 scenarios)
 ├── sv/
