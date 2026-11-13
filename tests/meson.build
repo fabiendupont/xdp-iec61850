@@ -624,6 +624,24 @@ test_packet_io_udp = executable('test_packet_io_udp',
 )
 test('packet_io_udp', test_packet_io_udp, suite: 'unit')
 
+# Unit tests — 90-5 routable-profile pub/sub (WP-S4b scaffolds,
+# extended by WP-4d)
+test_rgoose_pubsub = executable('test_rgoose_pubsub',
+    'unit/test_rgoose_pubsub.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+test('rgoose_pubsub', test_rgoose_pubsub, suite: 'unit')
+
+test_rsv_pubsub = executable('test_rsv_pubsub',
+    'unit/test_rsv_pubsub.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+test('rsv_pubsub', test_rsv_pubsub, suite: 'unit')
+
 # Integration: Loopback tests (require root, build_by_default: false)
 goose_loopback = executable('goose_loopback',
     'integration/goose_loopback.c',

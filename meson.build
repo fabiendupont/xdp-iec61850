@@ -75,6 +75,11 @@ core_sources = files(
     # Phase 5: Sampled Values protocol
     'src/sv/sv_publisher.c',
     'src/sv/sv_subscriber.c',
+    # IEC TR 61850-90-5 routable profiles (WP-S4b scaffolding)
+    'src/goose/rgoose_publisher.c',
+    'src/goose/rgoose_subscriber.c',
+    'src/sv/rsv_publisher.c',
+    'src/sv/rsv_subscriber.c',
     # Phase 7: IED data model (always built)
     'src/ied/ied_data_model.c',
     'src/ied/ied_types.c',
