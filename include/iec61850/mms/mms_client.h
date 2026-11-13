@@ -34,7 +34,10 @@ typedef enum {
     IEC61850_MMS_CLIENT_ERR_MMS = -6,
     IEC61850_MMS_CLIENT_ERR_ENCODE = -7,
     IEC61850_MMS_CLIENT_ERR_DECODE = -8,
-    IEC61850_MMS_CLIENT_ERR_BUFFER = -9
+    IEC61850_MMS_CLIENT_ERR_BUFFER = -9,
+    /* WP-1c: RCB reservation held by another client (Ed.2 Owner check
+     * on a failed Resv write). Additive value; source-compatible. */
+    IEC61850_MMS_CLIENT_ERR_RCB_OWNER = -10
 } iec61850_mms_client_result_t;
 
 typedef struct {
@@ -67,6 +70,18 @@ int iec61850_mms_client_disconnect(iec61850_mms_client_t *client);
  * Check if connected.
  */
 bool iec61850_mms_client_is_connected(const iec61850_mms_client_t *client);
+
+/**
+ * Poll the association for unsolicited PDUs without issuing a request.
+ * Dispatches at most one PDU per call (a report handler installed via
+ * iec61850_mms_client_set_report_handler fires from this context).
+ * Reports arrive between transactions on the blocking client; call
+ * this to drain them without issuing a confirmed service.
+ *
+ * @return Number of events dispatched (>= 0), or negative
+ *         IEC61850_MMS_CLIENT_ERR_*.
+ */
+int iec61850_mms_client_poll(iec61850_mms_client_t *client, int timeout_ms);
 
 /**
  * Read a variable.
