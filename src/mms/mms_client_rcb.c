@@ -5,15 +5,20 @@
  * Client-side reporting against the frozen interface in
  * include/iec61850/mms/mms_client_rcb.h.
  *
- * Object model (matches this repo's mms_server + data store):
- *   The server exposes RCB components as ordinary named variables in
- *   the logical-device domain, using the IEC 61850-8-1 Ed.2
- *   component-object naming: RCB <name> has one named variable per
- *   component, named "<name><Suffix>" (e.g. RCB "urcb01" exposes
- *   "urcb01RptEna", "urcb01Resv", "urcb01DatSet", ...). rcb_list()
- *   therefore filters a GetNameList(NAMED_VARIABLE) result on the
- *   "...RptEna" component pattern; every other operation reads or
- *   writes the component objects directly.
+ * Object model (IEC 61850-8-1 component-object naming, WP-1f DIV-1):
+ *   Servers expose RCB components as ordinary named variables in the
+ *   logical-device domain, using the standard "$"-separated structure
+ *   names: RCB reference <LN>$RP$<name> (URCB) or <LN>$BR$<name>
+ *   (BRCB) has one named variable per component, named
+ *   "<reference>$<Component>" (e.g. "LLN0$RP$EventsRCB01$RptEna" —
+ *   the convention observed on the reference server and now also
+ *   produced by this repo's server bridge). rcb_list() filters a
+ *   GetNameList(NAMED_VARIABLE) result on the "...$RptEna" component
+ *   pattern and passes the discovered references (including the
+ *   LN$RP$/LN$BR$ part) through verbatim; every other operation reads
+ *   or writes "<reference>$<Component>" objects directly. A caller
+ *   that discovered names by other means may pass a reference with
+ *   or without a trailing "$" (tolerated).
  *
  * Value encoding (IEC 61850-8-1 component types, as carried by this
  * repo's BER codec / data store):
@@ -52,6 +57,17 @@
 #include <errno.h>
 #include <string.h>
 
+/*
+ * WP-1f private extension (mms_client.c; the public header
+ * mms_client.h is frozen for this WP): write with the in-band
+ * DataAccessError code reported through the last argument.
+ */
+extern int iec61850_mms_client_write_detail(iec61850_mms_client_t *client,
+                                             const char *domain,
+                                             const char *item_id,
+                                             const mms_value_t *value,
+                                             int32_t *access_error);
+
 /* ========================================================================
  * Component-object naming
  * ======================================================================== */
@@ -71,10 +87,18 @@
 #define RCB_SUFFIX_ENTRY_ID  "EntryID"
 #define RCB_SUFFIX_OWNER     "Owner"
 
-/* rcb_list() scan granularity: named variables fetched per GetNameList
- * sweep. Domains with more variables than this are truncated (the
- * frozen API is capacity-bound by max_count anyway). */
-#define RCB_LIST_SCAN_MAX 128
+/* rcb_list() scan budget: the sweep pages the underlying
+ * iec61850_mms_client_get_name_list (which follows moreFollows) until
+ * the domain's name list is exhausted or this cap is reached
+ * (WP-1f, BUG-R1: the previous single 128-name sweep missed RCBs
+ * beyond index 128 — the reference server's first "...$RptEna"
+ * component sits at index 141 of 304). */
+#define RCB_LIST_SCAN_MAX MMS_MAX_NAMELIST_ITEMS
+
+/* Scan buffer: MMS_MAX_NAMELIST_ITEMS * MMS_MAX_VARIABLE_NAME is too
+ * large for the stack; the blocking client is single-threaded, so a
+ * function-scope static (no allocation, no reentrancy) is used. */
+static char rcb_scan_names[RCB_LIST_SCAN_MAX][MMS_MAX_VARIABLE_NAME];
 
 /* OptFlds value-octet bits (first octet). */
 #define RCB_OPTFLDS_SEQ_NUM     0x40u
@@ -97,8 +121,18 @@
 /* EntryID wire size (octet string, big-endian). */
 #define RCB_ENTRY_ID_LEN        8u
 
-/* Build "<rcb-name><suffix>" into out. Returns 0, or -EINVAL when the
- * arguments are bad or the concatenation does not fit. */
+/* DataAccessError code the IEC 61850-8-1 mapping uses to reject a
+ * component write on an RCB held by another client (WP-1f, BUG-R3;
+ * wire-observed on the reference server for a Resv write on a
+ * reserved URCB; ISO 9506-2 names code 2 object-access-denied, the
+ * 8-1 mapping uses temporarily-unavailable). */
+#define RCB_RESV_HELD_ACCESS_ERROR 2
+
+/* Build "<rcb-reference>$<suffix>" into out (IEC 61850-8-1
+ * component-object naming, WP-1f DIV-1). A trailing "$" on the
+ * reference is tolerated (stripped) so names discovered by other
+ * means keep working. Returns 0, or -EINVAL when the arguments are
+ * bad or the concatenation does not fit. */
 static int rcb_component_name(char *out, size_t out_size,
                                const char *rcb_name, const char *suffix)
 {
@@ -112,15 +146,21 @@ static int rcb_component_name(char *out, size_t out_size,
     name_len = strlen(rcb_name);
     suffix_len = strlen(suffix);
 
+    /* Tolerate a reference passed with its trailing "$". */
+    if ((name_len > 0U) && (rcb_name[name_len - 1U] == '$')) {
+        name_len--;
+    }
+
     if ((name_len == 0U) || (suffix_len == 0U) ||
         (name_len >= out_size) || (suffix_len >= out_size) ||
-        ((name_len + suffix_len) >= out_size)) {
+        ((name_len + 1U + suffix_len) >= out_size)) {
         return -EINVAL;
     }
 
     (void)memcpy(out, rcb_name, name_len);
-    (void)memcpy(&out[name_len], suffix, suffix_len);
-    out[name_len + suffix_len] = '\0';
+    out[name_len] = '$';
+    (void)memcpy(&out[name_len + 1U], suffix, suffix_len);
+    out[name_len + 1U + suffix_len] = '\0';
     return 0;
 }
 
@@ -156,6 +196,34 @@ static int rcb_write_component(iec61850_mms_client_t *client,
     }
 
     return iec61850_mms_client_write(client, domain, item, value);
+}
+
+/*
+ * WP-1f private counterpart of iec61850_mms_client_write_detail()
+ * (defined in mms_client.c; the public header is frozen for this WP):
+ * writes one RCB component object and reports the DataAccessError
+ * code of an in-band Write-Response failure (-1 when the response
+ * carried none).
+ */
+static int rcb_write_component_detail(iec61850_mms_client_t *client,
+                                       const char *domain,
+                                       const char *rcb_name,
+                                       const char *suffix,
+                                       const mms_value_t *value,
+                                       int32_t *access_error)
+{
+    char item[MMS_MAX_VARIABLE_NAME];
+    int ret;
+
+    *access_error = -1;
+    ret = rcb_component_name(item, (size_t)MMS_MAX_VARIABLE_NAME,
+                              rcb_name, suffix);
+    if (ret != 0) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+
+    return iec61850_mms_client_write_detail(client, domain, item, value,
+                                             access_error);
 }
 
 /* ========================================================================
@@ -411,14 +479,28 @@ static int rcb_read_optional(iec61850_mms_client_t *client,
  * ========================================================================
  */
 
+/*
+ * URCB/BRCB type detection from the RP/BR segment of a discovered
+ * reference (IEC 61850-8-1: "...$RP$<name>" unbuffered, "...$BR$<name>"
+ * buffered). Returns 1 (BRCB), 0 (URCB) or -1 when the reference
+ * carries no RP/BR segment (fall back to component probing).
+ */
+static int rcb_reference_type(const char *rcb_name)
+{
+    if (strstr(rcb_name, "$BR$") != NULL) {
+        return 1;
+    }
+    if (strstr(rcb_name, "$RP$") != NULL) {
+        return 0;
+    }
+    return -1;
+}
+
 int iec61850_mms_client_rcb_list(iec61850_mms_client_t *client,
                                    const char *domain,
                                    char names[][IEC61850_RCB_MAX_NAME],
                                    uint32_t *count, uint32_t max_count)
 {
-    /* 128 * 256 B = 32 KiB scan buffer (the server side uses the same
-     * class of stack buffer for GetNameList). */
-    char scan[RCB_LIST_SCAN_MAX][MMS_MAX_VARIABLE_NAME];
     uint32_t total = 0u;
     uint32_t i;
     int ret;
@@ -430,27 +512,31 @@ int iec61850_mms_client_rcb_list(iec61850_mms_client_t *client,
 
     *count = 0u;
 
+    /* Paged sweep: get_name_list follows moreFollows/continueAfter
+     * internally, so one call walks the whole name list up to the
+     * scan cap (WP-1f, BUG-R1). */
     ret = iec61850_mms_client_get_name_list(client,
                                              MMS_OBJECT_CLASS_NAMED_VARIABLE,
-                                             domain, scan, &total,
+                                             domain, rcb_scan_names, &total,
                                              (uint32_t)RCB_LIST_SCAN_MAX);
     if (ret != (int)IEC61850_MMS_CLIENT_OK) {
         return ret;
     }
 
-    /* An RCB is any object whose name ends in the "RptEna" component
-     * suffix; the RCB name is the remainder. */
+    /* An RCB is any object whose name ends in the "$RptEna" component
+     * suffix; the RCB reference is the remainder (including the
+     * LN$RP$/LN$BR$ segment, passed through verbatim). */
     for (i = 0u; (i < total) && (*count < max_count); i++) {
-        size_t len = strlen(scan[i]);
+        size_t len = strlen(rcb_scan_names[i]);
 
-        if ((len > 6u) &&
-            (strcmp(&scan[i][len - 6u], RCB_SUFFIX_RPT_ENA) == 0)) {
-            size_t base_len = len - 6u;
+        if ((len > 7u) &&
+            (strcmp(&rcb_scan_names[i][len - 7u], "$" RCB_SUFFIX_RPT_ENA) == 0)) {
+            size_t base_len = len - 7u;
 
             if (base_len >= (size_t)IEC61850_RCB_MAX_NAME) {
                 base_len = (size_t)IEC61850_RCB_MAX_NAME - 1u;
             }
-            (void)memcpy(names[*count], scan[i], base_len);
+            (void)memcpy(names[*count], rcb_scan_names[i], base_len);
             names[*count][base_len] = '\0';
             (*count)++;
         }
@@ -474,6 +560,16 @@ int iec61850_mms_client_rcb_get_values(iec61850_mms_client_t *client,
     }
 
     (void)memset(out, 0, sizeof(*out));
+
+    /* Type detection from the RP/BR segment where present (WP-1f,
+     * DIV-1); domains without the segment fall back to probing the
+     * BRCB-only components (EntryID / PurgeBuf) below. */
+    {
+        int ref_type = rcb_reference_type(rcb_name);
+        if (ref_type >= 0) {
+            out->buffered = (ref_type == 1);
+        }
+    }
 
     /* Mandatory components (IEC 61850-8-1): strict reads. */
     ret = rcb_read_component(client, domain, rcb_name,
@@ -647,13 +743,36 @@ int iec61850_mms_client_rcb_set_values(iec61850_mms_client_t *client,
 
     /* 2. Resv — URCB reservation first. */
     if ((field_mask & (uint32_t)IEC61850_RCB_FIELD_RESV) != 0u) {
+        int32_t access_error = -1;
+
         rcb_set_bool_value(&value, in->resv);
-        ret = rcb_write_component(client, domain, rcb_name,
-                                   RCB_SUFFIX_RESV, &value);
+        ret = rcb_write_component_detail(client, domain, rcb_name,
+                                           RCB_SUFFIX_RESV, &value,
+                                           &access_error);
         if (ret != (int)IEC61850_MMS_CLIENT_OK) {
+            /*
+             * Ownership signal 1 (WP-1f, BUG-R3): the server rejected
+             * the reservation in-band with the IEC 61850-8-1
+             * "RCB held by another client" DataAccessError
+             * (wire-observed as code 2 on the reference server; ISO
+             * 9506-2 object-access-denied / the 8-1 mapping's
+             * temporarily-unavailable). Servers that expose no
+             * readable Owner component are still unambiguous.
+             */
+            if ((ret == (int)IEC61850_MMS_CLIENT_ERR_MMS) &&
+                (access_error == RCB_RESV_HELD_ACCESS_ERROR)) {
+                return IEC61850_MMS_CLIENT_ERR_RCB_OWNER;
+            }
+            /*
+             * Ownership signal 2: a readable non-empty Owner means
+             * another client holds the reservation (our own
+             * reservation would not have failed).
+             */
             if (rcb_owner_held_by_other(client, domain, rcb_name) != 0) {
                 return IEC61850_MMS_CLIENT_ERR_RCB_OWNER;
             }
+            /* No ownership information at all: surface the write
+             * failure itself (ERR_MMS, not a false ownership claim). */
             return ret;
         }
     }
