@@ -996,10 +996,17 @@ if libiec_build != ''
 endif
 
 foreach t : wire_test_scripts
+    wire_dep = []
+    if get_option('enable_mms')
+        # Keep the prebuilt scenario binaries fresh: meson test does
+        # not otherwise rebuild non-test executables the scripts use.
+        wire_dep = [mms_report_wire, mms_control_wire]
+    endif
     test(t[0], find_program('sh'), args: [files(t[1])],
          suite: 'interop', is_parallel: false,
          workdir: meson.project_source_root(),
-         env: wire_test_env)
+         env: wire_test_env,
+         depends: wire_dep)
 endforeach
 
 # Wire cross-validation tests (require libiec61850 + root/tshark)
