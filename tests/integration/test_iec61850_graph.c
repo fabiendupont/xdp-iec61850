@@ -299,7 +299,7 @@ static void test_get_filter_map_fd(void)
     int r_fd = iec61850_graph_get_filter_map_fd(g, "r_filter");
     ASSERT_GE(r_fd, 0);
 
-    /* 90-5 replay-state maps should be retrievable */
+    /* 90-5 SPDU-number dedup-state maps should be retrievable */
     int rgoose_state_fd = iec61850_graph_get_filter_map_fd(g, "rgoose_state_map");
     ASSERT_GE(rgoose_state_fd, 0);
 
@@ -325,16 +325,16 @@ static void test_get_filter_map_fd(void)
     ASSERT_EQ(bpf_map_lookup_elem(r_fd, &dport, &r_readback), 0);
     ASSERT_EQ((int)r_readback, 1);
 
-    /* Populate a replay-state entry (session id -> last ToD) */
-    uint16_t session_id = htons(0x0001U);
-    uint32_t last_tod = 1000;
-    ASSERT_EQ(bpf_map_update_elem(rgoose_state_fd, &session_id,
-                                  &last_tod, BPF_ANY), 0);
+    /* Populate a dedup-state entry (APPID -> last SPDU Number) */
+    uint16_t r_appid = htons(0x1000U);
+    uint32_t last_spdu_num = 7;
+    ASSERT_EQ(bpf_map_update_elem(rgoose_state_fd, &r_appid,
+                                  &last_spdu_num, BPF_ANY), 0);
 
-    uint32_t tod_readback = 0;
-    ASSERT_EQ(bpf_map_lookup_elem(rgoose_state_fd, &session_id,
-                                  &tod_readback), 0);
-    ASSERT_EQ((int)tod_readback, 1000);
+    uint32_t num_readback = 0;
+    ASSERT_EQ(bpf_map_lookup_elem(rgoose_state_fd, &r_appid,
+                                  &num_readback), 0);
+    ASSERT_EQ((int)num_readback, 7);
 
     /* Invalid map name returns error */
     ASSERT_TRUE(iec61850_graph_get_filter_map_fd(g, "nonexistent") < 0);

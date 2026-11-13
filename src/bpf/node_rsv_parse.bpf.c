@@ -2,25 +2,30 @@
 /*
  * XDP R-SV Parse Node (IEC TR 61850-90-5)
  *
- * Shallow parse of R-SV SPDUs (session header + 90-5 security
- * TimeOfDay) for BPF-side anti-replay checks, mirroring the
+ * Shallow parse of R-SV SPDUs (session header + SPDU Number) for
+ * BPF-side duplicate/out-of-order detection, mirroring the
  * stNum/sqNum dedup structure of node_goose_parse.
  *
  * Ethernet → (VLAN) → IPv4 → UDP → SPDU session header.
- * The session identifier and security TimeOfDay are extracted at
- * fixed offsets (IEC61850_905_* constants in iec61850_maps.bpf.h,
- * WP-4A-RECONCILE) and checked against rsv_state_map: SPDUs
- * whose TimeOfDay is older than the last accepted value minus the
- * 90-5 replay window are dropped at XDP; in-window SPDUs slide the
- * window forward.  Parse failures fail open (redirect) — full
- * 62351-6 validation stays in userspace.
+ * The APPID and SPDU Number are extracted at fixed offsets
+ * (IEC61850_905_* constants in iec61850_maps.bpf.h, reconciled with
+ * WP-4a's derivation) and checked against rsv_state_map: SPDUs
+ * whose SPDU Number is <= the last accepted value for the APPID are
+ * duplicates or out-of-order and dropped at XDP; strictly newer
+ * numbers update the map.  A wrong SI octet (not 0xA2) is a
+ * confident profile mismatch — dropped with stats.  Every other
+ * parse failure fails open (redirect) — full 62351-6 validation
+ * stays in userspace.
  *
- * The IPv4 walk is fixed-offset (IHL == 5, no IP options) to keep
- * all packet pointer arithmetic static for the verifier, mirroring
+ * The LI@1 branch (plain 12 / secured 24 parameter area) selects
+ * between two fixed APPID offsets (20 / 32); both paths are
+ * straight-line with compile-time constant offsets, keeping all
+ * packet pointer arithmetic static for the verifier, mirroring
  * node_sv_parse's style.
  *
  * Input: Packet dispatched from node_udp_filter (already dport-filtered)
- * Output: XDP_REDIRECT to AF_XDP or XDP_DROP (replay)
+ * Output: XDP_REDIRECT to AF_XDP or XDP_DROP (duplicate/out-of-order,
+ *         or wrong profile SI)
  */
 
 #include <linux/if_ether.h>
@@ -144,55 +149,85 @@ XGL_NODE(node_rsv_parse)
     __u8 *spdu = (__u8 *)(udp + 1);
     __u64 payload_len = (__u64)((__u8 *)data_end - spdu);
 
-    /* Session header must fit — all IEC61850_905_* offset accesses
-     * below are inside this bounds-checked window */
+    /* Plain session header (SI + LI + SPDU Length + SPDU Number +
+     * Version) must fit — the fixed-offset accesses below stay
+     * inside bounds-checked windows */
     if (payload_len < IEC61850_905_SESSION_HDR_LEN)
         goto redirect;
     if ((void *)(spdu + IEC61850_905_SESSION_HDR_LEN) > data_end)
         goto redirect;
 
-    /* SPDU length sanity (WP-4A-RECONCILE offsets) */
-    __u16 spdu_len =
-        ((__u16)spdu[IEC61850_905_SPDU_LEN_OFFSET] << 8) |
-        spdu[IEC61850_905_SPDU_LEN_OFFSET + 1];
-    if (spdu_len < IEC61850_905_SESSION_HDR_LEN ||
-        (__u64)spdu_len > payload_len)
+    /* Profile gate: SI must be R-SV.  A wrong SI is a confident
+     * mismatch (the packet belongs to another profile) — drop with
+     * stats rather than fail-open. */
+    if (spdu[IEC61850_905_SI_OFFSET] != IEC61850_905_SI_RSV) {
+        XGL_STATS_INC_DROP(egl_node_stats, idx);
+        XGL_DROP();
+    }
+
+    /* Session-header parameter-area length selects the plain vs
+     * secured layout; anything else is not this profile — parse
+     * failure, fail open */
+    __u8 param_area = spdu[IEC61850_905_LI_OFFSET];
+    if (param_area != IEC61850_905_PARAM_AREA_PLAIN &&
+        param_area != IEC61850_905_PARAM_AREA_SECURED)
         goto redirect;
 
-    /* Session identifier — network byte order map key, mirroring
-     * the APPID convention of goose_state_map */
-    __u16 session_id =
-        ((__u16)spdu[IEC61850_905_SESSION_ID_OFFSET] << 8) |
-        spdu[IEC61850_905_SESSION_ID_OFFSET + 1];
+    /* SPDU Length sanity (WP-4A-RECONCILED): the field covers
+     * SPDU Number (octet 8) through the end of the signature, so
+     * the total SPDU size is 8 + SPDU Length and must fit in the
+     * received payload; the minimum covers SPDU Number + Version */
+    __u32 spdu_len_field =
+        ((__u32)spdu[IEC61850_905_SPDU_LENGTH_OFFSET] << 24) |
+        ((__u32)spdu[IEC61850_905_SPDU_LENGTH_OFFSET + 1] << 16) |
+        ((__u32)spdu[IEC61850_905_SPDU_LENGTH_OFFSET + 2] << 8) |
+        (__u32)spdu[IEC61850_905_SPDU_LENGTH_OFFSET + 3];
+    if (spdu_len_field < IEC61850_905_SPDU_LEN_MIN)
+        goto redirect;
+    if (8 + (__u64)spdu_len_field > payload_len)
+        goto redirect;
 
-    /* Security TimeOfDay — 32-bit, network byte order */
-    __u32 tod =
-        ((__u32)spdu[IEC61850_905_TOD_OFFSET] << 24) |
-        ((__u32)spdu[IEC61850_905_TOD_OFFSET + 1] << 16) |
-        ((__u32)spdu[IEC61850_905_TOD_OFFSET + 2] << 8) |
-        (__u32)spdu[IEC61850_905_TOD_OFFSET + 3];
+    /* SPDU Number — fixed offset, network byte order */
+    __u32 spdu_number =
+        ((__u32)spdu[IEC61850_905_SPDU_NUMBER_OFFSET] << 24) |
+        ((__u32)spdu[IEC61850_905_SPDU_NUMBER_OFFSET + 1] << 16) |
+        ((__u32)spdu[IEC61850_905_SPDU_NUMBER_OFFSET + 2] << 8) |
+        (__u32)spdu[IEC61850_905_SPDU_NUMBER_OFFSET + 3];
 
-    /* Anti-replay check against last accepted TimeOfDay.
-     * 64-bit math on 32-bit values avoids wraparound pitfalls. */
-    __u32 *last_tod = bpf_map_lookup_elem(&rsv_state_map, &session_id);
-    if (last_tod) {
-        __u64 tod64 = (__u64)tod;
-        __u64 last64 = (__u64)*last_tod;
+    /* APPID — location selected by the LI branch (one fixed offset
+     * per profile), with a single bounds check on the selected
+     * pointer.  Keeping the check on the merged pointer (rather
+     * than per-branch length checks, which the compiler folds away
+     * and the verifier then cannot use) preserves the offset ↔
+     * packet-size relation PREVAIL needs.  Network byte order map
+     * key, mirroring the APPID convention of goose_state_map. */
+    __u8 *appid_p;
+    if (param_area == IEC61850_905_PARAM_AREA_PLAIN) {
+        appid_p = spdu + IEC61850_905_APPID_OFFSET_PLAIN;
+    } else {
+        appid_p = spdu + IEC61850_905_APPID_OFFSET_SECURED;
+    }
+    if ((void *)(appid_p + 2) > data_end)
+        goto redirect;
 
-        if (tod64 < last64 &&
-            (last64 - tod64) > IEC61850_905_REPLAY_WINDOW_TOD) {
-            /* Stale / replayed — drop at XDP */
+    __u16 appid = ((__u16)appid_p[0] << 8) | appid_p[1];
+
+    /* Duplicate / out-of-order detection keyed by APPID.
+     * Drop iff spdu_number <= last accepted: strictly out-of-order
+     * or duplicate, mirroring node_goose_parse's sqNum comparison
+     * semantics. */
+    __u32 *last_num = bpf_map_lookup_elem(&rsv_state_map, &appid);
+    if (last_num) {
+        if (spdu_number <= *last_num) {
+            /* Duplicate or out-of-order — drop at XDP */
             XGL_STATS_INC_DROP(egl_node_stats, idx);
             XGL_DROP();
         }
-
-        /* Slide the window forward only — never backward */
-        if (tod64 > last64)
-            *last_tod = tod;
+        *last_num = spdu_number;
     } else {
-        __u32 init_tod = tod;
-        bpf_map_update_elem(&rsv_state_map, &session_id,
-                            &init_tod, BPF_ANY);
+        __u32 init_num = spdu_number;
+        bpf_map_update_elem(&rsv_state_map, &appid,
+                            &init_num, BPF_ANY);
     }
 
 redirect:
