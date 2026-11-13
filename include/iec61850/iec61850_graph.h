@@ -22,6 +22,9 @@ struct xgl_graph;
 #define IEC61850_ROLE_GOOSE_PARSE   1
 #define IEC61850_ROLE_SV_FILTER     2
 #define IEC61850_ROLE_SV_PARSE      3
+#define IEC61850_ROLE_UDP_FILTER    4
+#define IEC61850_ROLE_RGOOSE_PARSE  5
+#define IEC61850_ROLE_RSV_PARSE     6
 
 /**
  * Dynamically allocated PROG_ARRAY indices for IEC 61850 nodes.
@@ -32,6 +35,9 @@ struct iec61850_graph_indices {
     int goose_parse;
     int sv_filter;
     int sv_parse;
+    int udp_filter;
+    int rgoose_parse;
+    int rsv_parse;
 };
 
 /**
@@ -54,7 +60,8 @@ int iec61850_graph_register(struct xgl_graph *g, const char *bpf_dir,
  *
  * Configures the dispatch map to route:
  *   - EtherType 0x88B8 (GOOSE) → GOOSE filter node
- *   - EtherType 0x88BA (SV) → SV filter node
+ *   - EtherType 0x88BA (SV)    → SV filter node
+ *   - EtherType 0x0800 (IPv4)  → UDP filter node (90-5 dispatch)
  *
  * @param dispatch_map_fd  BPF map fd for EtherType dispatch (BPF_MAP_TYPE_HASH)
  * @param indices          Allocated indices from iec61850_graph_register()
@@ -64,12 +71,27 @@ int iec61850_graph_setup_dispatch(int dispatch_map_fd,
                                    const struct iec61850_graph_indices *indices);
 
 /**
+ * Return the EtherType dispatched to a filter role.
+ *
+ * Pure helper (no kernel interaction — safe to call unprivileged):
+ *   - IEC61850_ROLE_GOOSE_FILTER → 0x88B8
+ *   - IEC61850_ROLE_SV_FILTER    → 0x88BA
+ *   - IEC61850_ROLE_UDP_FILTER   → 0x0800 (ETH_P_IP)
+ *
+ * @param role  Logical role constant
+ * @return EtherType (host byte order), or -EINVAL for roles that are
+ *         not dispatched by EtherType
+ */
+int iec61850_graph_dispatch_ethtype(int role);
+
+/**
  * Get the BPF map fd for a named IEC 61850 filter map.
  *
  * Retrieves pinned map fd by name from the graph. Useful for
  * populating GOOSE/SV subscription filters at runtime:
  *   - "goose_filter" → APPID-based GOOSE accept/drop
  *   - "sv_filter"    → APPID-based SV accept/drop
+ *   - "r_filter"     → UDP-dport-based 90-5 accept/drop
  *
  * @param g         Graph instance (must have IEC 61850 nodes loaded)
  * @param map_name  Map name (e.g. "goose_filter", "sv_filter")

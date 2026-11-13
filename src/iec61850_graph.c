@@ -3,6 +3,7 @@
  * IEC 61850 XDP Graph Registration
  *
  * Dynamically allocates PROG_ARRAY indices for IEC 61850 BPF nodes
+ * (GOOSE/SV filter+parse, 90-5 UDP filter + R-GOOSE/R-SV parse)
  * and populates the iec61850_node_config map so BPF programs can
  * look up their own index at runtime.
  */
@@ -29,6 +30,7 @@ static int xgl_graph_alloc_index(struct xgl_graph *g)
 /* EtherType constants */
 #define ETHERTYPE_GOOSE  0x88B8U
 #define ETHERTYPE_SV     0x88BAU
+#define ETHERTYPE_IP     0x0800U
 
 struct node_def {
     const char *obj_file;
@@ -41,6 +43,9 @@ static const struct node_def nodes[] = {
     { "node_goose_parse.bpf.o",  "node_goose_parse",  IEC61850_ROLE_GOOSE_PARSE  },
     { "node_sv_filter.bpf.o",    "node_sv_filter",    IEC61850_ROLE_SV_FILTER    },
     { "node_sv_parse.bpf.o",     "node_sv_parse",     IEC61850_ROLE_SV_PARSE     },
+    { "node_udp_filter.bpf.o",   "node_udp_filter",   IEC61850_ROLE_UDP_FILTER   },
+    { "node_rgoose_parse.bpf.o", "node_rgoose_parse", IEC61850_ROLE_RGOOSE_PARSE },
+    { "node_rsv_parse.bpf.o",    "node_rsv_parse",    IEC61850_ROLE_RSV_PARSE    },
 };
 
 #define NUM_NODES (int)(sizeof(nodes) / sizeof(nodes[0]))
@@ -103,34 +108,74 @@ int iec61850_graph_register(struct xgl_graph *g, const char *bpf_dir,
         out->goose_parse  = indices[IEC61850_ROLE_GOOSE_PARSE];
         out->sv_filter    = indices[IEC61850_ROLE_SV_FILTER];
         out->sv_parse     = indices[IEC61850_ROLE_SV_PARSE];
+        out->udp_filter   = indices[IEC61850_ROLE_UDP_FILTER];
+        out->rgoose_parse = indices[IEC61850_ROLE_RGOOSE_PARSE];
+        out->rsv_parse    = indices[IEC61850_ROLE_RSV_PARSE];
     }
 
     return 0;
 }
 
+/* Roles dispatched by EtherType (must match iec61850_graph_dispatch_ethtype) */
+static const int dispatch_roles[] = {
+    IEC61850_ROLE_GOOSE_FILTER,
+    IEC61850_ROLE_SV_FILTER,
+    IEC61850_ROLE_UDP_FILTER,
+};
+
+#define NUM_DISPATCH_ROLES (int)(sizeof(dispatch_roles) / sizeof(dispatch_roles[0]))
+
+int iec61850_graph_dispatch_ethtype(int role)
+{
+    switch (role) {
+    case IEC61850_ROLE_GOOSE_FILTER:
+        return (int)ETHERTYPE_GOOSE;
+    case IEC61850_ROLE_SV_FILTER:
+        return (int)ETHERTYPE_SV;
+    case IEC61850_ROLE_UDP_FILTER:
+        return (int)ETHERTYPE_IP;
+    default:
+        return -EINVAL;
+    }
+}
+
+/* PROG_ARRAY index for a role within an allocated indices struct */
+static int indices_role(const struct iec61850_graph_indices *indices, int role)
+{
+    switch (role) {
+    case IEC61850_ROLE_GOOSE_FILTER: return indices->goose_filter;
+    case IEC61850_ROLE_SV_FILTER:    return indices->sv_filter;
+    case IEC61850_ROLE_UDP_FILTER:   return indices->udp_filter;
+    default:                         return -EINVAL;
+    }
+}
+
 int iec61850_graph_setup_dispatch(int dispatch_map_fd,
                                    const struct iec61850_graph_indices *indices)
 {
-    int ret;
-
     if ((dispatch_map_fd < 0) || (indices == NULL)) {
         return -EINVAL;
     }
 
-    /* Map EtherType 0x88B8 → GOOSE filter node */
-    uint16_t goose_et = (uint16_t)ETHERTYPE_GOOSE;
-    uint32_t goose_idx = (uint32_t)indices->goose_filter;
-    ret = bpf_map_update_elem(dispatch_map_fd, &goose_et, &goose_idx, BPF_ANY);
-    if (ret != 0) {
-        return -errno;
-    }
+    /* Map each dispatched EtherType → its filter node:
+     *   0x88B8 (GOOSE) → GOOSE filter
+     *   0x88BA (SV)    → SV filter
+     *   0x0800 (IPv4)  → UDP filter (90-5 dispatch) */
+    for (int i = 0; i < NUM_DISPATCH_ROLES; i++) {
+        int role = dispatch_roles[i];
+        int et = iec61850_graph_dispatch_ethtype(role);
+        int node_idx = indices_role(indices, role);
 
-    /* Map EtherType 0x88BA → SV filter node */
-    uint16_t sv_et = (uint16_t)ETHERTYPE_SV;
-    uint32_t sv_idx = (uint32_t)indices->sv_filter;
-    ret = bpf_map_update_elem(dispatch_map_fd, &sv_et, &sv_idx, BPF_ANY);
-    if (ret != 0) {
-        return -errno;
+        if ((et < 0) || (node_idx < 0)) {
+            return -EINVAL;
+        }
+
+        uint16_t key = (uint16_t)et;
+        uint32_t val = (uint32_t)node_idx;
+        int ret = bpf_map_update_elem(dispatch_map_fd, &key, &val, BPF_ANY);
+        if (ret != 0) {
+            return -errno;
+        }
     }
 
     return 0;
