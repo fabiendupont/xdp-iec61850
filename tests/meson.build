@@ -679,6 +679,7 @@ fuzz_goose_decoder = executable('fuzz_goose_decoder',
     include_directories: [inc_dirs],
     link_with: [iec61850_lib] + mms_lib,
     dependencies: [thread_dep],
+    c_args: ['-Wno-missing-prototypes'],
     build_by_default: false,
 )
 
@@ -687,6 +688,7 @@ fuzz_sv_decoder = executable('fuzz_sv_decoder',
     include_directories: [inc_dirs],
     link_with: [iec61850_lib] + mms_lib,
     dependencies: [thread_dep],
+    c_args: ['-Wno-missing-prototypes'],
     build_by_default: false,
 )
 
@@ -731,6 +733,19 @@ if get_option('enable_mms')
                  '-Wno-sign-conversion'],
         build_by_default: false,
     )
+
+    # Fuzz corpus replay (suite 'fuzz'): deterministic regression check.
+    # Feeds every committed seed to its harness once. Configure the
+    # builddir with -Db_sanitize=address for full memory-safety effect.
+    fuzz_replay_targets = [
+        ['fuzz_replay_mms_decoder', fuzz_mms_decoder, 'tests/fuzz/corpora/mms_decoder'],
+        ['fuzz_replay_iso_stack', fuzz_iso_stack, 'tests/fuzz/corpora/iso_stack'],
+        ['fuzz_replay_scl_parser', fuzz_scl_parser, 'tests/fuzz/corpora/scl_parser'],
+    ]
+    foreach t : fuzz_replay_targets
+        test(t[0], t[1], suite: 'fuzz',
+             args: [meson.project_source_root() / t[2]])
+    endforeach
 endif
 
 # Benchmark — BER codec throughput

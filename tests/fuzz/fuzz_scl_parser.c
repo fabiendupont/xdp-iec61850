@@ -31,6 +31,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 /* mkstemp requires a modifiable template buffer */
 static const char TEMP_TEMPLATE[] = "/tmp/iec61850_scl_fuzz_XXXXXX";
@@ -135,10 +137,74 @@ static const char STANDALONE_SEED[] =
     "</DataTypeTemplates>"
     "</SCL>";
 
+/* Corpus replay helper: feed one file (or every file in a directory,
+ * one level deep, hidden entries skipped) to the harness once.
+ * Returns the number of inputs run, or -1 on I/O error. */
+static int fuzz_replay_path(const char *path)
+{
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        fprintf(stderr, "replay: cannot stat %s\n", path);
+        return -1;
+    }
+
+    if (S_ISDIR(st.st_mode)) {
+        DIR *dir = opendir(path);
+        if (dir == NULL) {
+            fprintf(stderr, "replay: cannot open %s\n", path);
+            return -1;
+        }
+        int ran = 0;
+        const struct dirent *ent;
+        while ((ent = readdir(dir)) != NULL) {
+            if (ent->d_name[0] == '.') { continue; }
+            char full[1024];
+            int n = snprintf(full, sizeof(full), "%s/%s",
+                             path, ent->d_name);
+            if (n <= 0 || (size_t)n >= sizeof(full)) { continue; }
+            int r = fuzz_replay_path(full);
+            if (r < 0) { continue; }
+            ran += r;
+        }
+        closedir(dir);
+        return ran;
+    }
+
+    FILE *f = fopen(path, "rb");
+    if (f == NULL) { return -1; }
+    (void)fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    (void)fseek(f, 0, SEEK_SET);
+    if (len < 0) { (void)fclose(f); return -1; }
+    uint8_t *buf = (uint8_t *)malloc(len > 0 ? (size_t)len : 1);
+    if (buf == NULL) { (void)fclose(f); return -1; }
+    size_t got = 0;
+    if (len > 0) { got = fread(buf, 1, (size_t)len, f); }
+    (void)fclose(f);
+
+    printf("replay: %s (%zu bytes)\n", path, got);
+    LLVMFuzzerTestOneInput(buf, got);
+    free(buf);
+    return 1;
+}
+
 int main(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
+    if (argc > 1) {
+        /* Corpus replay mode: deterministic regression check used by
+         * the 'fuzz' test suite and scripts/fuzz_smoke.sh. */
+        int ran = 0;
+        for (int i = 1; i < argc; i++) {
+            int r = fuzz_replay_path(argv[i]);
+            if (r < 0) {
+                fprintf(stderr, "replay failed: %s\n", argv[i]);
+                return 1;
+            }
+            ran += r;
+        }
+        printf("SCL parser fuzz: replayed %d inputs without crash\n", ran);
+        return 0;
+    }
 
     printf("SCL parser fuzz: standalone mode (10 seconds)\n");
     srand((unsigned int)time(NULL));
