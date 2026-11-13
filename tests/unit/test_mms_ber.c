@@ -772,6 +772,470 @@ static void test_encode_decode_bitstring_value(void)
     PASS();
 }
 
+/* ========================================================================
+ * Malformed PDU Regression Tests (WP-0x MMS BER hardening)
+ *
+ * Crash reproducers found by the WP-0a fuzz harness
+ * (tests/fuzz/fuzz_mms_decoder.c) plus systematic truncation checks:
+ * every decoder must return a negative error code on truncated or
+ * length-overflowing input instead of reading out of bounds.
+ * ======================================================================== */
+
+static void test_decode_initiate_request_field_len_oob(void)
+{
+    TEST("decode_initiate_request_field_len_oob");
+    /* Reproducer: tests/fuzz/corpora/mms_decoder/
+     * crash_initiate_request_field_len_oob.bin
+     * Outer length (6) fits the 8-byte buffer, but the [0] field inside
+     * declares a 0xffffffff length that runs past the end. */
+    static const uint8_t pdu[] = {
+        0xa8, 0x06, 0x80, 0x84, 0xff, 0xff, 0xff, 0xff
+    };
+    mms_initiate_request_t req;
+    memset(&req, 0, sizeof(req));
+    ASSERT_TRUE(mms_decode_initiate_request(pdu, sizeof(pdu), &req) < 0);
+    PASS();
+}
+
+static void test_decode_command_termination_oob_read(void)
+{
+    TEST("decode_command_termination_oob_read");
+    /* Reproducer: tests/fuzz/corpora/mms_decoder/
+     * crash_command_termination_oob_read.bin
+     * [2] success field declares length 0 — reading the value byte
+     * ran one byte past the end of the 4-byte buffer. */
+    static const uint8_t pdu[] = { 0xa0, 0x02, 0x82, 0x00 };
+    mms_command_termination_t term;
+    memset(&term, 0, sizeof(term));
+    ASSERT_TRUE(mms_decode_command_termination(pdu, sizeof(pdu), &term) < 0);
+    PASS();
+}
+
+static void test_decode_command_termination_identify_pdu(void)
+{
+    TEST("decode_command_termination_identify_pdu");
+    /* Reproducer: tests/fuzz/corpora/mms_decoder/
+     * pcap_mms_canonical_f54.bin — a genuine 7-byte Identify response
+     * PDU that hits the same unguarded zero-length [2] field read in
+     * mms_decode_command_termination(). */
+    static const uint8_t pdu[] = { 0xa0, 0x05, 0x02, 0x01, 0x01, 0x82, 0x00 };
+    mms_command_termination_t term;
+    memset(&term, 0, sizeof(term));
+    ASSERT_TRUE(mms_decode_command_termination(pdu, sizeof(pdu), &term) < 0);
+    PASS();
+}
+
+static void test_decode_cancel_request_truncated(void)
+{
+    TEST("decode_cancel_request_truncated");
+    /* 2-byte input "aa 01": declared content length (1) reaches past
+     * the end of the buffer — the loop used to read buffer[2]. */
+    static const uint8_t pdu[] = { 0xaa, 0x01 };
+    mms_cancel_request_t req;
+    memset(&req, 0, sizeof(req));
+    ASSERT_TRUE(mms_decode_cancel_request(pdu, sizeof(pdu), &req) < 0);
+    PASS();
+}
+
+/* ---- systematic truncation checks ------------------------------- */
+
+typedef int (*trunc_decode_fn)(const uint8_t *, size_t, void *);
+
+/* Decode output area large enough for the biggest mms_*_t used below.
+ * uint64_t alignment so every struct member is properly aligned. */
+static uint64_t trunc_out[80 * 1024];
+
+static int trunc_dec_initiate_req(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_initiate_request(b, l, (mms_initiate_request_t *)o); }
+
+static int trunc_dec_initiate_resp(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_initiate_response(b, l, (mms_initiate_response_t *)o); }
+
+static int trunc_dec_conclude_req(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_conclude_request(b, l, (mms_conclude_request_t *)o); }
+
+static int trunc_dec_conclude_resp(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_conclude_response(b, l, (mms_conclude_response_t *)o); }
+
+static int trunc_dec_confirmed_req(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_confirmed_request(b, l, (mms_confirmed_request_t *)o); }
+
+static int trunc_dec_confirmed_resp(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_confirmed_response(b, l, (mms_confirmed_response_t *)o); }
+
+static int trunc_dec_confirmed_err(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_confirmed_error(b, l, (mms_confirmed_error_t *)o); }
+
+static int trunc_dec_info_report(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_information_report(b, l, (mms_information_report_t *)o); }
+
+static int trunc_dec_select_req(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_select_request(b, l, (mms_select_request_t *)o); }
+
+static int trunc_dec_select_resp(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_select_response(b, l, (mms_select_response_t *)o); }
+
+static int trunc_dec_select_wv_req(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_select_with_value_request(b, l, (mms_select_with_value_request_t *)o); }
+
+static int trunc_dec_select_wv_resp(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_select_with_value_response(b, l, (mms_select_with_value_response_t *)o); }
+
+static int trunc_dec_operate_req(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_operate_request(b, l, (mms_operate_request_t *)o); }
+
+static int trunc_dec_operate_resp(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_operate_response(b, l, (mms_operate_response_t *)o); }
+
+static int trunc_dec_cancel_req(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_cancel_request(b, l, (mms_cancel_request_t *)o); }
+
+static int trunc_dec_cancel_resp(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_cancel_response(b, l, (mms_cancel_response_t *)o); }
+
+static int trunc_dec_cmd_term(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_command_termination(b, l, (mms_command_termination_t *)o); }
+
+/* Assert that every truncation of a valid encoded PDU is rejected
+ * with a negative return value (no crash, no OOB access). */
+static void assert_truncations_rejected(const char *name,
+                                        trunc_decode_fn decode,
+                                        const uint8_t *wire, size_t wire_len)
+{
+    for (size_t cut = 0; cut < wire_len; cut++) {
+        memset(trunc_out, 0, sizeof(trunc_out));
+        int ret = decode(wire, cut, (void *)trunc_out);
+        if (ret >= 0) {
+            printf("FAIL: %s accepted truncated PDU (cut=%zu, ret=%d)\n",
+                   name, cut, ret);
+            tests_failed++;
+            return;
+        }
+    }
+}
+
+static void test_decode_truncated_pdus(void)
+{
+    TEST("decode_truncated_pdus");
+
+    static uint8_t wire[4096];
+    int enc_len;
+
+    /* Association management */
+    {
+        mms_initiate_request_t in;
+        memset(&in, 0, sizeof(in));
+        in.proposed_max_pdu_size = 65000;
+        in.proposed_data_structure_nesting_level = 10;
+        enc_len = mms_encode_initiate_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("initiate_request",
+                                    trunc_dec_initiate_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_initiate_response_t in;
+        memset(&in, 0, sizeof(in));
+        in.negotiated_max_pdu_size = 32000;
+        enc_len = mms_encode_initiate_response(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("initiate_response",
+                                    trunc_dec_initiate_resp,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_conclude_request_t in;
+        memset(&in, 0, sizeof(in));
+        enc_len = mms_encode_conclude_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("conclude_request",
+                                    trunc_dec_conclude_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_conclude_response_t in;
+        memset(&in, 0, sizeof(in));
+        enc_len = mms_encode_conclude_response(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("conclude_response",
+                                    trunc_dec_conclude_resp,
+                                    wire, (size_t)enc_len);
+    }
+
+    /* Confirmed services: Read, Write, GetNameList requests */
+    {
+        mms_confirmed_request_t in;
+        memset(&in, 0, sizeof(in));
+        in.invoke_id = 1;
+        in.service = MMS_SERVICE_TYPE_READ;
+        strncpy(in.params.read.variable_spec.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.params.read.variable_spec.item_id, "XCBR1$ST$Pos$stVal", MMS_MAX_VARIABLE_NAME - 1);
+        enc_len = mms_encode_confirmed_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("confirmed_request(read)",
+                                    trunc_dec_confirmed_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_confirmed_request_t in;
+        memset(&in, 0, sizeof(in));
+        in.invoke_id = 2;
+        in.service = MMS_SERVICE_TYPE_WRITE;
+        strncpy(in.params.write.variable_spec.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.params.write.variable_spec.item_id, "XCBR1$CO$Pos$ctlVal", MMS_MAX_VARIABLE_NAME - 1);
+        in.params.write.value.type = MMS_TYPE_BOOLEAN;
+        in.params.write.value.value.boolean = true;
+        enc_len = mms_encode_confirmed_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("confirmed_request(write)",
+                                    trunc_dec_confirmed_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_confirmed_request_t in;
+        memset(&in, 0, sizeof(in));
+        in.invoke_id = 3;
+        in.service = MMS_SERVICE_TYPE_GET_NAMELIST;
+        in.params.getnamelist.object_class = MMS_OBJECT_CLASS_NAMED_VARIABLE;
+        strncpy(in.params.getnamelist.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        enc_len = mms_encode_confirmed_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("confirmed_request(getnamelist)",
+                                    trunc_dec_confirmed_req,
+                                    wire, (size_t)enc_len);
+    }
+
+    /* Confirmed response / error */
+    {
+        mms_confirmed_response_t in;
+        memset(&in, 0, sizeof(in));
+        in.invoke_id = 1;
+        in.service = MMS_SERVICE_TYPE_READ;
+        in.params.read.value.type = MMS_TYPE_INTEGER;
+        in.params.read.value.value.integer = 42;
+        enc_len = mms_encode_confirmed_response(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("confirmed_response(read)",
+                                    trunc_dec_confirmed_resp,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_confirmed_error_t in;
+        memset(&in, 0, sizeof(in));
+        in.invoke_id = 5;
+        in.error.error_class = MMS_ERROR_CLASS_ACCESS;
+        in.error.error_code = MMS_ACCESS_ERROR_OBJECT_NON_EXISTENT;
+        enc_len = mms_encode_confirmed_error(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("confirmed_error",
+                                    trunc_dec_confirmed_err,
+                                    wire, (size_t)enc_len);
+    }
+
+    /* Unconfirmed service */
+    {
+        mms_information_report_t in;
+        memset(&in, 0, sizeof(in));
+        strncpy(in.variable_list_name, "DS1", MMS_MAX_VARIABLE_NAME - 1);
+        in.num_values = 2;
+        in.values[0].type = MMS_TYPE_BOOLEAN;
+        in.values[0].value.boolean = true;
+        in.values[1].type = MMS_TYPE_INTEGER;
+        in.values[1].value.integer = 100;
+        enc_len = mms_encode_information_report(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("information_report",
+                                    trunc_dec_info_report,
+                                    wire, (size_t)enc_len);
+    }
+
+    /* Control services */
+    {
+        mms_select_request_t in;
+        memset(&in, 0, sizeof(in));
+        strncpy(in.control_object.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.control_object.item_id, "XCBR1$CO$Pos", MMS_MAX_VARIABLE_NAME - 1);
+        in.check_value = 0x03;
+        in.select_timeout_ms = 30000;
+        enc_len = mms_encode_select_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("select_request",
+                                    trunc_dec_select_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_select_response_t in;
+        memset(&in, 0, sizeof(in));
+        in.state = MMS_CONTROL_STATE_SELECTED;
+        in.selection_id = 99;
+        enc_len = mms_encode_select_response(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("select_response",
+                                    trunc_dec_select_resp,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_select_with_value_request_t in;
+        memset(&in, 0, sizeof(in));
+        strncpy(in.control_object.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.control_object.item_id, "CSWI$CO$Pos", MMS_MAX_VARIABLE_NAME - 1);
+        in.control_value.type = MMS_TYPE_BOOLEAN;
+        in.control_value.value.boolean = true;
+        enc_len = mms_encode_select_with_value_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("select_with_value_request",
+                                    trunc_dec_select_wv_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_select_with_value_response_t in;
+        memset(&in, 0, sizeof(in));
+        in.state = MMS_CONTROL_STATE_SELECTED;
+        in.selection_id = 77;
+        enc_len = mms_encode_select_with_value_response(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("select_with_value_response",
+                                    trunc_dec_select_wv_resp,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_operate_request_t in;
+        memset(&in, 0, sizeof(in));
+        strncpy(in.control_object.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.control_object.item_id, "XCBR1$CO$Pos", MMS_MAX_VARIABLE_NAME - 1);
+        in.selection_id = 42;
+        in.has_control_value = true;
+        in.control_value.type = MMS_TYPE_BOOLEAN;
+        in.control_value.value.boolean = true;
+        enc_len = mms_encode_operate_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("operate_request",
+                                    trunc_dec_operate_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_operate_response_t in;
+        memset(&in, 0, sizeof(in));
+        in.state = MMS_CONTROL_STATE_READY;
+        in.success = true;
+        enc_len = mms_encode_operate_response(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("operate_response",
+                                    trunc_dec_operate_resp,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_cancel_request_t in;
+        memset(&in, 0, sizeof(in));
+        strncpy(in.control_object.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.control_object.item_id, "XCBR1$CO$Pos", MMS_MAX_VARIABLE_NAME - 1);
+        in.selection_id = 42;
+        enc_len = mms_encode_cancel_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("cancel_request",
+                                    trunc_dec_cancel_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_cancel_response_t in;
+        memset(&in, 0, sizeof(in));
+        enc_len = mms_encode_cancel_response(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("cancel_response",
+                                    trunc_dec_cancel_resp,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_command_termination_t in;
+        memset(&in, 0, sizeof(in));
+        strncpy(in.control_object.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.control_object.item_id, "XCBR1$CO$Pos", MMS_MAX_VARIABLE_NAME - 1);
+        in.selection_id = 55;
+        in.success = true;
+        in.termination_reason = 0;
+        enc_len = mms_encode_command_termination(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("command_termination",
+                                    trunc_dec_cmd_term,
+                                    wire, (size_t)enc_len);
+    }
+
+    PASS();
+}
+
+static void test_decode_value_length_overflow(void)
+{
+    TEST("decode_value_length_overflow");
+    /* Found by 60s libFuzzer run: a 90-octet BER length whose value wraps
+     * to SIZE_MAX-2 made the offset+length bounds check in
+     * mms_decode_value() overflow and pass, causing a 1-byte OOB read in
+     * the BIT_STRING case. */
+    static const uint8_t pdu[92] = {
+        0x84, 0xda,                                     /* tag + 90-octet length */
+        0x01, 0xfd, 0xa5, 0x5a, 0x01, 0x00, 0x00, 0x00, /* length octets... */
+        0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0x77, 0x00, 0x00, 0x00, 0xa0, 0x00, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xdf, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0x83, 0x00, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfd  /* ...wraps to SIZE_MAX-2 */
+    };
+    mms_value_t value;
+    memset(&value, 0, sizeof(value));
+    ASSERT_TRUE(mms_decode_value(pdu, sizeof(pdu), &value) < 0);
+    PASS();
+}
+
+/* Oversized declared lengths must be rejected on every PDU entry point,
+ * not just the ones covered by the committed reproducers. */
+static void test_decode_oversized_outer_lengths(void)
+{
+    TEST("decode_oversized_outer_lengths");
+
+    static const uint8_t initiate_req[] = {
+        0xa8, 0x84, 0xff, 0xff, 0xff, 0xff, 0x80, 0x01, 0x01
+    };
+    static const uint8_t confirmed_req[] = {
+        0xa0, 0x84, 0xff, 0xff, 0xff, 0xff, 0x80, 0x01, 0x01
+    };
+    static const uint8_t confirmed_resp[] = {
+        0xa1, 0x84, 0xff, 0xff, 0xff, 0xff, 0x80, 0x01, 0x01
+    };
+    static const uint8_t confirmed_err[] = {
+        0xa2, 0x84, 0xff, 0xff, 0xff, 0xff, 0x80, 0x01, 0x01
+    };
+    static const uint8_t info_report[] = {
+        0xa3, 0x84, 0xff, 0xff, 0xff, 0xff, 0x80, 0x01, 0x01
+    };
+
+    mms_initiate_request_t initiate_req_out;
+    mms_confirmed_request_t confirmed_req_out;
+    mms_confirmed_response_t confirmed_resp_out;
+    mms_confirmed_error_t confirmed_err_out;
+    mms_information_report_t info_report_out;
+
+    memset(&initiate_req_out, 0, sizeof(initiate_req_out));
+    ASSERT_TRUE(mms_decode_initiate_request(initiate_req, sizeof(initiate_req),
+                                            &initiate_req_out) < 0);
+    memset(&confirmed_req_out, 0, sizeof(confirmed_req_out));
+    ASSERT_TRUE(mms_decode_confirmed_request(confirmed_req, sizeof(confirmed_req),
+                                             &confirmed_req_out) < 0);
+    memset(&confirmed_resp_out, 0, sizeof(confirmed_resp_out));
+    ASSERT_TRUE(mms_decode_confirmed_response(confirmed_resp, sizeof(confirmed_resp),
+                                              &confirmed_resp_out) < 0);
+    memset(&confirmed_err_out, 0, sizeof(confirmed_err_out));
+    ASSERT_TRUE(mms_decode_confirmed_error(confirmed_err, sizeof(confirmed_err),
+                                           &confirmed_err_out) < 0);
+    memset(&info_report_out, 0, sizeof(info_report_out));
+    ASSERT_TRUE(mms_decode_information_report(info_report, sizeof(info_report),
+                                              &info_report_out) < 0);
+    PASS();
+}
+
 int main(void)
 {
     printf("\n=== MMS BER Codec Tests ===\n");
@@ -821,6 +1285,15 @@ int main(void)
     test_cancel_request_roundtrip();
     test_cancel_response_roundtrip();
     test_command_termination_roundtrip();
+
+    printf("\n--- Malformed PDU Regression (WP-0x) ---\n");
+    test_decode_initiate_request_field_len_oob();
+    test_decode_command_termination_oob_read();
+    test_decode_command_termination_identify_pdu();
+    test_decode_cancel_request_truncated();
+    test_decode_truncated_pdus();
+    test_decode_value_length_overflow();
+    test_decode_oversized_outer_lengths();
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);

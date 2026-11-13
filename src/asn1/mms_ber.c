@@ -25,6 +25,17 @@ static inline bool has_space(size_t current, size_t required, size_t max) {
 }
 
 /**
+ * @brief Check if a wire-decoded length fits within a buffer limit
+ *
+ * Overflow-safe variant of has_space() for validating untrusted,
+ * wire-supplied lengths: the subtraction form cannot wrap around even
+ * when the decoded length is close to SIZE_MAX.
+ */
+static inline bool length_fits(size_t offset, size_t len, size_t limit) {
+    return (offset <= limit) && (len <= (limit - offset));
+}
+
+/**
  * @brief Encode BER length field (definite form)
  *
  * BER length encoding:
@@ -148,6 +159,13 @@ static int decode_integer(const uint8_t* buffer, size_t buflen, int32_t* value) 
         return MMS_ERROR_INVALID_PARAM;
     }
 
+    /* Defensive cap: MMS INTEGER fields are at most 64 bits on the wire.
+     * Callers validate field_len against the buffer; this keeps a missed
+     * check from turning into a long out-of-bounds scan. */
+    if (buflen > 8) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+
     /* Use unsigned arithmetic to avoid undefined behavior from shifting negative values */
     uint32_t unsigned_value = 0;
     for (size_t i = 0; i < buflen; i++) {
@@ -202,6 +220,11 @@ static int encode_unsigned(uint32_t value, uint8_t* buffer, size_t buflen) {
 static int decode_unsigned(const uint8_t* buffer, size_t buflen, uint32_t* value) {
     if (buffer == NULL || value == NULL || buflen == 0) {
         return MMS_ERROR_INVALID_PARAM;
+    }
+
+    /* Defensive cap: see decode_integer() */
+    if (buflen > 8) {
+        return MMS_ERROR_INVALID_ENCODING;
     }
 
     *value = 0;
@@ -417,7 +440,9 @@ int mms_decode_value(const uint8_t* buffer, size_t buflen, mms_value_t* value) {
     }
     offset += ret;
 
-    if (!has_space(offset, length, buflen)) {
+    /* Overflow-safe check: wire lengths near SIZE_MAX must not wrap the
+     * addition in has_space() and slip through. */
+    if (!length_fits(offset, length, buflen)) {
         return MMS_ERROR_BUFFER_TOO_SMALL;
     }
 
@@ -425,6 +450,9 @@ int mms_decode_value(const uint8_t* buffer, size_t buflen, mms_value_t* value) {
     switch (tag) {
         case MMS_DATA_BOOLEAN:
             value->type = MMS_TYPE_BOOLEAN;
+            if (length < 1) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
             value->value.boolean = (buffer[offset] != 0);
             break;
 
@@ -601,6 +629,10 @@ int mms_decode_initiate_request(const uint8_t* buffer, size_t buflen,
     }
     offset += ret;
 
+    if (!length_fits(offset, length, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+
     /* Initialize with defaults */
     request->proposed_max_pdu_size = 65000;
     request->proposed_data_structure_nesting_level = 10;
@@ -615,6 +647,9 @@ int mms_decode_initiate_request(const uint8_t* buffer, size_t buflen,
             return ret;
         }
         offset += ret;
+        if (!length_fits(offset, field_len, buflen)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0x80:  /* localDetailCalling */
@@ -794,6 +829,10 @@ int mms_decode_initiate_response(const uint8_t* buffer, size_t buflen,
     }
     offset += ret;
 
+    if (!length_fits(offset, length, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+
     /* Initialize with defaults */
     response->negotiated_max_pdu_size = 65000;
     response->negotiated_data_structure_nesting_level = 10;
@@ -808,6 +847,9 @@ int mms_decode_initiate_response(const uint8_t* buffer, size_t buflen,
             return ret;
         }
         offset += ret;
+        if (!length_fits(offset, field_len, buflen)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0x80:  /* localDetailCalled */
@@ -1888,6 +1930,10 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
     }
     offset += ret;
 
+    if (!length_fits(offset, length, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+
     size_t end = offset + length;
 
     /* invokeID — accept both [0] IMPLICIT (0x80) and UNIVERSAL INTEGER (0x02) */
@@ -1905,6 +1951,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, field_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     ret = decode_integer(buffer + offset, field_len, (int32_t*)&request->invoke_id);
     if (ret < 0) {
@@ -1931,6 +1980,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, field_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     switch (service_tag) {
         case MMS_SERVICE_READ:
@@ -1941,12 +1993,16 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 size_t read_end = offset + field_len;
 
                 /* Skip specificationWithResult [0] if present */
-                if (buffer[offset] == 0x80) {
+                if (offset < read_end && buffer[offset] == 0x80) {
                     offset++;
                     size_t swrlen;
                     ret = mms_decode_length(buffer + offset, read_end - offset, &swrlen);
                     if (ret < 0) return ret;
-                    offset += ret + swrlen;
+                    offset += ret;
+                    if (!length_fits(offset, swrlen, read_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
+                    offset += swrlen;
                 }
 
                 /* variableAccessSpecification [1] CONSTRUCTED */
@@ -1956,6 +2012,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, read_end - offset, &vas_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, vas_len, read_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
                     size_t vas_end = offset + vas_len;
 
                     if (offset < vas_end && buffer[offset] == 0xA0) {
@@ -1979,7 +2038,8 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                         if (scan + 2 < vas_end && buffer[scan] == 0x1A) {
                             scan++;
                             size_t domain_len = buffer[scan++];
-                            if (domain_len < MMS_MAX_DOMAIN_NAME) {
+                            if (domain_len < MMS_MAX_DOMAIN_NAME &&
+                                length_fits(scan, domain_len, vas_end)) {
                                 memcpy(request->params.read.variable_spec.domain,
                                        buffer + scan, domain_len);
                                 request->params.read.variable_spec.domain[domain_len] = '\0';
@@ -1989,7 +2049,8 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                             if (scan + 2 <= vas_end && buffer[scan] == 0x1A) {
                                 scan++;
                                 size_t item_len = buffer[scan++];
-                                if (item_len < MMS_MAX_VARIABLE_NAME) {
+                                if (item_len < MMS_MAX_VARIABLE_NAME &&
+                                    length_fits(scan, item_len, vas_end)) {
                                     memcpy(request->params.read.variable_spec.item_id,
                                            buffer + scan, item_len);
                                     request->params.read.variable_spec.item_id[item_len] = '\0';
@@ -2017,8 +2078,12 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                         /* Read domain GraphicString (0x1A or 0x1B) */
                         if (offset < vas_end && buffer[offset] == 0x1A) {
                             offset++;  /* skip 0x1A tag */
+                            if (offset >= vas_end) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t rnvl_dom_len = buffer[offset++];
-                            if (rnvl_dom_len < MMS_MAX_DOMAIN_NAME) {
+                            if (rnvl_dom_len < MMS_MAX_DOMAIN_NAME &&
+                                length_fits(offset, rnvl_dom_len, vas_end)) {
                                 memcpy(request->params.readnamedvarlist.domain,
                                        buffer + offset, rnvl_dom_len);
                                 request->params.readnamedvarlist.domain[rnvl_dom_len] = '\0';
@@ -2028,8 +2093,12 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                         /* Read list name GraphicString (0x1A) */
                         if (offset < vas_end && buffer[offset] == 0x1A) {
                             offset++;  /* skip 0x1A tag */
+                            if (offset >= vas_end) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t rnvl_name_len = buffer[offset++];
-                            if (rnvl_name_len < MMS_MAX_VARIABLE_NAME) {
+                            if (rnvl_name_len < MMS_MAX_VARIABLE_NAME &&
+                                length_fits(offset, rnvl_name_len, vas_end)) {
                                 memcpy(request->params.readnamedvarlist.list_name,
                                        buffer + offset, rnvl_name_len);
                                 request->params.readnamedvarlist.list_name[rnvl_name_len] = '\0';
@@ -2046,7 +2115,7 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
             break;
 
         case MMS_SERVICE_WRITE:
-            if (buffer[offset] == 0xA1) {
+            if (offset < end && buffer[offset] == 0xA1) {
                 /* WriteNamedVariableList: variableListName [1] + listOfData [0] */
                 request->service = MMS_SERVICE_TYPE_WRITE_NAMED_VARLIST;
                 offset++;
@@ -2054,10 +2123,17 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &wnvl_spec_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, wnvl_spec_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 /* domain name */
+                if (offset >= buflen) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 size_t wnvl_dom_len = buffer[offset++];
-                if (wnvl_dom_len >= MMS_MAX_DOMAIN_NAME) {
+                if (wnvl_dom_len >= MMS_MAX_DOMAIN_NAME ||
+                    !length_fits(offset, wnvl_dom_len, end)) {
                     return MMS_ERROR_BUFFER_TOO_SMALL;
                 }
                 memcpy(request->params.writenamedvarlist.domain, buffer + offset, wnvl_dom_len);
@@ -2065,8 +2141,12 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 offset += wnvl_dom_len;
 
                 /* list name */
+                if (offset >= buflen) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 size_t wnvl_name_len = buffer[offset++];
-                if (wnvl_name_len >= MMS_MAX_VARIABLE_NAME) {
+                if (wnvl_name_len >= MMS_MAX_VARIABLE_NAME ||
+                    !length_fits(offset, wnvl_name_len, end)) {
                     return MMS_ERROR_BUFFER_TOO_SMALL;
                 }
                 memcpy(request->params.writenamedvarlist.list_name, buffer + offset, wnvl_name_len);
@@ -2080,6 +2160,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &wnvl_data_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, wnvl_data_len, end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     size_t wnvl_data_end = offset + wnvl_data_len;
                     request->params.writenamedvarlist.num_values = 0;
@@ -2095,13 +2178,16 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
             } else {
                 /* Write-Request: variableAccessSpecification [0] + listOfData [0] */
                 request->service = MMS_SERVICE_TYPE_WRITE;
-                if (buffer[offset] == 0xA0) {
+                if (offset < end && buffer[offset] == 0xA0) {
                     /* First [0]: variableAccessSpecification listOfVariable */
                     offset++;
                     size_t vas_len;
                     ret = mms_decode_length(buffer + offset, buflen - offset, &vas_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, vas_len, end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
                     size_t vas_end = offset + vas_len;
 
                     /* Scan for VisibleString (0x1A) tags */
@@ -2121,7 +2207,8 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     if (scan + 2 < vas_end && buffer[scan] == 0x1A) {
                         scan++;
                         size_t wr_domain_len = buffer[scan++];
-                        if (wr_domain_len < MMS_MAX_DOMAIN_NAME) {
+                        if (wr_domain_len < MMS_MAX_DOMAIN_NAME &&
+                            length_fits(scan, wr_domain_len, vas_end)) {
                             memcpy(request->params.write.variable_spec.domain,
                                    buffer + scan, wr_domain_len);
                             request->params.write.variable_spec.domain[wr_domain_len] = '\0';
@@ -2131,7 +2218,8 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                         if (scan + 2 <= vas_end && buffer[scan] == 0x1A) {
                             scan++;
                             size_t wr_item_len = buffer[scan++];
-                            if (wr_item_len < MMS_MAX_VARIABLE_NAME) {
+                            if (wr_item_len < MMS_MAX_VARIABLE_NAME &&
+                                length_fits(scan, wr_item_len, vas_end)) {
                                 memcpy(request->params.write.variable_spec.item_id,
                                        buffer + scan, wr_item_len);
                                 request->params.write.variable_spec.item_id[wr_item_len] = '\0';
@@ -2147,6 +2235,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &data_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, data_len, end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     ret = mms_decode_value(buffer + offset, data_len, &request->params.write.value);
                     if (ret < 0) return ret;
@@ -2171,6 +2262,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &gnl_tag_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, gnl_tag_len, gnl_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     switch (gnl_tag) {
                         case 0x80:  /* objectClass [0] IMPLICIT INTEGER */
@@ -2195,7 +2289,8 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                                 ret = mms_decode_length(buffer + offset, buflen - offset, &gnl_dom_len);
                                 if (ret < 0) return ret;
                                 offset += ret;
-                                if (gnl_dom_len < MMS_MAX_DOMAIN_NAME) {
+                                if (gnl_dom_len < MMS_MAX_DOMAIN_NAME &&
+                                    length_fits(offset, gnl_dom_len, gnl_end)) {
                                     memcpy(request->params.getnamelist.domain, buffer + offset, gnl_dom_len);
                                     request->params.getnamelist.domain[gnl_dom_len] = '\0';
                                 }
@@ -2222,7 +2317,7 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
         case MMS_SERVICE_GET_VARIABLE_ATTRS:
             request->service = MMS_SERVICE_TYPE_GET_VARIABLE_ATTRS;
             /* GetVariableAccessAttributes-Request: name [0] { A1 { 1A dom 1A item } } */
-            if (buffer[offset] == 0xA0) {
+            if (offset < end && buffer[offset] == 0xA0) {
                 size_t gva_end = offset + field_len;
 
                 /* Scan for VisibleString (0x1A) tags inside nested wrappers */
@@ -2242,7 +2337,8 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 if (scan + 2 < gva_end && buffer[scan] == 0x1A) {
                     scan++;
                     size_t gva_dom_len = buffer[scan++];
-                    if (gva_dom_len < MMS_MAX_DOMAIN_NAME) {
+                    if (gva_dom_len < MMS_MAX_DOMAIN_NAME &&
+                        length_fits(scan, gva_dom_len, gva_end)) {
                         memcpy(request->params.getvariableattrs.variable_spec.domain,
                                buffer + scan, gva_dom_len);
                         request->params.getvariableattrs.variable_spec.domain[gva_dom_len] = '\0';
@@ -2252,7 +2348,8 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     if (scan + 2 <= gva_end && buffer[scan] == 0x1A) {
                         scan++;
                         size_t gva_item_len = buffer[scan++];
-                        if (gva_item_len < MMS_MAX_VARIABLE_NAME) {
+                        if (gva_item_len < MMS_MAX_VARIABLE_NAME &&
+                            length_fits(scan, gva_item_len, gva_end)) {
                             memcpy(request->params.getvariableattrs.variable_spec.item_id,
                                    buffer + scan, gva_item_len);
                             request->params.getvariableattrs.variable_spec.item_id[gva_item_len] = '\0';
@@ -2278,15 +2375,30 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &name_spec_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, name_spec_len, dnvl_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
+                    if (offset >= buflen) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
                     size_t dnvl_dom_len = buffer[offset++];
-                    if (dnvl_dom_len >= MMS_MAX_DOMAIN_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                    if (dnvl_dom_len >= MMS_MAX_DOMAIN_NAME ||
+                        !length_fits(offset, dnvl_dom_len, dnvl_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
                     memcpy(request->params.definenamedvarlist.domain, buffer + offset, dnvl_dom_len);
                     request->params.definenamedvarlist.domain[dnvl_dom_len] = '\0';
                     offset += dnvl_dom_len;
 
+                    if (offset >= buflen) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
                     size_t dnvl_name_len = buffer[offset++];
-                    if (dnvl_name_len >= MMS_MAX_VARIABLE_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                    if (dnvl_name_len >= MMS_MAX_VARIABLE_NAME ||
+                        !length_fits(offset, dnvl_name_len, dnvl_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
                     memcpy(request->params.definenamedvarlist.list_name, buffer + offset, dnvl_name_len);
                     request->params.definenamedvarlist.list_name[dnvl_name_len] = '\0';
                     offset += dnvl_name_len;
@@ -2298,6 +2410,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &var_list_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, var_list_len, dnvl_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     size_t var_list_end = offset + var_list_len;
                     request->params.definenamedvarlist.num_variables = 0;
@@ -2309,15 +2424,30 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                             ret = mms_decode_length(buffer + offset, buflen - offset, &vs_len);
                             if (ret < 0) return ret;
                             offset += ret;
+                            if (!length_fits(offset, vs_len, var_list_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
 
+                            if (offset >= buflen) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t vs_dom_len = buffer[offset++];
-                            if (vs_dom_len >= MMS_MAX_DOMAIN_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                            if (vs_dom_len >= MMS_MAX_DOMAIN_NAME ||
+                                !length_fits(offset, vs_dom_len, var_list_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             memcpy(request->params.definenamedvarlist.variables[vi].domain, buffer + offset, vs_dom_len);
                             request->params.definenamedvarlist.variables[vi].domain[vs_dom_len] = '\0';
                             offset += vs_dom_len;
 
+                            if (offset >= buflen) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t vs_item_len = buffer[offset++];
-                            if (vs_item_len >= MMS_MAX_VARIABLE_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                            if (vs_item_len >= MMS_MAX_VARIABLE_NAME ||
+                                !length_fits(offset, vs_item_len, var_list_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             memcpy(request->params.definenamedvarlist.variables[vi].item_id, buffer + offset, vs_item_len);
                             request->params.definenamedvarlist.variables[vi].item_id[vs_item_len] = '\0';
                             offset += vs_item_len;
@@ -2335,21 +2465,36 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
         case MMS_SERVICE_DELETE_NAMED_VARLIST:
             request->service = MMS_SERVICE_TYPE_DELETE_NAMED_VARLIST;
             /* DeleteNamedVariableList-Request: variableListName [0] */
-            if (buffer[offset] == 0xA0) {
+            if (offset < end && buffer[offset] == 0xA0) {
                 offset++;
                 size_t del_spec_len;
                 ret = mms_decode_length(buffer + offset, buflen - offset, &del_spec_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, del_spec_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
+                if (offset >= buflen) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 size_t del_dom_len = buffer[offset++];
-                if (del_dom_len >= MMS_MAX_DOMAIN_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                if (del_dom_len >= MMS_MAX_DOMAIN_NAME ||
+                    !length_fits(offset, del_dom_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 memcpy(request->params.deletenamedvarlist.domain, buffer + offset, del_dom_len);
                 request->params.deletenamedvarlist.domain[del_dom_len] = '\0';
                 offset += del_dom_len;
 
+                if (offset >= buflen) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 size_t del_name_len = buffer[offset++];
-                if (del_name_len >= MMS_MAX_VARIABLE_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                if (del_name_len >= MMS_MAX_VARIABLE_NAME ||
+                    !length_fits(offset, del_name_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 memcpy(request->params.deletenamedvarlist.list_name, buffer + offset, del_name_len);
                 request->params.deletenamedvarlist.list_name[del_name_len] = '\0';
                 offset += del_name_len;
@@ -2361,21 +2506,36 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
         case MMS_SERVICE_GET_NAMED_VARLIST_ATTRS:
             request->service = MMS_SERVICE_TYPE_GET_NAMED_VARLIST_ATTRS;
             /* GetNamedVariableListAttributes-Request: variableListName [0] */
-            if (buffer[offset] == 0xA0) {
+            if (offset < end && buffer[offset] == 0xA0) {
                 offset++;
                 size_t gattr_spec_len;
                 ret = mms_decode_length(buffer + offset, buflen - offset, &gattr_spec_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, gattr_spec_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
+                if (offset >= buflen) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 size_t gattr_dom_len = buffer[offset++];
-                if (gattr_dom_len >= MMS_MAX_DOMAIN_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                if (gattr_dom_len >= MMS_MAX_DOMAIN_NAME ||
+                    !length_fits(offset, gattr_dom_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 memcpy(request->params.getnamedvarlistattrs.domain, buffer + offset, gattr_dom_len);
                 request->params.getnamedvarlistattrs.domain[gattr_dom_len] = '\0';
                 offset += gattr_dom_len;
 
+                if (offset >= buflen) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 size_t gattr_name_len = buffer[offset++];
-                if (gattr_name_len >= MMS_MAX_VARIABLE_NAME) return MMS_ERROR_BUFFER_TOO_SMALL;
+                if (gattr_name_len >= MMS_MAX_VARIABLE_NAME ||
+                    !length_fits(offset, gattr_name_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 memcpy(request->params.getnamedvarlistattrs.list_name, buffer + offset, gattr_name_len);
                 request->params.getnamedvarlistattrs.list_name[gattr_name_len] = '\0';
                 offset += gattr_name_len;
@@ -2395,20 +2555,31 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, sel_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* controlObject [0] IMPLICIT */
                         /* Decode domain-specific variable spec */
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t domain_len = buffer[offset++];
-                        if (domain_len >= MMS_MAX_DOMAIN_NAME) {
+                        if (domain_len >= MMS_MAX_DOMAIN_NAME ||
+                            !length_fits(offset, domain_len, sel_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.select.control_object.domain, buffer + offset, domain_len);
                         request->params.select.control_object.domain[domain_len] = '\0';
                         offset += domain_len;
 
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t item_len = buffer[offset++];
-                        if (item_len >= MMS_MAX_VARIABLE_NAME) {
+                        if (item_len >= MMS_MAX_VARIABLE_NAME ||
+                            !length_fits(offset, item_len, sel_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.select.control_object.item_id, buffer + offset, item_len);
@@ -2418,6 +2589,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     }
 
                     case 0x81:  /* checkValue [1] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         request->params.select.check_value = buffer[offset];
                         offset += tag_len;
                         break;
@@ -2446,20 +2620,31 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, swv_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* controlObject [0] IMPLICIT */
                         /* Decode domain-specific variable spec */
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t domain_len = buffer[offset++];
-                        if (domain_len >= MMS_MAX_DOMAIN_NAME) {
+                        if (domain_len >= MMS_MAX_DOMAIN_NAME ||
+                            !length_fits(offset, domain_len, swv_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.select_with_value.control_object.domain, buffer + offset, domain_len);
                         request->params.select_with_value.control_object.domain[domain_len] = '\0';
                         offset += domain_len;
 
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t item_len = buffer[offset++];
-                        if (item_len >= MMS_MAX_VARIABLE_NAME) {
+                        if (item_len >= MMS_MAX_VARIABLE_NAME ||
+                            !length_fits(offset, item_len, swv_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.select_with_value.control_object.item_id, buffer + offset, item_len);
@@ -2475,6 +2660,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                         break;
 
                     case 0x82:  /* checkValue [2] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         request->params.select_with_value.check_value = buffer[offset];
                         offset += tag_len;
                         break;
@@ -2505,20 +2693,31 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, op_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* controlObject [0] IMPLICIT */
                         /* Decode domain-specific variable spec */
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t domain_len = buffer[offset++];
-                        if (domain_len >= MMS_MAX_DOMAIN_NAME) {
+                        if (domain_len >= MMS_MAX_DOMAIN_NAME ||
+                            !length_fits(offset, domain_len, op_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.operate.control_object.domain, buffer + offset, domain_len);
                         request->params.operate.control_object.domain[domain_len] = '\0';
                         offset += domain_len;
 
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t item_len = buffer[offset++];
-                        if (item_len >= MMS_MAX_VARIABLE_NAME) {
+                        if (item_len >= MMS_MAX_VARIABLE_NAME ||
+                            !length_fits(offset, item_len, op_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.operate.control_object.item_id, buffer + offset, item_len);
@@ -2574,20 +2773,31 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, cancel_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* controlObject [0] IMPLICIT */
                         /* Decode domain-specific variable spec */
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t domain_len = buffer[offset++];
-                        if (domain_len >= MMS_MAX_DOMAIN_NAME) {
+                        if (domain_len >= MMS_MAX_DOMAIN_NAME ||
+                            !length_fits(offset, domain_len, cancel_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.cancel.control_object.domain, buffer + offset, domain_len);
                         request->params.cancel.control_object.domain[domain_len] = '\0';
                         offset += domain_len;
 
+                        if (offset >= buflen) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t item_len = buffer[offset++];
-                        if (item_len >= MMS_MAX_VARIABLE_NAME) {
+                        if (item_len >= MMS_MAX_VARIABLE_NAME ||
+                            !length_fits(offset, item_len, cancel_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
                         memcpy(request->params.cancel.control_object.item_id, buffer + offset, item_len);
@@ -2621,6 +2831,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, fileopen_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* filename [0] IMPLICIT */
@@ -2634,6 +2847,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     }
 
                     case 0x81:  /* accessMode [1] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         request->params.fileopen.access_mode = (mms_file_access_mode_t)buffer[offset];
                         offset += tag_len;
                         break;
@@ -2656,6 +2872,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, fileread_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0x80:  /* fileHandle [0] IMPLICIT */
@@ -2688,6 +2907,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, fileclose_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0x80:  /* fileHandle [0] IMPLICIT */
@@ -2714,6 +2936,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, filedelete_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* filename [0] IMPLICIT */
@@ -2746,6 +2971,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, filedir_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* directory [0] IMPLICIT (optional) */
@@ -2792,6 +3020,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, readjournal_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* journalName [0] IMPLICIT */
@@ -2861,6 +3092,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, initjournal_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* journalName [0] IMPLICIT */
@@ -2893,6 +3127,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, definetype_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* domain [0] IMPLICIT (optional) */
@@ -2916,6 +3153,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     }
 
                     case 0x82:  /* typeSpec [2] IMPLICIT INTEGER */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         request->params.definenamedtype.type_spec = (mms_type_t)buffer[offset];
                         offset += tag_len;
                         break;
@@ -2939,6 +3179,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, deletetype_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* domain [0] IMPLICIT (optional) */
@@ -2980,6 +3223,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, gettypeattrs_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* domain [0] IMPLICIT (optional) */
@@ -3484,6 +3730,10 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
     }
     offset += ret;
 
+    if (!length_fits(offset, length, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+
     size_t end = offset + length;
 
     /* invokeID — accept both [0] IMPLICIT (0x80) and UNIVERSAL INTEGER (0x02) */
@@ -3501,6 +3751,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, field_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     ret = decode_integer(buffer + offset, field_len, (int32_t*)&response->invoke_id);
     if (ret < 0) {
@@ -3527,6 +3780,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, field_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     switch (service_tag) {
         case 0xA2:  /* Identify response [2] CONSTRUCTED */
@@ -3540,6 +3796,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &id_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, id_len, id_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
                     switch (id_tag) {
                         case 0x80:
                             if (id_len < MMS_MAX_VARIABLE_NAME) {
@@ -3573,7 +3832,7 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
         case MMS_SERVICE_READ:
             /* Read can be either single value or named variable list */
             /* Decode listOfAccessResult [1] IMPLICIT SEQUENCE */
-            if (buffer[offset] == 0xA1) {
+            if (offset < end && buffer[offset] == 0xA1) {
                 offset++;
                 size_t result_len;
                 ret = mms_decode_length(buffer + offset, buflen - offset, &result_len);
@@ -3581,6 +3840,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     return ret;
                 }
                 offset += ret;
+                if (!length_fits(offset, result_len, end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
                 size_t result_end = offset + result_len;
 
                 /* Check for AccessResult failure [0] */
@@ -3646,6 +3908,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &list_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, list_len, gnlr_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     size_t list_end = offset + list_len;
                     response->params.getnamelist.num_identifiers = 0;
@@ -3655,8 +3920,12 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                         if (buffer[offset] == 0x1A) {
                             offset++;
                         }
+                        if (offset >= list_end) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
                         size_t name_len = buffer[offset++];
-                        if (name_len >= MMS_MAX_VARIABLE_NAME) {
+                        if (name_len >= MMS_MAX_VARIABLE_NAME ||
+                            !length_fits(offset, name_len, list_end)) {
                             offset += name_len;
                             continue;
                         }
@@ -3672,11 +3941,10 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     offset++;
                     size_t mf_len;
                     ret = mms_decode_length(buffer + offset, gnlr_end - offset, &mf_len);
-                    if (ret > 0) {
-                        offset += ret;
-                        if (mf_len >= 1) {
-                            response->params.getnamelist.more_follows = (buffer[offset] != 0);
-                        }
+                    if (ret < 0) return ret;
+                    offset += ret;
+                    if (mf_len >= 1 && length_fits(offset, mf_len, gnlr_end)) {
+                        response->params.getnamelist.more_follows = (buffer[offset] != 0);
                     }
                 }
                 offset = gnlr_end;
@@ -3694,6 +3962,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, tag_len, gvar_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     switch (tag) {
                         case 0xA0: { /* name [0] IMPLICIT VisibleString */
@@ -3706,6 +3977,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             break;
                         }
                         case 0x81:  /* typeDescription [1] IMPLICIT INTEGER */
+                            if (tag_len < 1) {
+                                return MMS_ERROR_INVALID_ENCODING;
+                            }
                             response->params.getvariableattrs.attributes.type = (mms_type_t)buffer[offset];
                             offset += tag_len;
                             break;
@@ -3741,6 +4015,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &gva_list_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, gva_list_len, gva_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     size_t gva_list_end = offset + gva_list_len;
                     response->params.getnamedvarlistattrs.num_variables = 0;
@@ -3752,16 +4029,27 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             ret = mms_decode_length(buffer + offset, buflen - offset, &vs_len);
                             if (ret < 0) return ret;
                             offset += ret;
+                            if (!length_fits(offset, vs_len, gva_list_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
 
+                            if (offset >= buflen) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t gva_dom_len = buffer[offset++];
-                            if (gva_dom_len < MMS_MAX_DOMAIN_NAME) {
+                            if (gva_dom_len < MMS_MAX_DOMAIN_NAME &&
+                                length_fits(offset, gva_dom_len, gva_list_end)) {
                                 memcpy(response->params.getnamedvarlistattrs.variables[vi].domain, buffer + offset, gva_dom_len);
                                 response->params.getnamedvarlistattrs.variables[vi].domain[gva_dom_len] = '\0';
                             }
                             offset += gva_dom_len;
 
+                            if (offset >= buflen) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t gva_item_len = buffer[offset++];
-                            if (gva_item_len < MMS_MAX_VARIABLE_NAME) {
+                            if (gva_item_len < MMS_MAX_VARIABLE_NAME &&
+                                length_fits(offset, gva_item_len, gva_list_end)) {
                                 memcpy(response->params.getnamedvarlistattrs.variables[vi].item_id, buffer + offset, gva_item_len);
                                 response->params.getnamedvarlistattrs.variables[vi].item_id[gva_item_len] = '\0';
                             }
@@ -3780,7 +4068,14 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &del_len);
                     if (ret < 0) return ret;
                     offset += ret;
-                    response->params.getnamedvarlistattrs.deletable = (buffer[offset] != 0);
+                    if (!length_fits(offset, del_len, gva_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
+                    if (del_len >= 1) {
+                        response->params.getnamedvarlistattrs.deletable = (buffer[offset] != 0);
+                    } else {
+                        return MMS_ERROR_INVALID_ENCODING;
+                    }
                     offset += del_len;
                 }
                 offset = gva_end;
@@ -3798,9 +4093,15 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, sel_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0x80:  /* state [0] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.select.state = (mms_control_state_t)buffer[offset];
                         offset += tag_len;
                         break;
@@ -3829,9 +4130,15 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, swv_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0x80:  /* state [0] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.select_with_value.state = (mms_control_state_t)buffer[offset];
                         offset += tag_len;
                         break;
@@ -3860,14 +4167,23 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, op_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0x80:  /* state [0] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.operate.state = (mms_control_state_t)buffer[offset];
                         offset += tag_len;
                         break;
 
                     case 0x81:  /* success [1] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.operate.success = (buffer[offset] != 0);
                         offset += tag_len;
                         break;
@@ -3897,6 +4213,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, fileopen_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0x80:  /* fileHandle [0] IMPLICIT */
@@ -3934,6 +4253,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, fileread_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* data [0] IMPLICIT OCTET STRING */
@@ -3947,6 +4269,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     }
 
                     case 0x81:  /* moreFollows [1] IMPLICIT BOOLEAN */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.fileread.more_follows = (buffer[offset] != 0);
                         offset += tag_len;
                         break;
@@ -3982,6 +4307,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, filedir_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* entries [0] IMPLICIT SEQUENCE OF FileEntry */
@@ -3990,8 +4318,12 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             uint32_t entry_idx = response->params.filedirectory.num_entries;
 
                             /* filename VISIBLE STRING */
+                            if (!length_fits(offset, 1, entries_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t name_len = buffer[offset++];
-                            if (name_len >= MMS_MAX_VARIABLE_NAME) {
+                            if (name_len >= MMS_MAX_VARIABLE_NAME ||
+                                !length_fits(offset, name_len, entries_end)) {
                                 return MMS_ERROR_BUFFER_TOO_SMALL;
                             }
                             memcpy(response->params.filedirectory.entries[entry_idx].filename, buffer + offset, name_len);
@@ -3999,6 +4331,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             offset += name_len;
 
                             /* fileSize INTEGER (64-bit) */
+                            if (!length_fits(offset, 1 + 8, entries_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t size_len = buffer[offset++];
                             if (size_len != 8) {
                                 return MMS_ERROR_INVALID_ENCODING;
@@ -4011,6 +4346,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             offset += 8;
 
                             /* lastModified INTEGER (64-bit) */
+                            if (!length_fits(offset, 1 + 8, entries_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t time_len = buffer[offset++];
                             if (time_len != 8) {
                                 return MMS_ERROR_INVALID_ENCODING;
@@ -4028,6 +4366,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     }
 
                     case 0x81:  /* moreFollows [1] IMPLICIT BOOLEAN */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.filedirectory.more_follows = (buffer[offset] != 0);
                         offset += tag_len;
                         break;
@@ -4052,6 +4393,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, readjournal_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0xA0: { /* entries [0] IMPLICIT SEQUENCE OF JournalEntry */
@@ -4060,6 +4404,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             uint32_t entry_idx = response->params.readjournal.num_entries;
 
                             /* entryID INTEGER (64-bit) */
+                            if (!length_fits(offset, 1 + 8, entries_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t id_len = buffer[offset++];
                             if (id_len != 8) {
                                 return MMS_ERROR_INVALID_ENCODING;
@@ -4072,6 +4419,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             offset += 8;
 
                             /* timestamp INTEGER (64-bit) */
+                            if (!length_fits(offset, 1 + 8, entries_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t time_len = buffer[offset++];
                             if (time_len != 8) {
                                 return MMS_ERROR_INVALID_ENCODING;
@@ -4087,8 +4437,12 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             response->params.readjournal.entries[entry_idx].variable_ref[0] = '\0';
                             if (offset < entries_end && buffer[offset] == 0xA2) {
                                 offset++;  /* Skip tag */
+                                if (!length_fits(offset, 1, entries_end)) {
+                                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                                }
                                 size_t varref_len = buffer[offset++];
-                                if (varref_len >= MMS_MAX_VARIABLE_NAME) {
+                                if (varref_len >= MMS_MAX_VARIABLE_NAME ||
+                                    !length_fits(offset, varref_len, entries_end)) {
                                     return MMS_ERROR_BUFFER_TOO_SMALL;
                                 }
                                 memcpy(response->params.readjournal.entries[entry_idx].variable_ref, buffer + offset, varref_len);
@@ -4100,8 +4454,12 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                             if (offset >= entries_end || buffer[offset++] != 0xA3) {
                                 return MMS_ERROR_INVALID_ENCODING;
                             }
+                            if (!length_fits(offset, 1, entries_end)) {
+                                return MMS_ERROR_BUFFER_TOO_SMALL;
+                            }
                             size_t data_len = buffer[offset++];
-                            if (data_len >= MMS_MAX_STRING_LENGTH) {
+                            if (data_len >= MMS_MAX_STRING_LENGTH ||
+                                !length_fits(offset, data_len, entries_end)) {
                                 return MMS_ERROR_BUFFER_TOO_SMALL;
                             }
                             memcpy(response->params.readjournal.entries[entry_idx].entry_data, buffer + offset, data_len);
@@ -4114,6 +4472,9 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     }
 
                     case 0x81:  /* moreFollows [1] IMPLICIT BOOLEAN */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.readjournal.more_follows = (buffer[offset] != 0);
                         offset += tag_len;
                         break;
@@ -4155,9 +4516,15 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
                 if (ret < 0) return ret;
                 offset += ret;
+                if (!length_fits(offset, tag_len, gettypeattrs_resp_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
 
                 switch (tag) {
                     case 0x80:  /* typeSpec [0] IMPLICIT */
+                        if (tag_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
                         response->params.getnamedtypeattrs.type_spec = (mms_type_t)buffer[offset];
                         offset += tag_len;
                         break;
@@ -4235,6 +4602,9 @@ int mms_decode_confirmed_error(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, outer_length, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
     size_t end = offset + outer_length;
 
     /* Parse TLV fields */
@@ -4244,6 +4614,9 @@ int mms_decode_confirmed_error(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &field_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, field_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0x80:  /* invokeID [0] IMPLICIT */
@@ -4264,6 +4637,9 @@ int mms_decode_confirmed_error(const uint8_t* buffer, size_t buflen,
                     ret = mms_decode_length(buffer + offset, buflen - offset, &se_len);
                     if (ret < 0) return ret;
                     offset += ret;
+                    if (!length_fits(offset, se_len, se_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
 
                     /* Error class is encoded as context-specific tag with class value */
                     error->error.error_class = (mms_error_class_t)(se_tag & 0x1F);
@@ -4603,6 +4979,9 @@ int mms_decode_information_report(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, length, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + length;
 
@@ -4617,9 +4996,16 @@ int mms_decode_information_report(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, length, end)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
-    /* variableAccessSpecification [0] */
-    if (offset >= end || buffer[offset++] != 0xA0) {
+    /* variableAccessSpecification [0] (legacy flat) or [1] (variableListName) */
+    if (offset >= end) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    uint8_t vas_tag = buffer[offset++];
+    if (vas_tag != 0xA0 && vas_tag != 0xA1) {
         return MMS_ERROR_INVALID_ENCODING;
     }
 
@@ -4630,15 +5016,73 @@ int mms_decode_information_report(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
-
-    /* Decode variable list name (simplified) */
-    size_t name_len = buffer[offset++];
-    if (name_len >= MMS_MAX_VARIABLE_NAME) {
+    if (!length_fits(offset, varlist_len, end)) {
         return MMS_ERROR_BUFFER_TOO_SMALL;
     }
-    memcpy(report->variable_list_name, buffer + offset, name_len);
-    report->variable_list_name[name_len] = '\0';
-    offset += name_len;
+
+    if (vas_tag == 0xA1) {
+        /* variableListName [1] CONSTRUCTED: domain-specific ObjectName
+         * A1 <len> { A1 <len> { 1A <domain> 1A <item> } } — as encoded
+         * by mms_encode_information_report(). */
+        size_t vas_end = offset + varlist_len;
+        while (offset < vas_end &&
+               (buffer[offset] == 0xA1 || buffer[offset] == 0xA3)) {
+            offset++;  /* skip CONSTRUCTED wrapper tag */
+            size_t wrap_len;
+            ret = mms_decode_length(buffer + offset, vas_end - offset, &wrap_len);
+            if (ret < 0) return ret;
+            offset += ret;
+        }
+
+        /* domain GraphicString (0x1A) */
+        if (offset < vas_end && buffer[offset] == 0x1A) {
+            offset++;
+            if (!length_fits(offset, 1, vas_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            size_t dom_len = buffer[offset++];
+            if (dom_len >= MMS_MAX_VARIABLE_NAME ||
+                !length_fits(offset, dom_len, vas_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            memcpy(report->variable_list_name, buffer + offset, dom_len);
+            report->variable_list_name[dom_len] = '\0';
+            offset += dom_len;
+
+            /* item GraphicString (0x1A) — rejoin as "domain/item" */
+            if (offset < vas_end && buffer[offset] == 0x1A) {
+                offset++;
+                if (!length_fits(offset, 1, vas_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
+                size_t item_len = buffer[offset++];
+                if (item_len >= MMS_MAX_VARIABLE_NAME ||
+                    !length_fits(offset, item_len, vas_end)) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
+                if (item_len > 0 && dom_len + 1 + item_len < MMS_MAX_VARIABLE_NAME) {
+                    report->variable_list_name[dom_len] = '/';
+                    memcpy(report->variable_list_name + dom_len + 1,
+                           buffer + offset, item_len);
+                    report->variable_list_name[dom_len + 1 + item_len] = '\0';
+                }
+                offset += item_len;
+            }
+        }
+    } else {
+        /* Legacy flat format: [0] <namelen> <name> */
+        if (!length_fits(offset, 1, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        size_t name_len = buffer[offset++];
+        if (name_len >= MMS_MAX_VARIABLE_NAME ||
+            !length_fits(offset, name_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        memcpy(report->variable_list_name, buffer + offset, name_len);
+        report->variable_list_name[name_len] = '\0';
+        offset += name_len;
+    }
 
     /* listOfAccessResult [1] */
     if (offset >= end || buffer[offset++] != 0xA1) {
@@ -4652,6 +5096,9 @@ int mms_decode_information_report(const uint8_t* buffer, size_t buflen,
         return ret;
     }
     offset += ret;
+    if (!length_fits(offset, results_len, end)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     /* Decode each value */
     report->num_values = 0;
@@ -4681,6 +5128,9 @@ int mms_decode_information_report(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &opt_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, opt_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (opt_tag) {
             case 0x82: { /* sq_num [2] IMPLICIT UNSIGNED */
@@ -4712,6 +5162,9 @@ int mms_decode_information_report(const uint8_t* buffer, size_t buflen,
                 break;
             }
             case 0x85: { /* buffer_overflow [5] IMPLICIT BOOLEAN */
+                if (opt_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 report->buffer_overflow = (buffer[offset] != 0);
                 report->buffer_overflow_present = true;
                 offset += opt_len;
@@ -4882,6 +5335,9 @@ int mms_decode_select_request(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(request, 0, sizeof(*request));
@@ -4892,6 +5348,9 @@ int mms_decode_select_request(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0xA0: { /* controlObject [0] IMPLICIT */
@@ -4902,6 +5361,9 @@ int mms_decode_select_request(const uint8_t* buffer, size_t buflen,
                 break;
             }
             case 0x81:  /* checkValue [1] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 request->check_value = buffer[offset];
                 offset += tag_len;
                 break;
@@ -4981,6 +5443,9 @@ int mms_decode_select_response(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(response, 0, sizeof(*response));
@@ -4991,9 +5456,15 @@ int mms_decode_select_response(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0x80:  /* state [0] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 response->state = (mms_control_state_t)buffer[offset];
                 offset += tag_len;
                 break;
@@ -5091,6 +5562,9 @@ int mms_decode_select_with_value_request(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(request, 0, sizeof(*request));
@@ -5101,6 +5575,9 @@ int mms_decode_select_with_value_request(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0xA0: { /* controlObject [0] IMPLICIT */
@@ -5117,6 +5594,9 @@ int mms_decode_select_with_value_request(const uint8_t* buffer, size_t buflen,
                 offset += tag_len;
                 break;
             case 0x82:  /* checkValue [2] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 request->check_value = buffer[offset];
                 offset += tag_len;
                 break;
@@ -5196,6 +5676,9 @@ int mms_decode_select_with_value_response(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(response, 0, sizeof(*response));
@@ -5206,9 +5689,15 @@ int mms_decode_select_with_value_response(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0x80:  /* state [0] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 response->state = (mms_control_state_t)buffer[offset];
                 offset += tag_len;
                 break;
@@ -5310,6 +5799,9 @@ int mms_decode_operate_request(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(request, 0, sizeof(*request));
@@ -5320,6 +5812,9 @@ int mms_decode_operate_request(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0xA0: { /* controlObject [0] IMPLICIT */
@@ -5422,6 +5917,9 @@ int mms_decode_operate_response(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(response, 0, sizeof(*response));
@@ -5432,13 +5930,22 @@ int mms_decode_operate_response(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0x80:  /* state [0] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 response->state = (mms_control_state_t)buffer[offset];
                 offset += tag_len;
                 break;
             case 0x81:  /* success [1] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 response->success = (buffer[offset] != 0);
                 offset += tag_len;
                 break;
@@ -5513,6 +6020,9 @@ int mms_decode_cancel_request(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(request, 0, sizeof(*request));
@@ -5523,6 +6033,9 @@ int mms_decode_cancel_request(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0xA0: { /* controlObject [0] IMPLICIT */
@@ -5590,6 +6103,9 @@ int mms_decode_cancel_response(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     /* Skip empty content */
     offset += content_len;
@@ -5671,6 +6187,9 @@ int mms_decode_command_termination(const uint8_t* buffer, size_t buflen,
     ret = mms_decode_length(buffer + offset, buflen - offset, &content_len);
     if (ret < 0) return ret;
     offset += ret;
+    if (!length_fits(offset, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
 
     size_t end = offset + content_len;
     memset(termination, 0, sizeof(*termination));
@@ -5681,6 +6200,9 @@ int mms_decode_command_termination(const uint8_t* buffer, size_t buflen,
         ret = mms_decode_length(buffer + offset, buflen - offset, &tag_len);
         if (ret < 0) return ret;
         offset += ret;
+        if (!length_fits(offset, tag_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
         switch (tag) {
             case 0xA0: { /* controlObject [0] IMPLICIT */
@@ -5697,10 +6219,16 @@ int mms_decode_command_termination(const uint8_t* buffer, size_t buflen,
                 offset += tag_len;
                 break;
             case 0x82:  /* success [2] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 termination->success = (buffer[offset] != 0);
                 offset += tag_len;
                 break;
             case 0x83:  /* terminationReason [3] IMPLICIT */
+                if (tag_len < 1) {
+                    return MMS_ERROR_INVALID_ENCODING;
+                }
                 termination->termination_reason = buffer[offset];
                 offset += tag_len;
                 break;
