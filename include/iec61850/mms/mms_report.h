@@ -11,6 +11,7 @@
 #define IEC61850_MMS_REPORT_H
 
 #include "asn1/mms_ber.h"
+#include "mms/mms_data_store.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -73,7 +74,7 @@ typedef struct {
     uint32_t intg_pd;        /* Integrity period ms (0 = disabled) */
     uint16_t sq_num;
     bool gi;                 /* GI in progress */
-    uint64_t entry_id;       /* BRCB: last entry ID */
+    uint64_t entry_id;       /* BRCB: last entry ID / client resume marker */
 } iec61850_rcb_attrs_t;
 
 /* Report Control Block */
@@ -94,6 +95,10 @@ typedef struct {
     atomic_bool running;
     bool has_integrity_thread;
     pthread_mutex_t mutex;
+
+    /* Ed.2 reservation / ownership state (WP-2a, managed by the bridge) */
+    bool resv;                          /* URCB reservation flag */
+    char owner[IEC61850_RCB_MAX_NAME];  /* owning client identity ("" = none) */
 
     bool initialized;
 } iec61850_rcb_t;
@@ -216,17 +221,102 @@ int iec61850_report_buffer_get_entries(const iec61850_report_buffer_t *buf,
  */
 bool iec61850_report_buffer_had_overflow(iec61850_report_buffer_t *buf);
 
+/**
+ * Purge the report buffer (BRCB PurgeBuf, Ed.2).
+ *
+ * Clears all buffered entries and the overflow flag. The EntryID
+ * counter (next_entry_id) is intentionally NOT reset: entry IDs stay
+ * unique and monotonically increasing for the whole RCB lifetime
+ * (conservative Ed.2 reading — a client resuming with an old EntryID
+ * never misses post-purge entries). Callers reset the RCB's visible
+ * entry-id marker separately.
+ */
+void iec61850_report_buffer_purge(iec61850_report_buffer_t *buf);
+
 /* ========================================================================
  * RCB Manager — manage multiple RCBs per logical device
  * ======================================================================== */
 
 #define IEC61850_RCB_MANAGER_MAX_RCBS 32
 
+/* Bounded shadow table for monitored data points (see bridge below). */
+#define IEC61850_RCB_BRIDGE_DATA_SHADOWS 64
+#define IEC61850_RCB_BRIDGE_REF_MAX      512
+
+/* Per-RCB shadow of the component values the bridge itself published.
+ * A store value that differs from the shadow is a client write. */
+typedef struct {
+    bool valid;
+    bool rpt_ena;
+    bool resv;
+    bool gi;
+    char rpt_id[IEC61850_RCB_MAX_NAME];
+    char dat_set[IEC61850_RCB_MAX_NAME];
+    char owner[IEC61850_RCB_MAX_NAME];
+    uint32_t conf_rev;
+    uint32_t buf_tm;
+    uint32_t intg_pd;
+    uint64_t entry_id;
+    uint16_t sq_num;
+    iec61850_opt_flds_t opt_flds;
+    iec61850_trg_ops_t trg_ops;
+} iec61850_rcb_bridge_shadow_t;
+
+/* Shadow of a monitored data point (read-trigger suppression and
+ * value-change detection for dchg/qchg dispatch). */
+typedef struct {
+    bool valid;
+    char ref[IEC61850_RCB_BRIDGE_REF_MAX];
+    mms_value_t value;
+} iec61850_rcb_bridge_data_shadow_t;
+
+/*
+ * RCB <-> data-store bridge (IEC 61850-8-1 Ed.2, WP-2a).
+ *
+ * Exposes every managed RCB's component objects (RptEna, Resv, DatSet,
+ * ConfRev, OptFlds, BufTm, TrgOps, IntgPd, GI, SqNum, Owner and, for
+ * BRCBs, EntryID and PurgeBuf) as ordinary named variables named
+ * "<rcb-name><Suffix>" in one logical-device domain of the data store,
+ * and keeps them synchronized in both directions:
+ *
+ *   - client writes to a component variable (committed to the store by
+ *     the MMS server) are detected against the published shadow and
+ *     applied to the RCB state with Ed.2 validation
+ *     (iec61850_rcb_bridge_on_write / iec61850_rcb_bridge_sync);
+ *   - RCB state changes (enable, reservation, purge, buffered entries,
+ *     Owner) are reflected back into the component variables.
+ *
+ * The bridge has no threads: the host calls on_write()/sync() from its
+ * I/O context (e.g. the MMS server's post-response hook), and reports
+ * are delivered through the report sender installed by expose().
+ */
+typedef struct {
+    bool active;
+    iec61850_mms_data_store_t *store;   /* not owned */
+    char domain[MMS_MAX_DOMAIN_NAME];
+
+    /* Owning client association: opaque iec61850_mms_session_t pointer
+     * plus the session-id snapshot used to detect slot reuse. NULL
+     * means detached (buffered RCBs keep buffering). */
+    void *association;
+    uint32_t association_id;
+    char owner_id[IEC61850_RCB_MAX_NAME];
+
+    /* Exposed object names (fixed at expose() time — client RptID
+     * writes change report content, not object names). */
+    char names[IEC61850_RCB_MANAGER_MAX_RCBS][IEC61850_RCB_MAX_NAME];
+    iec61850_rcb_bridge_shadow_t shadow[IEC61850_RCB_MANAGER_MAX_RCBS];
+    iec61850_rcb_bridge_data_shadow_t
+        data_shadow[IEC61850_RCB_BRIDGE_DATA_SHADOWS];
+    uint32_t data_shadow_next;
+} iec61850_rcb_bridge_t;
+
 typedef struct {
     iec61850_rcb_t rcbs[IEC61850_RCB_MANAGER_MAX_RCBS];
     iec61850_report_buffer_t buffers[IEC61850_RCB_MANAGER_MAX_RCBS];
     uint32_t rcb_count;
     char ld_name[IEC61850_RCB_MAX_NAME];
+    iec61850_rcb_bridge_t bridge;   /* Ed.2 data-store bridge (WP-2a) */
 } iec61850_rcb_manager_t;
 
 /**
@@ -279,6 +369,93 @@ void iec61850_rcb_manager_trigger_gi(iec61850_rcb_manager_t *mgr);
  */
 iec61850_report_buffer_t *iec61850_rcb_manager_get_buffer(
     iec61850_rcb_manager_t *mgr, uint32_t rcb_index);
+
+/**
+ * Flush pending BufTm aggregation windows of every buffered RCB.
+ *
+ * Emits one aggregated report per closed window (entries whose
+ * timestamps are within buf_tm of the window's first entry are
+ * merged into a single report, deduplicated by dataset member —
+ * the last value of each member wins). Windows still open are kept.
+ * Also available to hosts that do not use the data-store bridge.
+ */
+void iec61850_rcb_manager_flush_reports(iec61850_rcb_manager_t *mgr);
+
+/* ========================================================================
+ * RCB <-> data-store bridge (Ed.2, WP-2a)
+ * ======================================================================== */
+
+/**
+ * Expose every managed RCB of the manager as MMS named variables in
+ * @p domain of @p store (IEC 61850-8-1 Ed.2 component-object naming:
+ * "<rcb-name>RptEna", "<rcb-name>Resv", ...; EntryID and PurgeBuf only
+ * for BRCBs, Resv only for URCBs). Seeds the variables from the RCB
+ * state, installs the bridge report sender on every RCB (overriding
+ * any previously set sender) and attaches the store for GI snapshots.
+ * RCBs added later via iec61850_rcb_manager_add_rcb() are exposed too.
+ *
+ * @return 0 on success, -EINVAL on bad arguments.
+ */
+int iec61850_rcb_manager_expose(iec61850_rcb_manager_t *mgr,
+                                iec61850_mms_data_store_t *store,
+                                const char *domain);
+
+/**
+ * Reconcile one client access after the server committed it to the
+ * data store (post-commit hook — e.g. the MMS server's after_response
+ * callback). If @p item is an RCB component object, the written value
+ * is compared against the published shadow and applied to the RCB
+ * state with Ed.2 validation; writes that fail validation are reverted
+ * in the store. Otherwise, if the item is a monitored data point of an
+ * enabled RCB, a dchg (or qchg for "$q"-suffixed items) report trigger
+ * is dispatched — but only when the stored value actually changed
+ * (reads and idempotent writes never trigger). BufTm windows that
+ * closed since the last call are flushed.
+ *
+ * @param association  Opaque iec61850_mms_session_t pointer of the
+ *                     requesting client (NULL for host-internal
+ *                     accesses: state is reconciled, routing is not
+ *                     changed, data changes are still dispatched).
+ */
+void iec61850_rcb_bridge_on_write(iec61850_rcb_manager_t *mgr,
+                                  const char *domain, const char *item,
+                                  void *association);
+
+/**
+ * Pre-validation variant of on_write for servers that can intercept
+ * RCB component writes BEFORE committing them to the data store
+ * (the recommended wiring): validates and applies the component value
+ * and publishes it to the store itself. On success the server must
+ * NOT write the variable again.
+ *
+ * @param association  Opaque iec61850_mms_session_t pointer of the
+ *                     requesting client (used for Ed.2 ownership
+ *                     validation).
+ * @return 0 on success, -ENOENT when the item is not an RCB component
+ *         (the server handles it normally), -EINVAL for a bad value,
+ *         -EACCES when Ed.2 validation rejects the write.
+ */
+int iec61850_rcb_bridge_write(iec61850_rcb_manager_t *mgr,
+                              const char *domain, const char *item,
+                              const mms_value_t *value,
+                              void *association);
+
+/**
+ * Full two-way sweep: pull client-written component values from the
+ * store (same validation/revert semantics as on_write, keeping the
+ * current owner identity), flush closed BufTm windows and re-publish
+ * every component. Intended as a periodic poll / test entry point.
+ */
+void iec61850_rcb_bridge_sync(iec61850_rcb_manager_t *mgr);
+
+/**
+ * Drop the owning client association (call on client disconnect).
+ * URCBs are disabled and their reservation/Owner released; buffered
+ * RCBs stay enabled and keep buffering entries for later resume
+ * (their Owner is retained). Report delivery stops until a new
+ * association takes ownership.
+ */
+void iec61850_rcb_bridge_clear_association(iec61850_rcb_manager_t *mgr);
 
 #ifdef __cplusplus
 }
