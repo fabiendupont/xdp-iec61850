@@ -7,9 +7,13 @@
 # client) on TCP loopback, captures the session on lo and validates
 # the on-wire bytes with the neutral tshark MMS dissector.
 #
-# Tests: WR-01..WR-20 (ISO stack, RCB discovery, Ed.2 component
+# Tests: WR-01..WR-31 (ISO stack, RCB discovery, Ed.2 component
 # writes, InformationReports, BRCB EntryID/resume/purge; both
-# directions).
+# directions). Since WP-2z the server emits conformant IEC 61850-7-2
+# report bodies (mms_encode_iec61850_report): the report assertions
+# check the dissected AccessResult fields (rptID/seqNum/entryID) and
+# require BER-error-free dissection, replacing the pre-WP-2z
+# non-conformant-layout byte patterns.
 #
 # Requires: tshark. Loopback capture needs root or the wireshark
 # group; without either, falls back to a rootless user-namespace
@@ -258,28 +262,42 @@ echo "--- InformationReports (server -> client) ---"
 check_eq WR-19 "InformationReports (s->c)" \
     "$S2C && mms.informationReport_element" 7
 
-# WR-20: report rptID on the wire (variableAccessSpecification carries
-# the RCB's RptID; URCB reports R1, BRCB reports B1)
+# WR-20: report rptID on the wire — WP-2z conformant layout: the VAS
+# is the vmd-specific "RPT" marker and the rptID is the first
+# AccessResult, dissected by tshark as mms.iec61850.rptid (URCB
+# reports R1, BRCB reports B1); the report bodies carry no BER errors
 check_eq WR-20 "reports with rptID R1" \
-    "mms.informationReport_element && mms.domainId == \"R1\"" 2
+    "mms.informationReport_element && mms.iec61850.rptid == \"R1\"" 2
 check_eq WR-21 "reports with rptID B1" \
-    "mms.informationReport_element && mms.domainId == \"B1\"" 5
+    "mms.informationReport_element && mms.iec61850.rptid == \"B1\"" 5
 
-# WR-22: report seqNum (trailing [2] field, big-endian) — sqNum 1 for
-# the first URCB data-change report, 2 for the GI report
+# WR-22: report seqNum — WP-2z conformant layout: seqNum is an
+# AccessResult unsigned [6] (mms.iec61850.seqnum), no longer the
+# non-conformant trailing [2] field; sqNum 1 for the first URCB
+# data-change report, 2 for the GI report
 check_eq WR-22 "sqNum=1 in R1 report" \
-    "mms.informationReport_element && mms.domainId == \"R1\" && tcp.payload contains 82:01:01" 1
+    "mms.informationReport_element && mms.iec61850.rptid == \"R1\" && mms.iec61850.seqnum == 1" 1
 check_eq WR-23 "sqNum=2 in R1 report (GI)" \
-    "mms.informationReport_element && mms.domainId == \"R1\" && tcp.payload contains 82:01:02" 1
+    "mms.informationReport_element && mms.iec61850.rptid == \"R1\" && mms.iec61850.seqnum == 2" 1
 
-# WR-24: BRCB EntryID in reports (trailing [6] field, 8-byte
-# big-endian): live entries 1+2, resume entries 3+4, post-resume 5
+# WR-24: BRCB EntryID in reports — WP-2z conformant layout: entryID
+# is an AccessResult octet string [9] between datSet and confRev
+# (mms.data.octet-string), no longer the non-conformant trailing [6]
+# field: live entries 1+2, resume entries 3+4, post-resume 5
 check_eq WR-24 "EntryID=1 in B1 report" \
-    "mms.informationReport_element && mms.domainId == \"B1\" && tcp.payload contains 86:08:00:00:00:00:00:00:00:01" 1
+    "mms.informationReport_element && mms.iec61850.rptid == \"B1\" && mms.data.octet-string == 00:00:00:00:00:00:00:01" 1
 check_eq WR-25 "EntryID=3+4 in resume reports" \
-    "mms.informationReport_element && mms.domainId == \"B1\" && (tcp.payload contains 86:08:00:00:00:00:00:00:00:03 || tcp.payload contains 86:08:00:00:00:00:00:00:00:04)" 2
+    "mms.informationReport_element && mms.iec61850.rptid == \"B1\" && (mms.data.octet-string == 00:00:00:00:00:00:00:03 || mms.data.octet-string == 00:00:00:00:00:00:00:04)" 2
 check_eq WR-26 "EntryID=5 in post-resume report" \
-    "mms.informationReport_element && mms.domainId == \"B1\" && tcp.payload contains 86:08:00:00:00:00:00:00:00:05" 1
+    "mms.informationReport_element && mms.iec61850.rptid == \"B1\" && mms.data.octet-string == 00:00:00:00:00:00:00:05" 1
+
+# WR-26b: WP-2z conformant layout: every report body dissects cleanly
+# in tshark — no BER errors (the pre-WP-2z layout raised "Wrong field
+# in SEQUENCE" / "beyond the end of the known sequence definition" on
+# every InformationReport; only the unrelated ACSE release PDUs keep
+# their pre-existing dissector quirk)
+check_eq WR-26b "report bodies free of BER errors" \
+    "mms.informationReport_element && _ws.malformed" 0
 
 echo ""
 echo "--- BRCB EntryID / PurgeBuf component writes ---"

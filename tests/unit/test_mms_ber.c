@@ -555,10 +555,16 @@ static void verify_61850_decode(const mms_information_report_t* d,
                                 uint8_t opt_flds, bool conf_rev_on)
 {
     ASSERT_TRUE(strcmp(d->rpt_id, in->rpt_id) == 0);
-    /* datSet: always emitted by the encoder (bit set or consumed by
-     * the decoder's datSet leniency), so it must always roundtrip */
-    ASSERT_TRUE(strcmp(d->dat_set, in->dat_set) == 0);
-    ASSERT_TRUE(strcmp(d->variable_list_name, "RPT") == 0);
+    /* datSet: emitted iff the optFlds data-set-name bit is set
+     * (WP-2z); when absent the decoder leaves it empty */
+    if (opt_flds & 0x08u) {
+        ASSERT_TRUE(strcmp(d->dat_set, in->dat_set) == 0);
+    } else {
+        ASSERT_TRUE(d->dat_set[0] == '\0');
+    }
+    /* variable_list_name mirrors the rptID (WP-2z: the vmd-specific
+     * "RPT" marker carries no report identity) */
+    ASSERT_TRUE(strcmp(d->variable_list_name, in->rpt_id) == 0);
 
     /* optFlds-driven presence */
     ASSERT_TRUE(d->sq_num_present == ((opt_flds & 0x40u) != 0));
@@ -695,12 +701,331 @@ static void test_iec61850_report_null_params(void)
     TEST("iec61850_report_null_params");
     uint8_t buf[64];
     mms_information_report_t report;
+    mms_iec61850_report_t in;
     memset(&report, 0, sizeof(report));
+    memset(&in, 0, sizeof(in));
 
     ASSERT_TRUE(mms_decode_iec61850_report(NULL, sizeof(buf), &report) < 0);
     ASSERT_TRUE(mms_decode_iec61850_report(buf, sizeof(buf), NULL) < 0);
     ASSERT_TRUE(mms_decode_iec61850_report(buf, 0, &report) < 0);
     ASSERT_TRUE(mms_decode_iec61850_report(buf, 1, &report) < 0);
+
+    /* Encoder: NULL report / NULL buffer */
+    ASSERT_TRUE(mms_encode_iec61850_report(NULL, buf, sizeof(buf)) < 0);
+    ASSERT_TRUE(mms_encode_iec61850_report(&in, NULL, sizeof(buf)) < 0);
+    PASS();
+}
+
+/* ========================================================================
+ * WP-2z: conformant encoder roundtrips for the previously-impossible
+ * cases — 0-member reports, >8-member reports (multi-byte inclusion
+ * bitstring), bufOvfl+entryID-carrying reports and long-form BER
+ * lengths for large report bodies.
+ * ======================================================================== */
+
+/* Sub-sequence search (no memmem in strict C11 test code). */
+static bool wire_contains(const uint8_t* hay, size_t hay_len,
+                          const uint8_t* needle, size_t needle_len)
+{
+    if (needle_len == 0 || needle_len > hay_len) {
+        return false;
+    }
+    for (size_t i = 0; i + needle_len <= hay_len; i++) {
+        if (memcmp(hay + i, needle, needle_len) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* 0-member report: the inclusion bitstring must be the minimal valid
+ * empty form 84 01 00 (the pre-WP-2z encoder emitted the invalid
+ * BER form 84 02 08 00, which the decoder rejects). */
+static void test_iec61850_report_roundtrip_empty(void)
+{
+    TEST("iec61850_report_roundtrip_empty");
+    uint8_t buf[512];
+    mms_iec61850_report_t in;
+    mms_information_report_t d;
+
+    memset(&in, 0, sizeof(in));
+    strncpy(in.rpt_id, "ied1ld0/rp1", MMS_MAX_STRING_LENGTH - 1);
+    strncpy(in.dat_set, "ied1ld0/DS1", MMS_MAX_STRING_LENGTH - 1);
+    in.opt_flds_byte = 0x58u;  /* seqNum + reason + datSet */
+    in.sq_num = 7u;
+    in.sq_num_present = true;
+    in.num_members = 0u;
+    in.num_values = 0u;
+
+    int enc_len = mms_encode_iec61850_report(&in, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+
+    /* Exact empty inclusion-bitstring bytes on the wire */
+    {
+        static const uint8_t empty_incl[] = { 0x84, 0x01, 0x00 };
+        ASSERT_TRUE(wire_contains(buf, (size_t)enc_len, empty_incl,
+                                  sizeof(empty_incl)));
+    }
+
+    memset(&d, 0, sizeof(d));
+    int ret = mms_decode_iec61850_report(buf, (size_t)enc_len, &d);
+    ASSERT_TRUE(ret > 0);
+    ASSERT_EQ(ret, enc_len);
+    ASSERT_TRUE(strcmp(d.rpt_id, in.rpt_id) == 0);
+    ASSERT_TRUE(strcmp(d.dat_set, in.dat_set) == 0);
+    ASSERT_TRUE(d.sq_num_present);
+    ASSERT_EQ((int)d.sq_num, 7);
+    ASSERT_TRUE(d.reasons_present);
+    ASSERT_EQ((int)d.num_values, 0);
+    ASSERT_EQ((int)d.incl_bit_str_len, 0);
+    PASS();
+}
+
+/* >8-member report: the inclusion bitstring must span as many value
+ * octets as the member count requires (the pre-WP-2z encoder emitted
+ * a single value octet but num_members values/reasons). */
+static void test_iec61850_report_roundtrip_many_members(void)
+{
+    TEST("iec61850_report_roundtrip_many_members");
+    static const uint8_t incl_8[]  = { 0x84, 0x02, 0x00, 0xFF };
+    static const uint8_t incl_9[]  = { 0x84, 0x03, 0x07, 0xFF, 0x80 };
+    static const uint8_t incl_12[] = { 0x84, 0x03, 0x04, 0xFF, 0xF0 };
+    static const struct {
+        uint32_t n;
+        size_t incl_len;       /* expected incl_bit_str value bytes */
+        const uint8_t* incl_wire;   /* expected full TLV bytes */
+        size_t incl_wire_len;
+    } cases[] = {
+        { 8u,  1, incl_8,  sizeof(incl_8) },
+        { 9u,  2, incl_9,  sizeof(incl_9) },
+        { 12u, 2, incl_12, sizeof(incl_12) },
+        { 256u, 32, NULL, 0 },  /* pattern checked field-by-field */
+    };
+    uint8_t buf[4096];
+
+    for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+        uint32_t n = cases[c].n;
+        mms_iec61850_report_t in;
+        mms_information_report_t d;
+        int enc_len;
+        int ret;
+
+        memset(&in, 0, sizeof(in));
+        strncpy(in.rpt_id, "ied1ld0/rp1", MMS_MAX_STRING_LENGTH - 1);
+        in.opt_flds_byte = 0x50u;  /* seqNum + reason */
+        in.sq_num = 99u;
+        in.sq_num_present = true;
+        in.reason_code = 0x2Au;
+        in.num_members = n;
+        in.num_values = n;
+        for (uint32_t i = 0; i < n; i++) {
+            in.values[i].type = MMS_TYPE_BOOLEAN;
+            in.values[i].value.boolean = (i & 1u) != 0u;
+        }
+
+        enc_len = mms_encode_iec61850_report(&in, buf, sizeof(buf));
+        if (enc_len <= 0) {
+            printf("FAIL: encode n=%u (ret=%d)\n", n, enc_len);
+            tests_failed++;
+            return;
+        }
+
+        /* Exact inclusion-bitstring bytes on the wire */
+        if (cases[c].incl_wire != NULL) {
+            if (!wire_contains(buf, (size_t)enc_len, cases[c].incl_wire,
+                               cases[c].incl_wire_len)) {
+                printf("FAIL: n=%u inclusion bitstring bytes\n", n);
+                tests_failed++;
+                return;
+            }
+        }
+
+        memset(&d, 0, sizeof(d));
+        ret = mms_decode_iec61850_report(buf, (size_t)enc_len, &d);
+        if (ret != enc_len) {
+            printf("FAIL: decode n=%u (ret=%d enc=%d)\n", n, ret, enc_len);
+            tests_failed++;
+            return;
+        }
+        if ((int)d.num_values != (int)n) {
+            printf("FAIL: n=%u decoded %u members\n", n, d.num_values);
+            tests_failed++;
+            return;
+        }
+        if ((int)d.incl_bit_str_len != (int)cases[c].incl_len) {
+            printf("FAIL: n=%u incl_bit_str_len=%u\n", n, d.incl_bit_str_len);
+            tests_failed++;
+            return;
+        }
+        for (uint32_t i = 0; i < n; i++) {
+            if (!value_equals_61850(&d.values[i], &in.values[i])) {
+                printf("FAIL: n=%u value %u mismatch\n", n, i);
+                tests_failed++;
+                return;
+            }
+            if ((int)d.reasons[i] != 0x2A) {
+                printf("FAIL: n=%u reason %u = %u\n", n, i, d.reasons[i]);
+                tests_failed++;
+                return;
+            }
+        }
+        /* 256 members: all bits set in all 32 value bytes */
+        if (n == 256u) {
+            for (int b = 0; b < 32; b++) {
+                if (d.incl_bit_str[b] != 0xFFu) {
+                    printf("FAIL: n=256 incl byte %d = %02x\n",
+                           b, d.incl_bit_str[b]);
+                    tests_failed++;
+                    return;
+                }
+            }
+        }
+    }
+    PASS();
+}
+
+/* Large report body: the listOfAccessResult / informationReport /
+ * unconfirmedPDU lengths must use the BER long form and still
+ * roundtrip (the pre-WP-2z encoder truncated every length to one
+ * short-form octet). */
+static void test_iec61850_report_roundtrip_long_form_lengths(void)
+{
+    TEST("iec61850_report_roundtrip_long_form_lengths");
+    uint8_t buf[4096];
+    mms_iec61850_report_t in;
+    mms_information_report_t d;
+    int enc_len;
+    int ret;
+
+    /* 40 members with reason codes: listOfAccessResult content well
+     * beyond 127 octets, informationReport content beyond 255. */
+    memset(&in, 0, sizeof(in));
+    strncpy(in.rpt_id, "ied1ld0/rp1", MMS_MAX_STRING_LENGTH - 1);
+    strncpy(in.dat_set, "ied1ld0/DS1", MMS_MAX_STRING_LENGTH - 1);
+    in.opt_flds_byte = 0x58u;  /* seqNum + reason + datSet */
+    in.sq_num = 5u;
+    in.sq_num_present = true;
+    in.reason_code = 0x10u;
+    in.num_members = 40u;
+    in.num_values = 40u;
+    for (uint32_t i = 0; i < 40u; i++) {
+        in.values[i].type = MMS_TYPE_INTEGER;
+        in.values[i].value.integer = (int32_t)i;
+    }
+
+    enc_len = mms_encode_iec61850_report(&in, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+
+    /* long-form lengths: unconfirmedPDU, informationReport and
+     * listOfAccessResult each carry 0x8x first length octets */
+    {
+        size_t p;
+        size_t outer_len_size;
+
+        ASSERT_TRUE(buf[0] == 0xA3);
+        ASSERT_TRUE((buf[1] & 0x80u) != 0u);       /* A3 len long form */
+        outer_len_size = 1u + (size_t)(buf[1] & 0x7Fu);
+        p = 1u + outer_len_size;                   /* informationReport tag */
+        ASSERT_TRUE(buf[p] == 0xA0);
+        ASSERT_TRUE((buf[p + 1] & 0x80u) != 0u);   /* A0 len long form */
+        p += 2u + (size_t)(buf[p + 1] & 0x7Fu);    /* tag + first len octet */
+        p += 7u;                                   /* fixed VAS */
+        ASSERT_TRUE(buf[p] == 0xA0);
+        ASSERT_TRUE((buf[p + 1] & 0x80u) != 0u);   /* list len long form */
+    }
+
+    memset(&d, 0, sizeof(d));
+    ret = mms_decode_iec61850_report(buf, (size_t)enc_len, &d);
+    ASSERT_TRUE(ret == enc_len);
+    ASSERT_EQ((int)d.num_values, 40);
+    ASSERT_TRUE(strcmp(d.dat_set, in.dat_set) == 0);
+    for (uint32_t i = 0; i < 40u; i++) {
+        ASSERT_EQ((int)d.values[i].value.integer, (int)i);
+        ASSERT_EQ((int)d.reasons[i], 0x10);
+    }
+    PASS();
+}
+
+/* bufOvfl + entryID in one report (BRCB shape): both emitted between
+ * datSet and confRev, entryID as an 8-byte octet string. */
+static void test_iec61850_report_roundtrip_bufovfl_entryid(void)
+{
+    TEST("iec61850_report_roundtrip_bufovfl_entryid");
+    uint8_t buf[512];
+    mms_iec61850_report_t in;
+    mms_information_report_t d;
+    int enc_len;
+    int ret;
+
+    memset(&in, 0, sizeof(in));
+    strncpy(in.rpt_id, "brcb1", MMS_MAX_STRING_LENGTH - 1);
+    strncpy(in.dat_set, "ied1ld0/DS1", MMS_MAX_STRING_LENGTH - 1);
+    in.opt_flds_byte = 0x1Bu;  /* reason + datSet + bufOvfl + entryID */
+    in.reason_code = 0x02u;
+    in.buffer_overflow = true;
+    in.entry_id = 0x0102030405060708ULL;
+    in.conf_rev = 42u;
+    in.conf_rev_present = true;
+    in.num_members = 1u;
+    in.num_values = 1u;
+    in.values[0].type = MMS_TYPE_UNSIGNED;
+    in.values[0].value.unsigned_val = 7u;
+
+    enc_len = mms_encode_iec61850_report(&in, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+
+    /* bufOvfl BOOLEAN [3] TRUE and entryID OCTET STRING [9] on the wire */
+    {
+        static const uint8_t bufovfl[] = { 0x83, 0x01, 0xFF };
+        static const uint8_t entryid[] = {
+            0x89, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+        };
+        ASSERT_TRUE(wire_contains(buf, (size_t)enc_len, bufovfl,
+                                  sizeof(bufovfl)));
+        ASSERT_TRUE(wire_contains(buf, (size_t)enc_len, entryid,
+                                  sizeof(entryid)));
+    }
+
+    memset(&d, 0, sizeof(d));
+    ret = mms_decode_iec61850_report(buf, (size_t)enc_len, &d);
+    ASSERT_TRUE(ret == enc_len);
+    ASSERT_TRUE(d.buffer_overflow_present);
+    ASSERT_TRUE(d.buffer_overflow);
+    ASSERT_TRUE(d.entry_id_present);
+    ASSERT_TRUE(d.entry_id == 0x0102030405060708ULL);
+    ASSERT_TRUE(d.conf_rev_present);
+    ASSERT_EQ((int)d.conf_rev, 42);
+    ASSERT_TRUE(d.reasons_present);
+    ASSERT_EQ((int)d.reasons[0], 0x02);
+    ASSERT_EQ((int)d.num_values, 1);
+    PASS();
+}
+
+/* The encoder must refuse wire-inconsistent inputs rather than emit
+ * a PDU the decoder cannot walk. */
+static void test_iec61850_report_encode_rejects_inconsistent(void)
+{
+    TEST("iec61850_report_encode_rejects_inconsistent");
+    uint8_t buf[512];
+    mms_iec61850_report_t in;
+
+    memset(&in, 0, sizeof(in));
+    strncpy(in.rpt_id, "r", MMS_MAX_STRING_LENGTH - 1);
+
+    /* value count != member count */
+    in.num_members = 3u;
+    in.num_values = 2u;
+    ASSERT_TRUE(mms_encode_iec61850_report(&in, buf, sizeof(buf)) < 0);
+
+    /* member count beyond the 256-member decoder contract */
+    in.num_members = 257u;
+    in.num_values = 257u;
+    ASSERT_TRUE(mms_encode_iec61850_report(&in, buf, sizeof(buf)) < 0);
+
+    /* buffer too small for a minimal report */
+    in.num_members = 0u;
+    in.num_values = 0u;
+    ASSERT_TRUE(mms_encode_iec61850_report(&in, buf, 4u) < 0);
     PASS();
 }
 
@@ -2487,6 +2812,11 @@ int main(void)
     test_iec61850_report_roundtrip_all_on();
     test_iec61850_report_roundtrip_each_optfld();
     test_iec61850_report_null_params();
+    test_iec61850_report_roundtrip_empty();
+    test_iec61850_report_roundtrip_many_members();
+    test_iec61850_report_roundtrip_long_form_lengths();
+    test_iec61850_report_roundtrip_bufovfl_entryid();
+    test_iec61850_report_encode_rejects_inconsistent();
     test_iec61850_report_malformed_fields();
     test_iec61850_report_oversized_lengths();
     test_iec61850_report_truncated();

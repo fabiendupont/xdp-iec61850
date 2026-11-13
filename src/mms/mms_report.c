@@ -22,6 +22,29 @@ static uint64_t now_ms(void)
            ((uint64_t)ts.tv_nsec / 1000000ULL);
 }
 
+/* Fill the WP-S1 report-metadata extension fields (rpt_id, dat_set,
+ * conf_rev) of an assembled report from the RCB's authoritative state
+ * (WP-2z). The conformant 7-2 bridge sender maps these onto the
+ * InformationReport metadata fields; dat_set/conf_rev are only
+ * carried when the corresponding OptFlds bits are armed so the wire
+ * stays consistent with the optFlds bit string. */
+static void report_fill_metadata(mms_information_report_t *report,
+                                 const iec61850_rcb_t *rcb)
+{
+    (void)strncpy(report->rpt_id, rcb->attrs.rpt_id,
+                  (size_t)MMS_MAX_STRING_LENGTH - 1U);
+    report->rpt_id[MMS_MAX_STRING_LENGTH - 1U] = '\0';
+    if (rcb->attrs.opt_flds.data_set_name) {
+        (void)strncpy(report->dat_set, rcb->attrs.dat_set,
+                      (size_t)MMS_MAX_STRING_LENGTH - 1U);
+        report->dat_set[MMS_MAX_STRING_LENGTH - 1U] = '\0';
+    }
+    if (rcb->attrs.opt_flds.config_ref) {
+        report->conf_rev = rcb->attrs.conf_rev;
+        report->conf_rev_present = true;
+    }
+}
+
 /* Forward declaration (defined after the RCB entry points). */
 static void generate_report(iec61850_rcb_t *rcb, const char *var_ref,
                               const mms_value_t *value,
@@ -67,6 +90,7 @@ static void *integrity_thread_func(void *arg)
             (void)memset(&report, 0, sizeof(report));
             (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
                            (size_t)MMS_MAX_VARIABLE_NAME - 1U);
+            report_fill_metadata(&report, rcb);
             report.num_values = 0;  /* Integrity: snapshot of all data */
 
             rcb->attrs.sq_num++;
@@ -213,6 +237,7 @@ static void generate_report(iec61850_rcb_t *rcb,
     (void)memset(&report, 0, sizeof(report));
     (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
                    (size_t)MMS_MAX_VARIABLE_NAME - 1U);
+    report_fill_metadata(&report, rcb);
 
     /* Ed.2: SqNum of a report is its 1-based position in the stream
      * (incremented per transmitted report). */
@@ -306,6 +331,7 @@ void iec61850_rcb_trigger_gi(iec61850_rcb_t *rcb)
         (void)memset(&report, 0, sizeof(report));
         (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
                        (size_t)MMS_MAX_VARIABLE_NAME - 1U);
+        report_fill_metadata(&report, rcb);
 
         /* Snapshot all data values from data store if available */
         if (rcb->data_store != NULL) {
@@ -1078,24 +1104,111 @@ static bool bridge_client_is_owner(iec61850_rcb_manager_t *mgr,
            (mgr->bridge.association == association);
 }
 
-/* Bridge report sender: encodes the InformationReport and pushes it
- * onto the owning client's association. */
+/* IEC 61850 BINARY-TIME epoch: 1984-01-01T00:00:00 UTC in Unix
+ * milliseconds. timeOfEntry carries milliseconds since this epoch. */
+#define BRIDGE_BINARY_TIME_EPOCH_MS 441763200000ULL
+
+/* Bridge report sender: maps the assembled report plus its WP-S1
+ * metadata (rpt_id/dat_set/conf_rev, filled by the report-assembly
+ * helpers) onto the conformant IEC 61850-7-2 URCB/BRCB report
+ * (mms_encode_iec61850_report, WP-2z) and pushes it onto the owning
+ * client's association.
+ *
+ * Mapping notes:
+ *  - optFlds bits mirror the report's presence flags, so the wire
+ *    carries exactly the fields the RCB's OptFlds armed.
+ *  - dataRef (optFlds b5) is never set: mms_iec61850_report_t carries
+ *    no per-member data-reference fields (frozen struct).
+ *  - timeOfEntry is converted from the report's UTC-millisecond
+ *    timestamp to BINARY-TIME (ms since 1984-01-01).
+ *  - The inclusion bitstring marks the first num_values members: the
+ *    generic report struct carries no dataset member positions.
+ *  - The single frozen reason_code field carries the report's first
+ *    reason code (BufTm groups normally share one trigger reason). */
 static void bridge_report_sender(const mms_information_report_t *report,
-                                 void *user_data)
+                                  void *user_data)
 {
     /* MISRA 11.5: callback context is the manager, deviation Cat. 3 */
     iec61850_rcb_manager_t *mgr = (iec61850_rcb_manager_t *)user_data;
+    mms_iec61850_report_t rpt;
     uint8_t buf[4096];
     int len;
+    uint32_t i;
 
-    if ((mgr == NULL) || (!bridge_association_alive(mgr))) {
+    if ((mgr == NULL) || (report == NULL) ||
+        (!bridge_association_alive(mgr))) {
         return;
     }
     /* MISRA 11.5: opaque session handle, deviation Cat. 3 */
     iec61850_mms_session_t *sess =
         (iec61850_mms_session_t *)mgr->bridge.association;
 
-    len = mms_encode_information_report(report, buf, sizeof(buf));
+    (void)memset(&rpt, 0, sizeof(rpt));
+
+    /* rptID: WP-S1 metadata field, falling back to the legacy
+     * variable_list_name (RptID) used by host-managed assemblies. */
+    if (report->rpt_id[0] != '\0') {
+        (void)strncpy(rpt.rpt_id, report->rpt_id,
+                      (size_t)MMS_MAX_STRING_LENGTH - 1U);
+    } else {
+        (void)strncpy(rpt.rpt_id, report->variable_list_name,
+                      (size_t)MMS_MAX_STRING_LENGTH - 1U);
+    }
+    rpt.rpt_id[MMS_MAX_STRING_LENGTH - 1U] = '\0';
+
+    /* datSet: carried only when the assembly filled it (RCB
+     * OptFlds data-set-name armed). */
+    if (report->dat_set[0] != '\0') {
+        (void)strncpy(rpt.dat_set, report->dat_set,
+                      (size_t)MMS_MAX_STRING_LENGTH - 1U);
+        rpt.dat_set[MMS_MAX_STRING_LENGTH - 1U] = '\0';
+        rpt.opt_flds_byte |= 0x08u;  /* b4: data-set-name */
+    }
+
+    if (report->sq_num_present) {
+        rpt.sq_num = report->sq_num;
+        rpt.sq_num_present = true;
+        rpt.opt_flds_byte |= 0x40u;  /* b1: sequence-number */
+    }
+    if (report->report_timestamp_present) {
+        uint64_t bt = report->report_timestamp;
+
+        if (bt < BRIDGE_BINARY_TIME_EPOCH_MS) {
+            bt = 0U;  /* pre-1984 clock: saturate at the epoch */
+        } else {
+            bt -= BRIDGE_BINARY_TIME_EPOCH_MS;
+        }
+        for (i = 0u; i < 6u; i++) {
+            rpt.time_of_entry[i] =
+                (uint8_t)((bt >> ((5u - i) * 8u)) & 0xFFu);
+        }
+        rpt.time_of_entry_present = true;
+        rpt.opt_flds_byte |= 0x20u;  /* b2: time-of-entry */
+    }
+    if (report->reasons_present) {
+        rpt.reason_code = report->reasons[0];
+        rpt.opt_flds_byte |= 0x10u;  /* b3: reason-for-inclusion */
+    }
+    if (report->buffer_overflow_present) {
+        rpt.buffer_overflow = report->buffer_overflow;
+        rpt.opt_flds_byte |= 0x02u;  /* b6: buffer-overflow */
+    }
+    if (report->entry_id_present) {
+        rpt.entry_id = report->entry_id;
+        rpt.opt_flds_byte |= 0x01u;  /* b7: entryID */
+    }
+    if (report->conf_rev_present) {
+        rpt.conf_rev = report->conf_rev;
+        rpt.conf_rev_present = true; /* b8 (2nd octet): confRev */
+    }
+
+    rpt.num_members = report->num_values;
+    rpt.num_values = report->num_values;
+    for (i = 0u; i < report->num_values; i++) {
+        rpt.values[i] = report->values[i];
+    }
+
+    len = mms_encode_iec61850_report(&rpt, buf, sizeof(buf));
     if (len > 0) {
         (void)iec61850_iso_send(&sess->iso, buf, (size_t)len);
     }
@@ -1122,6 +1235,7 @@ static void brcb_emit_group(iec61850_rcb_manager_t *mgr, uint32_t idx,
     (void)memset(&report, 0, sizeof(report));
     (void)strncpy(report.variable_list_name, rcb->attrs.rpt_id,
                   (size_t)MMS_MAX_VARIABLE_NAME - 1U);
+    report_fill_metadata(&report, rcb);
 
     for (i = 0u; (i < group_len) && (n_members < MMS_MAX_NAMED_VARIABLES); i++) {
         const iec61850_report_entry_t *e = group[i];
