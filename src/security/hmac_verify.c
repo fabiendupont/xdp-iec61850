@@ -84,6 +84,77 @@ int hmac_sha256_verify(const uint8_t *key, size_t key_len,
     return 0;
 }
 
+int aes_gmac_sign(const uint8_t *key, size_t key_len,
+                  const uint8_t *iv, size_t iv_len,
+                  const uint8_t *aad, size_t aad_len,
+                  uint8_t *tag, size_t tag_len)
+{
+    EVP_CIPHER_CTX *ctx = NULL;
+    const EVP_CIPHER *cipher = NULL;
+    int ret = -2;
+    int outlen = 0;
+
+    if ((!key) || (!iv) || (!aad) || (!tag)) {
+        return -2;
+    }
+
+    /* Select cipher based on key length (must match aes_gmac_verify) */
+    if (key_len == 16U) {
+        cipher = EVP_aes_128_gcm();
+    } else if (key_len == 32U) {
+        cipher = EVP_aes_256_gcm();
+    } else {
+        return -2;
+    }
+
+    if ((tag_len == 0U) || (tag_len > 16U)) {
+        return -2;
+    }
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL) {
+        return -2;
+    }
+
+    /* Initialize for encryption (signing) */
+    if (EVP_EncryptInit_ex(ctx, cipher, NULL, NULL, NULL) != 1) {
+        goto cleanup;
+    }
+
+    /* Set IV length */
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN,
+                             (int)iv_len, NULL) != 1) {
+        goto cleanup;
+    }
+
+    /* Set key and IV */
+    if (EVP_EncryptInit_ex(ctx, NULL, NULL, key, iv) != 1) {
+        goto cleanup;
+    }
+
+    /* Provide AAD (GMAC: only AAD, no plaintext) */
+    if (EVP_EncryptUpdate(ctx, NULL, &outlen, aad, (int)aad_len) != 1) {
+        goto cleanup;
+    }
+
+    /* Finalize — no ciphertext is produced in GCM mode */
+    if (EVP_EncryptFinal_ex(ctx, NULL, &outlen) != 1) {
+        goto cleanup;
+    }
+
+    /* Retrieve the authentication tag */
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG,
+                             (int)tag_len, (void *)tag) != 1) {
+        goto cleanup;
+    }
+
+    ret = 0;
+
+cleanup:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
 int aes_gmac_verify(const uint8_t *key, size_t key_len,
                     const uint8_t *iv, size_t iv_len,
                     const uint8_t *aad, size_t aad_len,
