@@ -4,12 +4,17 @@
  *
  * Tests: Select/Operate/Cancel lifecycle, session ownership,
  * selection timeout, error codes.
+ *
+ * IEC 61850 Ed.2 additions: sboTimeout, sboClass (strict/dynamic),
+ * operTm (time-activated operate), AddCause enrichment,
+ * CommandTermination with timestamp.
  */
 
 #include "mms/mms_control.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -571,6 +576,600 @@ static void test_operate_null_mgr(void)
     PASS();
 }
 
+/* ========================================================================
+ * IEC 61850 Ed.2 Control Model Tests
+ * ======================================================================== */
+
+static uint64_t test_mono_ms(void)
+{
+    struct timespec ts;
+    (void)clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
+}
+
+static uint64_t test_utc_ms(void)
+{
+    struct timespec ts;
+    (void)clock_gettime(CLOCK_REALTIME, &ts);
+    return ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
+}
+
+static void test_sleep_ms(uint64_t ms)
+{
+    struct timespec ts;
+    ts.tv_sec = (time_t)(ms / 1000ULL);
+    ts.tv_nsec = (long)((ms % 1000ULL) * 1000000ULL);
+    (void)nanosleep(&ts, NULL);
+}
+
+/* Command-termination callback tracking */
+static int term_cb_called = 0;
+static bool term_cb_success = false;
+static uint32_t term_cb_selection_id = 0;
+static int term_cb_addcause = 0;
+static uint64_t term_cb_timestamp_ms = 0;
+static char term_cb_domain[64] = {0};
+static char term_cb_item[64] = {0};
+
+static void test_termination_callback(const char *domain, const char *item_id,
+                                        uint32_t selection_id, bool success,
+                                        iec61850_control_addcause_t addcause,
+                                        uint64_t timestamp_ms, void *user_data)
+{
+    (void)user_data;
+    term_cb_called++;
+    term_cb_success = success;
+    term_cb_selection_id = selection_id;
+    term_cb_addcause = (int)addcause;
+    term_cb_timestamp_ms = timestamp_ms;
+    (void)strncpy(term_cb_domain, domain, sizeof(term_cb_domain) - 1);
+    (void)strncpy(term_cb_item, item_id, sizeof(term_cb_item) - 1);
+}
+
+static void test_sbo_timeout_per_object(void)
+{
+    TEST("sbo_timeout_per_object");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "SBO1");
+
+    /* Default timeout (sbo_timeout_ms = 0 means 30 s default) */
+    uint64_t before = test_mono_ms();
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "SBO1", 1, &sel);
+    uint64_t after = test_mono_ms();
+    ASSERT_EQ(ret, 0);
+    uint64_t default_expiry = mgr.objects[0].selection_expires_at_ms;
+    ASSERT_TRUE(default_expiry >= before + (uint64_t)IEC61850_CONTROL_DEFAULT_TIMEOUT_MS);
+    ASSERT_TRUE(default_expiry <= after + (uint64_t)IEC61850_CONTROL_DEFAULT_TIMEOUT_MS);
+
+    /* Cancel, then configure a short per-object sboTimeout */
+    ASSERT_EQ(iec61850_control_cancel(&mgr, "LD0", "SBO1",
+                (iec61850_control_ids_t){1, sel.selection_id}), 0);
+
+    iec61850_control_config_t cfg = {0};
+    cfg.sbo_timeout_ms = 5000U;
+    cfg.sbo_class = IEC61850_CONTROL_SBO_CLASS_STRICT;
+    ASSERT_EQ(iec61850_control_configure(&mgr, "LD0", "SBO1", &cfg), 0);
+
+    before = test_mono_ms();
+    mms_select_response_t sel2;
+    ret = iec61850_control_select(&mgr, "LD0", "SBO1", 1, &sel2);
+    after = test_mono_ms();
+    ASSERT_EQ(ret, 0);
+    uint64_t custom_expiry = mgr.objects[0].selection_expires_at_ms;
+    ASSERT_TRUE(custom_expiry >= before + 5000ULL);
+    ASSERT_TRUE(custom_expiry <= after + 5000ULL);
+    ASSERT_TRUE(custom_expiry < default_expiry);
+
+    /* sboTimeout expiry frees the selection (forced due, deterministic) */
+    mgr.objects[0].selection_expires_at_ms = 1;
+    iec61850_control_cleanup_expired(&mgr);
+    ASSERT_EQ((int)mgr.objects[0].state, (int)MMS_CONTROL_STATE_READY);
+    ASSERT_EQ((int)mgr.objects[0].selection_id, 0);
+
+    /* Operate after expiry is rejected (strict class, not selected) */
+    mms_operate_response_t op;
+    ret = iec61850_control_operate(&mgr, "LD0", "SBO1",
+                                     (iec61850_control_ids_t){1, sel2.selection_id}, &op);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_NOT_SELECTED);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_sbo_timeout_real_expiry(void)
+{
+    TEST("sbo_timeout_real_expiry");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "SBO2");
+
+    iec61850_control_config_t cfg = {0};
+    cfg.sbo_timeout_ms = 200U;
+    cfg.sbo_class = IEC61850_CONTROL_SBO_CLASS_STRICT;
+    ASSERT_EQ(iec61850_control_configure(&mgr, "LD0", "SBO2", &cfg), 0);
+
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "SBO2", 1, &sel);
+    ASSERT_EQ(ret, 0);
+
+    /* Short real timeout: selection must expire */
+    test_sleep_ms(350);
+    iec61850_control_cleanup_expired(&mgr);
+    ASSERT_EQ((int)mgr.objects[0].state, (int)MMS_CONTROL_STATE_READY);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_sbo_class_strict_rejects_operate_without_select(void)
+{
+    TEST("sbo_class_strict_rejects_operate_without_select");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "STR1");
+
+    /* Strict is the default */
+    iec61850_control_config_t cfg = {0};
+    cfg.sbo_timeout_ms = 0U;
+    cfg.sbo_class = IEC61850_CONTROL_SBO_CLASS_STRICT;
+    ASSERT_EQ(iec61850_control_configure(&mgr, "LD0", "STR1", &cfg), 0);
+
+    action_cb_called = 0;
+    action_cb_return = 0;
+    iec61850_control_set_action_callback(&mgr, "LD0", "STR1",
+                                           test_action_callback, NULL);
+
+    mms_operate_response_t op;
+    iec61850_control_addcause_t ac = IEC61850_ADDCAUSE_UNKNOWN;
+    int ret = iec61850_control_operate_ed2(&mgr, "LD0", "STR1",
+                                              (iec61850_control_ids_t){1, 0},
+                                              0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_NOT_SELECTED);
+    ASSERT_TRUE(!op.success);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_OBJECT_NOT_SELECTED);
+    ASSERT_EQ(action_cb_called, 0);
+
+    /* Same cause recorded on the object */
+    iec61850_control_addcause_t last = IEC61850_ADDCAUSE_UNKNOWN;
+    ASSERT_EQ(iec61850_control_get_last_addcause(&mgr, "LD0", "STR1", &last), 0);
+    ASSERT_EQ((int)last, (int)IEC61850_ADDCAUSE_OBJECT_NOT_SELECTED);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_sbo_class_dynamic_accepts_operate_without_select(void)
+{
+    TEST("sbo_class_dynamic_accepts_operate_without_select");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "DYN1");
+
+    iec61850_control_config_t cfg = {0};
+    cfg.sbo_timeout_ms = 0U;
+    cfg.sbo_class = IEC61850_CONTROL_SBO_CLASS_DYNAMIC;
+    ASSERT_EQ(iec61850_control_configure(&mgr, "LD0", "DYN1", &cfg), 0);
+
+    action_cb_called = 0;
+    action_cb_return = 0;
+    iec61850_control_set_action_callback(&mgr, "LD0", "DYN1",
+                                           test_action_callback, NULL);
+
+    /* Dynamic: operate on a READY object carries its own select check */
+    mms_operate_response_t op;
+    iec61850_control_addcause_t ac = IEC61850_ADDCAUSE_UNKNOWN;
+    int ret = iec61850_control_operate_ed2(&mgr, "LD0", "DYN1",
+                                              (iec61850_control_ids_t){7, 0},
+                                              0ULL, &op, &ac);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(op.success);
+    ASSERT_EQ(action_cb_called, 1);
+
+    /* Dynamic still works with a prior, valid select */
+    mms_select_response_t sel;
+    ret = iec61850_control_select(&mgr, "LD0", "DYN1", 1, &sel);
+    ASSERT_EQ(ret, 0);
+    ret = iec61850_control_operate(&mgr, "LD0", "DYN1",
+                                     (iec61850_control_ids_t){1, sel.selection_id}, &op);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(op.success);
+    ASSERT_EQ(action_cb_called, 2);
+
+    /* Dynamic does not bypass another session's selection */
+    mms_select_response_t sel2;
+    ret = iec61850_control_select(&mgr, "LD0", "DYN1", 1, &sel2);
+    ASSERT_EQ(ret, 0);
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "DYN1",
+                                         (iec61850_control_ids_t){2, 0},
+                                         0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_INVALID_SELECTION_ID);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_SELECT_FAILED);
+    ASSERT_EQ(action_cb_called, 2);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_oper_tm_past_rejected(void)
+{
+    TEST("oper_tm_past_rejected");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "TM1");
+
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "TM1", 1, &sel);
+    ASSERT_EQ(ret, 0);
+
+    /* operTm in the past is rejected, the selection stays intact */
+    mms_operate_response_t op;
+    iec61850_control_addcause_t ac = IEC61850_ADDCAUSE_UNKNOWN;
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "TM1",
+                                         (iec61850_control_ids_t){1, sel.selection_id},
+                                         test_utc_ms() - 1000ULL, &op, &ac);
+    ASSERT_EQ(ret, IEC61850_CONTROL_ERROR_OPER_TM_INVALID);
+    ASSERT_TRUE(!op.success);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_NOT_IN_ALLOWED_VALUE_RANGE);
+    ASSERT_EQ((int)mgr.objects[0].state, (int)MMS_CONTROL_STATE_SELECTED);
+
+    /* The still-valid selection can be operated immediately */
+    ret = iec61850_control_operate(&mgr, "LD0", "TM1",
+                                     (iec61850_control_ids_t){1, sel.selection_id}, &op);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(op.success);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_oper_tm_future_executes_when_due(void)
+{
+    TEST("oper_tm_future_executes_when_due");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "TM2");
+
+    action_cb_called = 0;
+    action_cb_return = 0;
+    iec61850_control_set_action_callback(&mgr, "LD0", "TM2",
+                                           test_action_callback, NULL);
+
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "TM2", 1, &sel);
+    ASSERT_EQ(ret, 0);
+
+    /* Arm a time-activated operate far in the future */
+    mms_operate_response_t op;
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "TM2",
+                                         (iec61850_control_ids_t){1, sel.selection_id},
+                                         test_utc_ms() + 60000ULL, &op, NULL);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(op.success);
+    ASSERT_EQ((int)op.state, (int)MMS_CONTROL_STATE_OPERATE);
+    ASSERT_TRUE(mgr.objects[0].oper_tm_pending);
+
+    /* While armed: further operate and select are rejected */
+    iec61850_control_addcause_t ac = IEC61850_ADDCAUSE_UNKNOWN;
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "TM2",
+                                         (iec61850_control_ids_t){1, sel.selection_id},
+                                         0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_CONTROL_IN_PROGRESS);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_COMMAND_ALREADY_IN_EXECUTION);
+
+    mms_select_response_t sel2;
+    ret = iec61850_control_select(&mgr, "LD0", "TM2", 2, &sel2);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_CONTROL_IN_PROGRESS);
+
+    /* Not due yet: processing must not fire the action */
+    iec61850_control_process(&mgr);
+    ASSERT_EQ(action_cb_called, 0);
+    ASSERT_EQ((int)mgr.objects[0].state, (int)MMS_CONTROL_STATE_OPERATE);
+
+    /* Force the due time (deterministic) and process */
+    mgr.objects[0].oper_tm_due_ms = 1;
+    iec61850_control_process(&mgr);
+    ASSERT_EQ(action_cb_called, 1);
+    ASSERT_EQ((int)mgr.objects[0].state, (int)MMS_CONTROL_STATE_READY);
+    ASSERT_EQ((int)mgr.objects[0].selection_id, 0);
+
+    /* Object is selectable again after the command fired */
+    ret = iec61850_control_select(&mgr, "LD0", "TM2", 3, &sel2);
+    ASSERT_EQ(ret, 0);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_oper_tm_real_time_fires_when_due(void)
+{
+    TEST("oper_tm_real_time_fires_when_due");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "TM3");
+
+    action_cb_called = 0;
+    action_cb_return = 0;
+    iec61850_control_set_action_callback(&mgr, "LD0", "TM3",
+                                           test_action_callback, NULL);
+
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "TM3", 1, &sel);
+    ASSERT_EQ(ret, 0);
+
+    /* Short-duration time-activated operate (300 ms) */
+    mms_operate_response_t op;
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "TM3",
+                                         (iec61850_control_ids_t){1, sel.selection_id},
+                                         test_utc_ms() + 300ULL, &op, NULL);
+    ASSERT_EQ(ret, 0);
+
+    /* Immediately due check must not fire */
+    iec61850_control_process(&mgr);
+    ASSERT_EQ(action_cb_called, 0);
+
+    /* Poll until the command fires (bounded at 3 s) */
+    int fired = 0;
+    for (int i = 0; (i < 150) && (fired == 0); i++) {
+        test_sleep_ms(20);
+        iec61850_control_process(&mgr);
+        fired = (action_cb_called > 0) ? 1 : 0;
+    }
+    ASSERT_TRUE(fired);
+    ASSERT_EQ(action_cb_called, 1);
+    ASSERT_EQ((int)mgr.objects[0].state, (int)MMS_CONTROL_STATE_READY);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_oper_tm_cancel_pending(void)
+{
+    TEST("oper_tm_cancel_pending");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "TM4");
+
+    action_cb_called = 0;
+    action_cb_return = 0;
+    term_cb_called = 0;
+    iec61850_control_set_action_callback(&mgr, "LD0", "TM4",
+                                           test_action_callback, NULL);
+    iec61850_control_set_termination_callback(&mgr, "LD0", "TM4",
+                                                test_termination_callback, NULL);
+
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "TM4", 1, &sel);
+    ASSERT_EQ(ret, 0);
+
+    mms_operate_response_t op;
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "TM4",
+                                         (iec61850_control_ids_t){1, sel.selection_id},
+                                         test_utc_ms() + 60000ULL, &op, NULL);
+    ASSERT_EQ(ret, 0);
+
+    /* Wrong ids cannot cancel the pending time-activated operate */
+    ret = iec61850_control_cancel(&mgr, "LD0", "TM4",
+                                    (iec61850_control_ids_t){2, sel.selection_id});
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_INVALID_SELECTION_ID);
+
+    /* Cancel with the right ids aborts it before execution */
+    ret = iec61850_control_cancel(&mgr, "LD0", "TM4",
+                                    (iec61850_control_ids_t){1, sel.selection_id});
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(action_cb_called, 0);
+
+    /* Abortion-by-cancel is reported via the termination notification */
+    ASSERT_EQ(term_cb_called, 1);
+    ASSERT_TRUE(!term_cb_success);
+    ASSERT_EQ(term_cb_addcause, (int)IEC61850_ADDCAUSE_ABORTION_BY_CANCEL);
+    ASSERT_TRUE(term_cb_timestamp_ms > 0ULL);
+    ASSERT_EQ((int)mgr.objects[0].state, (int)MMS_CONTROL_STATE_READY);
+
+    /* Process after cancel must not fire the aborted command */
+    mgr.objects[0].oper_tm_due_ms = 1;
+    iec61850_control_process(&mgr);
+    ASSERT_EQ(action_cb_called, 0);
+
+    /* Object is selectable again */
+    mms_select_response_t sel2;
+    ret = iec61850_control_select(&mgr, "LD0", "TM4", 2, &sel2);
+    ASSERT_EQ(ret, 0);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_addcause_rejection_paths(void)
+{
+    TEST("addcause_rejection_paths");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "AC1");
+
+    mms_operate_response_t op;
+    mms_select_response_t sel;
+    iec61850_control_addcause_t ac = IEC61850_ADDCAUSE_UNKNOWN;
+    int ret;
+
+    /* Operate without select: object-not-selected */
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "AC1",
+                                         (iec61850_control_ids_t){1, 0},
+                                         0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_NOT_SELECTED);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_OBJECT_NOT_SELECTED);
+
+    /* Wrong selection id: select-failed */
+    ret = iec61850_control_select(&mgr, "LD0", "AC1", 1, &sel);
+    ASSERT_EQ(ret, 0);
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "AC1",
+                                         (iec61850_control_ids_t){1, 9999},
+                                         0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_INVALID_SELECTION_ID);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_SELECT_FAILED);
+
+    /* Wrong session: select-failed */
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "AC1",
+                                         (iec61850_control_ids_t){2, sel.selection_id},
+                                         0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_INVALID_SELECTION_ID);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_SELECT_FAILED);
+
+    /* Expired selection: time-limit-overrun */
+    mgr.objects[0].selection_expires_at_ms = 1;
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "AC1",
+                                         (iec61850_control_ids_t){1, sel.selection_id},
+                                         0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_SELECTION_TIMEOUT);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_TIME_LIMIT_OVERRUN);
+
+    /* Blocked object: blocked-by-mode on both select and operate */
+    mgr.objects[0].state = MMS_CONTROL_STATE_BLOCKED;
+    ret = iec61850_control_select(&mgr, "LD0", "AC1", 1, &sel);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_CONTROL_BLOCKED);
+    iec61850_control_addcause_t last = IEC61850_ADDCAUSE_UNKNOWN;
+    ASSERT_EQ(iec61850_control_get_last_addcause(&mgr, "LD0", "AC1", &last), 0);
+    ASSERT_EQ((int)last, (int)IEC61850_ADDCAUSE_BLOCKED_BY_MODE);
+
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "AC1",
+                                         (iec61850_control_ids_t){1, 0},
+                                         0ULL, &op, &ac);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_CONTROL_BLOCKED);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_BLOCKED_BY_MODE);
+
+    /* Already selected by another session: select-failed */
+    mgr.objects[0].state = MMS_CONTROL_STATE_READY;
+    mgr.objects[0].selection_id = 0;
+    mgr.objects[0].owner_session_id = 0;
+    ret = iec61850_control_select(&mgr, "LD0", "AC1", 1, &sel);
+    ASSERT_EQ(ret, 0);
+    ret = iec61850_control_select(&mgr, "LD0", "AC1", 2, &sel);
+    ASSERT_EQ(ret, MMS_CONTROL_ERROR_ALREADY_SELECTED);
+    ASSERT_EQ(iec61850_control_get_last_addcause(&mgr, "LD0", "AC1", &last), 0);
+    ASSERT_EQ((int)last, (int)IEC61850_ADDCAUSE_SELECT_FAILED);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_addcause_action_callback_failure(void)
+{
+    TEST("addcause_action_callback_failure");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "AC2");
+
+    action_cb_called = 0;
+    action_cb_return = -1;
+    term_cb_called = 0;
+    iec61850_control_set_action_callback(&mgr, "LD0", "AC2",
+                                           test_action_callback, NULL);
+    iec61850_control_set_termination_callback(&mgr, "LD0", "AC2",
+                                                test_termination_callback, NULL);
+
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "AC2", 1, &sel);
+    ASSERT_EQ(ret, 0);
+
+    mms_operate_response_t op;
+    iec61850_control_addcause_t ac = IEC61850_ADDCAUSE_UNKNOWN;
+    ret = iec61850_control_operate_ed2(&mgr, "LD0", "AC2",
+                                         (iec61850_control_ids_t){1, sel.selection_id},
+                                         0ULL, &op, &ac);
+    ASSERT_TRUE(ret != 0);
+    ASSERT_EQ((int)ac, (int)IEC61850_ADDCAUSE_BLOCKED_BY_PROCESS);
+
+    /* Failed execution is reported via the termination notification */
+    ASSERT_EQ(term_cb_called, 1);
+    ASSERT_TRUE(!term_cb_success);
+    ASSERT_EQ(term_cb_addcause, (int)IEC61850_ADDCAUSE_BLOCKED_BY_PROCESS);
+    ASSERT_TRUE(term_cb_timestamp_ms > 0ULL);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_command_termination_timestamp(void)
+{
+    TEST("command_termination_timestamp");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "CT1");
+
+    action_cb_called = 0;
+    action_cb_return = 0;
+    term_cb_called = 0;
+    iec61850_control_set_action_callback(&mgr, "LD0", "CT1",
+                                           test_action_callback, NULL);
+    iec61850_control_set_termination_callback(&mgr, "LD0", "CT1",
+                                                test_termination_callback, NULL);
+
+    mms_select_response_t sel;
+    int ret = iec61850_control_select(&mgr, "LD0", "CT1", 5, &sel);
+    ASSERT_EQ(ret, 0);
+
+    uint64_t before = test_utc_ms();
+    mms_operate_response_t op;
+    ret = iec61850_control_operate(&mgr, "LD0", "CT1",
+                                     (iec61850_control_ids_t){5, sel.selection_id}, &op);
+    uint64_t after = test_utc_ms();
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(op.success);
+
+    ASSERT_EQ(term_cb_called, 1);
+    ASSERT_TRUE(term_cb_success);
+    ASSERT_EQ(term_cb_selection_id, sel.selection_id);
+    ASSERT_TRUE(strcmp(term_cb_domain, "LD0") == 0);
+    ASSERT_TRUE(strcmp(term_cb_item, "CT1") == 0);
+    /* Timestamp is a UTC time bound by the operate window */
+    ASSERT_TRUE(term_cb_timestamp_ms >= before);
+    ASSERT_TRUE(term_cb_timestamp_ms <= after);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
+static void test_ed2_api_edges(void)
+{
+    TEST("ed2_api_edges");
+    iec61850_control_manager_t mgr;
+    iec61850_control_manager_init(&mgr);
+    iec61850_control_register(&mgr, "LD0", "ED1");
+
+    iec61850_control_config_t cfg = {0};
+    cfg.sbo_timeout_ms = 0U;
+    cfg.sbo_class = IEC61850_CONTROL_SBO_CLASS_DYNAMIC;
+
+    /* NULL arguments */
+    ASSERT_TRUE(iec61850_control_configure(NULL, "LD0", "ED1", &cfg) != 0);
+    ASSERT_TRUE(iec61850_control_configure(&mgr, NULL, "ED1", &cfg) != 0);
+    ASSERT_TRUE(iec61850_control_configure(&mgr, "LD0", NULL, &cfg) != 0);
+    ASSERT_TRUE(iec61850_control_configure(&mgr, "LD0", "ED1", NULL) != 0);
+    ASSERT_TRUE(iec61850_control_set_termination_callback(NULL, "LD0", "ED1",
+                test_termination_callback, NULL) != 0);
+    ASSERT_TRUE(iec61850_control_get_last_addcause(&mgr, "LD0", "ED1", NULL) != 0);
+    ASSERT_TRUE(iec61850_control_operate_ed2(&mgr, "LD0", "ED1",
+                (iec61850_control_ids_t){1, 0}, 0ULL, NULL, NULL) != 0);
+
+    /* Unknown object */
+    ASSERT_TRUE(iec61850_control_configure(&mgr, "LD0", "NOPE", &cfg) != 0);
+    ASSERT_TRUE(iec61850_control_set_termination_callback(&mgr, "LD0", "NOPE",
+                test_termination_callback, NULL) != 0);
+    iec61850_control_addcause_t last = IEC61850_ADDCAUSE_UNKNOWN;
+    ASSERT_TRUE(iec61850_control_get_last_addcause(&mgr, "LD0", "NOPE", &last) != 0);
+
+    /* Invalid sboClass value */
+    cfg.sbo_class = (iec61850_control_sbo_class_t)2;
+    ASSERT_TRUE(iec61850_control_configure(&mgr, "LD0", "ED1", &cfg) != 0);
+
+    /* NULL manager is safe */
+    iec61850_control_process(NULL);
+
+    iec61850_control_manager_destroy(&mgr);
+    PASS();
+}
+
 int main(void)
 {
     printf("=== MMS Control Service Tests ===\n");
@@ -607,6 +1206,20 @@ int main(void)
     test_select_blocked();
     test_register_max_objects();
     test_operate_null_mgr();
+
+    printf("\n--- IEC 61850 Ed.2 Control Model ---\n");
+    test_sbo_timeout_per_object();
+    test_sbo_timeout_real_expiry();
+    test_sbo_class_strict_rejects_operate_without_select();
+    test_sbo_class_dynamic_accepts_operate_without_select();
+    test_oper_tm_past_rejected();
+    test_oper_tm_future_executes_when_due();
+    test_oper_tm_real_time_fires_when_due();
+    test_oper_tm_cancel_pending();
+    test_addcause_rejection_paths();
+    test_addcause_action_callback_failure();
+    test_command_termination_timestamp();
+    test_ed2_api_edges();
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);
