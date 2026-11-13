@@ -1224,104 +1224,251 @@ static int encode_get_variable_attrs_req_body(const mms_confirmed_request_t *req
     return (int)o;
 }
 
+/* ========================================================================
+ * WP-2y: standard MMS named-variable-list request encoding.
+ *
+ * The pre-WP-2y encoders emitted a proprietary flat ObjectName
+ * (<domLen> <domain> <nameLen> <name>) that only this repo's own
+ * decoders understood; every conformant server (including the
+ * reference implementation used as the interop oracle) decoded the
+ * names as empty (diagnostics WP-ms10-investigation). The helpers
+ * below emit the standard wire forms:
+ *
+ *   ObjectName domain-specific [1] IMPLICIT SEQUENCE {
+ *       1A domainId (VisibleString), 1A itemId (VisibleString) }
+ *
+ * built with 3-byte length reservations patched by
+ * mms_patch_list_length(), so long names (> 127 bytes total) get
+ * proper definite long-form lengths instead of a truncated octet.
+ * ======================================================================== */
+
+/* Begin a constructed TLV at buf[*offset]: write the tag and a
+ * 3-byte length reservation. *res_pos receives the reservation
+ * position (for finish_reserved_tlv); *offset advances past the
+ * reservation. Returns 0 or a negative MMS_ERROR_*. */
+static int begin_reserved_tlv(uint8_t tag, uint8_t *buf, size_t buflen,
+                              size_t *offset, size_t *res_pos)
+{
+    if ((buf == NULL) || (offset == NULL) || (res_pos == NULL)) {
+        return MMS_ERROR_INVALID_PARAM;
+    }
+    if ((*offset >= buflen) || ((buflen - *offset) < 4U)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[*offset] = tag;
+    *res_pos = *offset + 1U;
+    *offset += 4U;
+    return 0;
+}
+
+/* Patch the reservation opened by begin_reserved_tlv(); content is
+ * the region [res_pos + 3, content_end). Advances *offset to the
+ * end of the compacted TLV. Returns 0 or negative MMS_ERROR_*. */
+static int finish_reserved_tlv(uint8_t *buf, size_t res_pos,
+                               size_t content_end, size_t *offset)
+{
+    int ret;
+
+    if (content_end < (res_pos + 3U)) {
+        return MMS_ERROR_INVALID_PARAM;
+    }
+    ret = mms_patch_list_length(&buf[res_pos], content_end - (res_pos + 3U));
+    if (ret < 0) {
+        return ret;
+    }
+    *offset = res_pos + (size_t)ret;
+    return 0;
+}
+
+/* Append a VisibleString (tag 0x1A) element. Returns 0 or negative. */
+static int append_visible_string(const char *s, uint8_t *buf, size_t buflen,
+                                 size_t *offset)
+{
+    size_t len;
+    int ret;
+
+    if ((s == NULL) || (buf == NULL) || (offset == NULL)) {
+        return MMS_ERROR_INVALID_PARAM;
+    }
+    len = strlen(s);
+    if ((*offset >= buflen) || ((buflen - *offset) < 2U)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[*offset] = 0x1A;
+    (*offset)++;
+    ret = mms_encode_length(len, buf + *offset, buflen - *offset);
+    if (ret < 0) {
+        return ret;
+    }
+    *offset += (size_t)ret;
+    if (len > (buflen - *offset)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    if (len > 0U) {
+        (void)memcpy(buf + *offset, s, len);
+    }
+    *offset += len;
+    return 0;
+}
+
+/* Append the standard domain-specific name pair
+ *   [1] IMPLICIT SEQUENCE { 1A domainId, 1A itemId }
+ * (ObjectName / VariableName, domain-specific alternative).
+ * Returns 0 or a negative MMS_ERROR_*. */
+static int append_domain_specific_name(const char *domain, const char *item,
+                                       uint8_t *buf, size_t buflen,
+                                       size_t *offset)
+{
+    size_t res_pos;
+    int ret;
+
+    ret = begin_reserved_tlv(0xA1, buf, buflen, offset, &res_pos);
+    if (ret < 0) {
+        return ret;
+    }
+    ret = append_visible_string(domain, buf, buflen, offset);
+    if (ret < 0) {
+        return ret;
+    }
+    ret = append_visible_string(item, buf, buflen, offset);
+    if (ret < 0) {
+        return ret;
+    }
+    return finish_reserved_tlv(buf, res_pos, *offset, offset);
+}
+
 static int encode_define_named_varlist_req_body(const mms_confirmed_request_t *request,
                        uint8_t *buf, size_t buflen) {
-    uint8_t temp_buf[16];
+    /* DefineNamedVariableList-Request (WP-2y, standard MMS):
+     *   variableListName [0] EXPLICIT ObjectName (domain-specific [1]
+     *     IMPLICIT SEQUENCE { 1A domainId, 1A itemId })
+     *   listOfVariable [1] IMPLICIT SEQUENCE OF SEQUENCE {
+     *     variableSpecification CHOICE namedVariable [0] EXPLICIT
+     *     VariableName (domain-specific [1] { 1A, 1A }) } */
+    size_t o = 0;
+    size_t name_res, list_res;
     int ret;
-    (void)temp_buf; (void)ret; (void)buflen;
-    size_t domain_len;
-    size_t item_len;
-    /* DefineNamedVariableList-Request */
-    /* variableListName [0] ObjectName (domain-specific) */
-    size_t varlist_offset = 0;
-    buf[varlist_offset++] = 0xA0;  /* [0] IMPLICIT */
-    domain_len = strlen(request->params.definenamedvarlist.domain);
-    size_t list_name_len = strlen(request->params.definenamedvarlist.list_name);
-    buf[varlist_offset++] = (uint8_t)(1 + domain_len + 1 + list_name_len);
-    buf[varlist_offset++] = (uint8_t)domain_len;
-    memcpy(buf + varlist_offset, request->params.definenamedvarlist.domain, domain_len);
-    varlist_offset += domain_len;
-    buf[varlist_offset++] = (uint8_t)list_name_len;
-    memcpy(buf + varlist_offset, request->params.definenamedvarlist.list_name, list_name_len);
-    varlist_offset += list_name_len;
 
-    /* listOfVariable [1] SEQUENCE OF VariableSpecification */
-    buf[varlist_offset++] = 0xA1;  /* [1] IMPLICIT */
-    size_t var_list_start = varlist_offset + 1;  /* Reserve for length */
-    varlist_offset++;
-    for (uint32_t i = 0; i < request->params.definenamedvarlist.num_variables; i++) {
-        buf[varlist_offset++] = 0xA0;  /* domain-specific [0] */
-        domain_len = strlen(request->params.definenamedvarlist.variables[i].domain);
-        item_len = strlen(request->params.definenamedvarlist.variables[i].item_id);
-        buf[varlist_offset++] = (uint8_t)(1 + domain_len + 1 + item_len);
-        buf[varlist_offset++] = (uint8_t)domain_len;
-        memcpy(buf + varlist_offset, request->params.definenamedvarlist.variables[i].domain, domain_len);
-        varlist_offset += domain_len;
-        buf[varlist_offset++] = (uint8_t)item_len;
-        memcpy(buf + varlist_offset, request->params.definenamedvarlist.variables[i].item_id, item_len);
-        varlist_offset += item_len;
+    /* variableListName [0] */
+    ret = begin_reserved_tlv(0xA0, buf, buflen, &o, &name_res);
+    if (ret < 0) { return ret; }
+    ret = append_domain_specific_name(
+        request->params.definenamedvarlist.domain,
+        request->params.definenamedvarlist.list_name,
+        buf, buflen, &o);
+    if (ret < 0) { return ret; }
+    ret = finish_reserved_tlv(buf, name_res, o, &o);
+    if (ret < 0) { return ret; }
+
+    /* listOfVariable [1] */
+    ret = begin_reserved_tlv(0xA1, buf, buflen, &o, &list_res);
+    if (ret < 0) { return ret; }
+    for (uint32_t i = 0;
+         (i < request->params.definenamedvarlist.num_variables) &&
+         (i < (uint32_t)MMS_MAX_NAMED_VARIABLES); i++) {
+        size_t seq_res, nv_res;
+        /* SEQUENCE { variableSpecification ... } */
+        ret = begin_reserved_tlv(0x30, buf, buflen, &o, &seq_res);
+        if (ret < 0) { return ret; }
+        /* namedVariable [0] EXPLICIT VariableName */
+        ret = begin_reserved_tlv(0xA0, buf, buflen, &o, &nv_res);
+        if (ret < 0) { return ret; }
+        ret = append_domain_specific_name(
+            request->params.definenamedvarlist.variables[i].domain,
+            request->params.definenamedvarlist.variables[i].item_id,
+            buf, buflen, &o);
+        if (ret < 0) { return ret; }
+        ret = finish_reserved_tlv(buf, nv_res, o, &o);
+        if (ret < 0) { return ret; }
+        ret = finish_reserved_tlv(buf, seq_res, o, &o);
+        if (ret < 0) { return ret; }
     }
-    buf[var_list_start - 1] = (uint8_t)(varlist_offset - var_list_start);
-    return (int)(varlist_offset);
+    ret = finish_reserved_tlv(buf, list_res, o, &o);
+    if (ret < 0) { return ret; }
+
+    return (int)o;
 }
 
 static int encode_delete_named_varlist_req_body(const mms_confirmed_request_t *request,
                        uint8_t *buf, size_t buflen) {
-    uint8_t temp_buf[16];
+    /* DeleteNamedVariableList-Request (WP-2y, standard MMS):
+     * variableListName [0] EXPLICIT ObjectName (domain-specific). */
+    size_t o = 0;
+    size_t name_res;
     int ret;
-    (void)temp_buf; (void)ret; (void)buflen;
-    size_t domain_len;
-    size_t list_name_len;
-    /* DeleteNamedVariableList-Request */
-    /* variableListName [0] ObjectName (domain-specific) */
-    buf[0] = 0xA0;  /* [0] IMPLICIT */
-    domain_len = strlen(request->params.deletenamedvarlist.domain);
-    list_name_len = strlen(request->params.deletenamedvarlist.list_name);
-    buf[1] = (uint8_t)(1 + domain_len + 1 + list_name_len);
-    buf[2] = (uint8_t)domain_len;
-    memcpy(buf + 3, request->params.deletenamedvarlist.domain, domain_len);
-    buf[3 + domain_len] = (uint8_t)list_name_len;
-    memcpy(buf + 4 + domain_len, request->params.deletenamedvarlist.list_name, list_name_len);
-    return (int)(2 + 1 + domain_len + 1 + list_name_len);
+
+    ret = begin_reserved_tlv(0xA0, buf, buflen, &o, &name_res);
+    if (ret < 0) { return ret; }
+    ret = append_domain_specific_name(
+        request->params.deletenamedvarlist.domain,
+        request->params.deletenamedvarlist.list_name,
+        buf, buflen, &o);
+    if (ret < 0) { return ret; }
+    ret = finish_reserved_tlv(buf, name_res, o, &o);
+    if (ret < 0) { return ret; }
+    return (int)o;
 }
 
 static int encode_get_named_varlist_attrs_req_body(const mms_confirmed_request_t *request,
                        uint8_t *buf, size_t buflen) {
-    uint8_t temp_buf[16];
+    /* GetNamedVariableListAttributes-Request (WP-2y, standard MMS):
+     * variableListName [0] EXPLICIT ObjectName (domain-specific). */
+    size_t o = 0;
+    size_t name_res;
     int ret;
-    (void)temp_buf; (void)ret; (void)buflen;
-    size_t domain_len;
-    size_t list_name_len;
-    /* GetNamedVariableListAttributes-Request */
-    /* variableListName [0] ObjectName (domain-specific) */
-    buf[0] = 0xA0;  /* [0] IMPLICIT */
-    domain_len = strlen(request->params.getnamedvarlistattrs.domain);
-    list_name_len = strlen(request->params.getnamedvarlistattrs.list_name);
-    buf[1] = (uint8_t)(1 + domain_len + 1 + list_name_len);
-    buf[2] = (uint8_t)domain_len;
-    memcpy(buf + 3, request->params.getnamedvarlistattrs.domain, domain_len);
-    buf[3 + domain_len] = (uint8_t)list_name_len;
-    memcpy(buf + 4 + domain_len, request->params.getnamedvarlistattrs.list_name, list_name_len);
-    return (int)(2 + 1 + domain_len + 1 + list_name_len);
+
+    ret = begin_reserved_tlv(0xA0, buf, buflen, &o, &name_res);
+    if (ret < 0) { return ret; }
+    ret = append_domain_specific_name(
+        request->params.getnamedvarlistattrs.domain,
+        request->params.getnamedvarlistattrs.list_name,
+        buf, buflen, &o);
+    if (ret < 0) { return ret; }
+    ret = finish_reserved_tlv(buf, name_res, o, &o);
+    if (ret < 0) { return ret; }
+    return (int)o;
 }
 
 static int encode_read_named_varlist_req_body(const mms_confirmed_request_t *request,
                        uint8_t *buf, size_t buflen) {
-    uint8_t temp_buf[16];
+    /* Read-Request, variableListName variant (WP-2y, standard MMS,
+     * byte-for-byte the format the reference server's own client
+     * puts on the wire — diagnostics WP-ms10-investigation):
+     *   specificationWithResult [0] IMPLICIT BOOLEAN = TRUE
+     *   variableAccessSpecification [1] EXPLICIT CHOICE
+     *     variableListName [1] EXPLICIT ObjectName
+     *       domain-specific [1] IMPLICIT SEQUENCE { 1A, 1A }
+     * The specificationWithResult echo requested here is the service
+     * context that lets the (otherwise identical) Read-Response of a
+     * list read be told apart from a plain single-variable
+     * Read-Response at decode time. */
+    size_t o = 0;
+    size_t vas_res, vln_res;
     int ret;
-    (void)temp_buf; (void)ret; (void)buflen;
-    size_t domain_len;
-    size_t list_name_len;
-    /* Read-Request: variableAccessSpecification [1] variableListName */
-    buf[0] = 0xA1;  /* [1] IMPLICIT variableListName */
-    domain_len = strlen(request->params.readnamedvarlist.domain);
-    list_name_len = strlen(request->params.readnamedvarlist.list_name);
-    buf[1] = (uint8_t)(1 + domain_len + 1 + list_name_len);
-    buf[2] = (uint8_t)domain_len;
-    memcpy(buf + 3, request->params.readnamedvarlist.domain, domain_len);
-    buf[3 + domain_len] = (uint8_t)list_name_len;
-    memcpy(buf + 4 + domain_len, request->params.readnamedvarlist.list_name, list_name_len);
-    return (int)(2 + 1 + domain_len + 1 + list_name_len);
+
+    if (buflen < 3U) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[o++] = 0x80;  /* specificationWithResult [0] IMPLICIT BOOLEAN */
+    buf[o++] = 0x01;
+    buf[o++] = 0x01;  /* TRUE */
+
+    /* variableAccessSpecification [1] */
+    ret = begin_reserved_tlv(0xA1, buf, buflen, &o, &vas_res);
+    if (ret < 0) { return ret; }
+    /* variableListName [1] */
+    ret = begin_reserved_tlv(0xA1, buf, buflen, &o, &vln_res);
+    if (ret < 0) { return ret; }
+    ret = append_domain_specific_name(
+        request->params.readnamedvarlist.domain,
+        request->params.readnamedvarlist.list_name,
+        buf, buflen, &o);
+    if (ret < 0) { return ret; }
+    ret = finish_reserved_tlv(buf, vln_res, o, &o);
+    if (ret < 0) { return ret; }
+    ret = finish_reserved_tlv(buf, vas_res, o, &o);
+    if (ret < 0) { return ret; }
+    return (int)o;
 }
 
 static int encode_write_named_varlist_req_body(const mms_confirmed_request_t *request,
@@ -1950,6 +2097,119 @@ int mms_encode_confirmed_request(const mms_confirmed_request_t* request,
     return (int)offset;
 }
 
+/* WP-2y: decode the domain/item name pair of a named-variable-list
+ * service field (ObjectName / VariableName, domain-specific
+ * alternative). Accepts the standard nested form — [1] IMPLICIT
+ * SEQUENCE { 1A domainId, 1A itemId }, with any number of extra
+ * nested constructed wrappers tolerated (the reference server's
+ * dialect) — and the legacy pre-WP-2y flat form (raw length-prefixed
+ * strings without tags; kept for replay of stored captures).
+ *
+ * On success copies the NUL-terminated names and advances *offset
+ * past the consumed bytes. Returns 0 or a negative MMS_ERROR_*. */
+static int decode_varlist_names(const uint8_t *buffer,
+                                size_t *offset, size_t end,
+                                char *domain, char *item)
+{
+    size_t off;
+    size_t dom_len;
+    size_t item_len;
+    int ret;
+
+    if ((buffer == NULL) || (offset == NULL) ||
+        (domain == NULL) || (item == NULL)) {
+        return MMS_ERROR_INVALID_PARAM;
+    }
+    off = *offset;
+    if (off > end) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+
+    if ((off < end) && (buffer[off] == 0xA1)) {
+        /* Standard form: skip nested constructed wrapper headers
+         * (tag + length field) down to the VisibleString elements.
+         * The wrapper content is the next wrapper / the strings, so
+         * the declared lengths need no separate skip. */
+        while ((off < end) &&
+               ((buffer[off] == 0xA1) || (buffer[off] == 0xA3) ||
+                (buffer[off] == 0xA0) || (buffer[off] == 0xA4))) {
+            size_t wrap_len;
+
+            off++;
+            ret = mms_decode_length(buffer + off, end - off, &wrap_len);
+            if (ret < 0) {
+                return ret;
+            }
+            off += (size_t)ret;
+            if (!length_fits(off, wrap_len, end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+        }
+    }
+
+    if ((off < end) && (buffer[off] == 0x1A)) {
+        /* Standard form: tagged VisibleStrings. */
+        off++;
+        ret = mms_decode_length(buffer + off, end - off, &dom_len);
+        if (ret < 0) {
+            return ret;
+        }
+        off += (size_t)ret;
+        if ((dom_len >= (size_t)MMS_MAX_DOMAIN_NAME) ||
+            !length_fits(off, dom_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        (void)memcpy(domain, buffer + off, dom_len);
+        domain[dom_len] = '\0';
+        off += dom_len;
+
+        if ((off >= end) || (buffer[off] != 0x1A)) {
+            return MMS_ERROR_INVALID_ENCODING;
+        }
+        off++;
+        ret = mms_decode_length(buffer + off, end - off, &item_len);
+        if (ret < 0) {
+            return ret;
+        }
+        off += (size_t)ret;
+        if ((item_len >= (size_t)MMS_MAX_VARIABLE_NAME) ||
+            !length_fits(off, item_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        (void)memcpy(item, buffer + off, item_len);
+        item[item_len] = '\0';
+        off += item_len;
+    } else {
+        /* Legacy flat form: raw length-prefixed strings. */
+        if (off >= end) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        dom_len = buffer[off++];
+        if ((dom_len >= (size_t)MMS_MAX_DOMAIN_NAME) ||
+            !length_fits(off, dom_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        (void)memcpy(domain, buffer + off, dom_len);
+        domain[dom_len] = '\0';
+        off += dom_len;
+
+        if (off >= end) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        item_len = buffer[off++];
+        if ((item_len >= (size_t)MMS_MAX_VARIABLE_NAME) ||
+            !length_fits(off, item_len, end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        (void)memcpy(item, buffer + off, item_len);
+        item[item_len] = '\0';
+        off += item_len;
+    }
+
+    *offset = off;
+    return 0;
+}
+
 int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                                  mms_confirmed_request_t* request) {
     if (buffer == NULL || request == NULL || buflen < 2) {
@@ -2406,7 +2666,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
         case MMS_SERVICE_DEFINE_NAMED_VARLIST:
             request->service = MMS_SERVICE_TYPE_DEFINE_NAMED_VARLIST;
             /* DefineNamedVariableList-Request:
-               variableListName [0] + listOfVariable [1] */
+                variableListName [0] + listOfVariable [1].
+                WP-2y: standard nested ObjectName form; the legacy
+                flat form is still accepted on decode. */
             {
                 size_t dnvl_end = offset + field_len;
                 /* [0] variableListName: ObjectName (domain-specific) */
@@ -2420,31 +2682,16 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                         return MMS_ERROR_BUFFER_TOO_SMALL;
                     }
 
-                    if (offset >= buflen) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
-                    }
-                    size_t dnvl_dom_len = buffer[offset++];
-                    if (dnvl_dom_len >= MMS_MAX_DOMAIN_NAME ||
-                        !length_fits(offset, dnvl_dom_len, dnvl_end)) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
-                    }
-                    memcpy(request->params.definenamedvarlist.domain, buffer + offset, dnvl_dom_len);
-                    request->params.definenamedvarlist.domain[dnvl_dom_len] = '\0';
-                    offset += dnvl_dom_len;
-
-                    if (offset >= buflen) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
-                    }
-                    size_t dnvl_name_len = buffer[offset++];
-                    if (dnvl_name_len >= MMS_MAX_VARIABLE_NAME ||
-                        !length_fits(offset, dnvl_name_len, dnvl_end)) {
-                        return MMS_ERROR_BUFFER_TOO_SMALL;
-                    }
-                    memcpy(request->params.definenamedvarlist.list_name, buffer + offset, dnvl_name_len);
-                    request->params.definenamedvarlist.list_name[dnvl_name_len] = '\0';
-                    offset += dnvl_name_len;
+                    ret = decode_varlist_names(
+                        buffer, &offset, dnvl_end,
+                        request->params.definenamedvarlist.domain,
+                        request->params.definenamedvarlist.list_name);
+                    if (ret < 0) return ret;
                 }
-                /* [1] listOfVariable: SEQUENCE OF VariableSpecification */
+                /* [1] listOfVariable: SEQUENCE OF VariableSpecification.
+                 * WP-2y: standard members are SEQUENCE (0x30) {
+                 * namedVariable [0] { domain-specific [1] { 1A, 1A } } };
+                 * legacy members were [0] { <domLen> dom <itemLen> item }. */
                 if (offset < dnvl_end && buffer[offset] == 0xA1) {
                     offset++;
                     size_t var_list_len;
@@ -2459,44 +2706,46 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     request->params.definenamedvarlist.num_variables = 0;
                     while (offset < var_list_end && request->params.definenamedvarlist.num_variables < MMS_MAX_NAMED_VARIABLES) {
                         uint32_t vi = request->params.definenamedvarlist.num_variables;
-                        if (buffer[offset] == 0xA0) {  /* domain-specific */
-                            offset++;
-                            size_t vs_len;
-                            ret = mms_decode_length(buffer + offset, buflen - offset, &vs_len);
-                            if (ret < 0) return ret;
-                            offset += ret;
-                            if (!length_fits(offset, vs_len, var_list_end)) {
-                                return MMS_ERROR_BUFFER_TOO_SMALL;
-                            }
-
-                            if (offset >= buflen) {
-                                return MMS_ERROR_BUFFER_TOO_SMALL;
-                            }
-                            size_t vs_dom_len = buffer[offset++];
-                            if (vs_dom_len >= MMS_MAX_DOMAIN_NAME ||
-                                !length_fits(offset, vs_dom_len, var_list_end)) {
-                                return MMS_ERROR_BUFFER_TOO_SMALL;
-                            }
-                            memcpy(request->params.definenamedvarlist.variables[vi].domain, buffer + offset, vs_dom_len);
-                            request->params.definenamedvarlist.variables[vi].domain[vs_dom_len] = '\0';
-                            offset += vs_dom_len;
-
-                            if (offset >= buflen) {
-                                return MMS_ERROR_BUFFER_TOO_SMALL;
-                            }
-                            size_t vs_item_len = buffer[offset++];
-                            if (vs_item_len >= MMS_MAX_VARIABLE_NAME ||
-                                !length_fits(offset, vs_item_len, var_list_end)) {
-                                return MMS_ERROR_BUFFER_TOO_SMALL;
-                            }
-                            memcpy(request->params.definenamedvarlist.variables[vi].item_id, buffer + offset, vs_item_len);
-                            request->params.definenamedvarlist.variables[vi].item_id[vs_item_len] = '\0';
-                            offset += vs_item_len;
-
-                            request->params.definenamedvarlist.num_variables++;
-                        } else {
+                        uint8_t member_tag = buffer[offset];
+                        size_t member_len, member_end;
+                        if ((member_tag != 0x30) && (member_tag != 0xA0)) {
                             break;  /* Unknown format */
                         }
+                        offset++;
+                        ret = mms_decode_length(buffer + offset, buflen - offset, &member_len);
+                        if (ret < 0) return ret;
+                        offset += ret;
+                        if (!length_fits(offset, member_len, var_list_end)) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
+                        member_end = offset + member_len;
+
+                        if (member_tag == 0x30) {
+                            /* standard: SEQUENCE { variableSpecification
+                             * CHOICE namedVariable [0] VariableName } */
+                            if (offset < member_end && buffer[offset] == 0xA0) {
+                                size_t vs_len;
+                                offset++;
+                                ret = mms_decode_length(buffer + offset, buflen - offset, &vs_len);
+                                if (ret < 0) return ret;
+                                offset += ret;
+                                if (!length_fits(offset, vs_len, member_end)) {
+                                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                                }
+                            }
+                            /* a directly nested name (no [0] wrapper)
+                             * is tolerated — decode_varlist_names
+                             * skips whatever wrappers are present. */
+                        }
+
+                        ret = decode_varlist_names(
+                            buffer, &offset, member_end,
+                            request->params.definenamedvarlist.variables[vi].domain,
+                            request->params.definenamedvarlist.variables[vi].item_id);
+                        if (ret < 0) return ret;
+
+                        request->params.definenamedvarlist.num_variables++;
+                        offset = member_end;
                     }
                 }
                 offset = dnvl_end;
@@ -2505,7 +2754,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
 
         case MMS_SERVICE_DELETE_NAMED_VARLIST:
             request->service = MMS_SERVICE_TYPE_DELETE_NAMED_VARLIST;
-            /* DeleteNamedVariableList-Request: variableListName [0] */
+            /* DeleteNamedVariableList-Request: variableListName [0].
+             * WP-2y: standard nested ObjectName form; the legacy flat
+             * form is still accepted on decode. */
             if (offset < end && buffer[offset] == 0xA0) {
                 offset++;
                 size_t del_spec_len;
@@ -2516,29 +2767,11 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     return MMS_ERROR_BUFFER_TOO_SMALL;
                 }
 
-                if (offset >= buflen) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                size_t del_dom_len = buffer[offset++];
-                if (del_dom_len >= MMS_MAX_DOMAIN_NAME ||
-                    !length_fits(offset, del_dom_len, end)) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.deletenamedvarlist.domain, buffer + offset, del_dom_len);
-                request->params.deletenamedvarlist.domain[del_dom_len] = '\0';
-                offset += del_dom_len;
-
-                if (offset >= buflen) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                size_t del_name_len = buffer[offset++];
-                if (del_name_len >= MMS_MAX_VARIABLE_NAME ||
-                    !length_fits(offset, del_name_len, end)) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.deletenamedvarlist.list_name, buffer + offset, del_name_len);
-                request->params.deletenamedvarlist.list_name[del_name_len] = '\0';
-                offset += del_name_len;
+                ret = decode_varlist_names(
+                    buffer, &offset, end,
+                    request->params.deletenamedvarlist.domain,
+                    request->params.deletenamedvarlist.list_name);
+                if (ret < 0) return ret;
             } else {
                 offset += field_len;
             }
@@ -2546,7 +2779,9 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
 
         case MMS_SERVICE_GET_NAMED_VARLIST_ATTRS:
             request->service = MMS_SERVICE_TYPE_GET_NAMED_VARLIST_ATTRS;
-            /* GetNamedVariableListAttributes-Request: variableListName [0] */
+            /* GetNamedVariableListAttributes-Request: variableListName [0].
+             * WP-2y: standard nested ObjectName form; the legacy flat
+             * form is still accepted on decode. */
             if (offset < end && buffer[offset] == 0xA0) {
                 offset++;
                 size_t gattr_spec_len;
@@ -2557,29 +2792,11 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     return MMS_ERROR_BUFFER_TOO_SMALL;
                 }
 
-                if (offset >= buflen) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                size_t gattr_dom_len = buffer[offset++];
-                if (gattr_dom_len >= MMS_MAX_DOMAIN_NAME ||
-                    !length_fits(offset, gattr_dom_len, end)) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.getnamedvarlistattrs.domain, buffer + offset, gattr_dom_len);
-                request->params.getnamedvarlistattrs.domain[gattr_dom_len] = '\0';
-                offset += gattr_dom_len;
-
-                if (offset >= buflen) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                size_t gattr_name_len = buffer[offset++];
-                if (gattr_name_len >= MMS_MAX_VARIABLE_NAME ||
-                    !length_fits(offset, gattr_name_len, end)) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.getnamedvarlistattrs.list_name, buffer + offset, gattr_name_len);
-                request->params.getnamedvarlistattrs.list_name[gattr_name_len] = '\0';
-                offset += gattr_name_len;
+                ret = decode_varlist_names(
+                    buffer, &offset, end,
+                    request->params.getnamedvarlistattrs.domain,
+                    request->params.getnamedvarlistattrs.list_name);
+                if (ret < 0) return ret;
             } else {
                 offset += field_len;
             }
@@ -3371,10 +3588,18 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
             break;
 
         case MMS_SERVICE_TYPE_READ_NAMED_VARLIST:
-            /* ReadNamedVariableList response — multiple values in listOfAccessResult */
+            /* ReadNamedVariableList response — listOfAccessResult with
+             * the specificationWithResult [0] echo our client requests
+             * for list reads (WP-2y). The [0] BOOLEAN is the service
+             * context that distinguishes this response from a plain
+             * single-variable Read-Response: any member count,
+             * including 0 (empty list) and 1, decodes as a list read. */
             service_tag = MMS_SERVICE_READ;
             {
                 size_t rnvl_o = 0;
+                service_buf[rnvl_o++] = 0x80;  /* specificationWithResult [0] */
+                service_buf[rnvl_o++] = 0x01;
+                service_buf[rnvl_o++] = 0x01;  /* TRUE */
                 service_buf[rnvl_o++] = 0xA1;  /* listOfAccessResult [1] */
                 /* 3-byte length reservation (long-form capable) */
                 size_t rnvl_len_pos = rnvl_o;
@@ -3390,7 +3615,8 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
                 ret = mms_patch_list_length(&service_buf[rnvl_len_pos],
                                             rnvl_o - rnvl_vals_start);
                 if (ret < 0) return ret;
-                service_len = 1 + ret;
+                /* 3-byte [0] prefix + A1 tag + patched length + content */
+                service_len = 4 + ret;
             }
             break;
 
@@ -3893,101 +4119,224 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
             break;
 
         case MMS_SERVICE_READ:
-            /* Read can be either single value or named variable list */
-            /* Decode listOfAccessResult [1] IMPLICIT SEQUENCE */
-            if (offset < end && buffer[offset] == 0xA1) {
-                offset++;
-                size_t result_len;
-                ret = mms_decode_length(buffer + offset, buflen - offset, &result_len);
-                if (ret < 0) {
-                    return ret;
-                }
-                offset += ret;
-                if (!length_fits(offset, result_len, end)) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                size_t result_end = offset + result_len;
+            /* Read can be either single value or named variable list.
+             * WP-2y: the response itself carries the service context.
+             * A Read-Response for a named-variable-list read echoes
+             * the requested access specification before the result
+             * list — our server as specificationWithResult [0]
+             * BOOLEAN = TRUE (0x80, the form our client requests),
+             * the reference server as a constructed [0] (0xA0)
+             * variableAccessSpecification echo (wire-observed,
+             * WP-ms10-investigation follow-up). A plain
+             * single-variable Read-Response carries neither. This
+             * replaces the old value-count heuristic, which
+             * misclassified a 1-member list as a plain Read
+             * (-> ERR_MMS) and rejected an empty list as "unknown
+             * content". */
+            {
+                size_t read_end = offset + field_len;
+                bool spec_with_result = false;
+                bool have_list = false;
 
-                /* Walk the AccessResult elements. An element tagged
-                 * [0] (0x80) is a failure (IMPLICIT DataAccessError)
-                 * — valid MMS carried in-band (WP-1f, BUG-R2); any
-                 * other tag is a data value. */
-                uint32_t num_values = 0;
-                uint32_t num_failures = 0;
-                int32_t first_error = 0;
-                size_t temp_offset = offset;
-                while (temp_offset < result_end && num_values < MMS_MAX_NAMED_VARIABLES) {
-                    if (buffer[temp_offset] == 0x80) {
-                        /* failure [0] IMPLICIT INTEGER — data access error */
-                        size_t fail_len;
-                        int32_t fail_code = 0;
-                        temp_offset++;
-                        ret = mms_decode_length(buffer + temp_offset,
-                                                result_end - temp_offset, &fail_len);
+                /* Leading service-context elements. */
+                while (offset < read_end) {
+                    uint8_t lead_tag = buffer[offset];
+
+                    if (lead_tag == 0x80) {
+                        /* specificationWithResult [0] IMPLICIT
+                         * BOOLEAN (primitive). */
+                        size_t swr_len;
+                        offset++;
+                        ret = mms_decode_length(buffer + offset,
+                                                read_end - offset, &swr_len);
                         if (ret < 0) {
                             return ret;
                         }
-                        temp_offset += (size_t)ret;
-                        if (!length_fits(temp_offset, fail_len, result_end)) {
+                        offset += (size_t)ret;
+                        if (!length_fits(offset, swr_len, read_end)) {
                             return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
-                        if (fail_len < 1) {
-                            return MMS_ERROR_INVALID_ENCODING;
-                        }
-                        ret = decode_integer(buffer + temp_offset, fail_len, &fail_code);
+                        offset += swr_len;
+                        spec_with_result = true;
+                        continue;
+                    }
+
+                    if (lead_tag == 0xA0) {
+                        /* variableAccessSpecification echo, [0]
+                         * CONSTRUCTED (reference-server dialect): the
+                         * requested list name echoed before the
+                         * results. A leading constructed [0] cannot
+                         * occur in a plain Read-Response. */
+                        size_t vas_len;
+                        offset++;
+                        ret = mms_decode_length(buffer + offset,
+                                                read_end - offset, &vas_len);
                         if (ret < 0) {
                             return ret;
                         }
-                        temp_offset += fail_len;
-                        if (num_failures == 0) {
-                            first_error = fail_code;
+                        offset += (size_t)ret;
+                        if (!length_fits(offset, vas_len, read_end)) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
                         }
-                        num_failures++;
+                        offset += vas_len;
+                        spec_with_result = true;
                         continue;
                     }
-                    ret = mms_decode_value(buffer + temp_offset, result_end - temp_offset,
-                                         &response->params.readnamedvarlist.values[num_values]);
-                    if (ret < 0) {
-                        break;  /* Not a valid value, might be single value */
-                    }
-                    temp_offset += ret;
-                    num_values++;
+                    break;
                 }
 
-                /* Determine if it's a single Read or ReadNamedVariableList */
-                if (num_values == 0 && num_failures > 0) {
-                    /* Single-variable Read answered with a failure
-                     * AccessResult: a delivered (decoded) response
-                     * carrying the in-band failure (WP-1f, BUG-R2). */
-                    response->service = MMS_SERVICE_TYPE_READ;
-                    response->params.read.failure = true;
-                    response->params.read.access_error = first_error;
-                    offset = result_end;
-                } else if (num_values == 1 && num_failures == 0 &&
-                           temp_offset == result_end) {
-                    /* Single value - regular Read */
-                    response->service = MMS_SERVICE_TYPE_READ;
-                    response->params.read.value = response->params.readnamedvarlist.values[0];
-                    response->params.read.failure = false;
-                    response->params.read.access_error = 0;
-                    offset = temp_offset;
-                } else if (num_values > 0) {
-                    /* Multiple values - ReadNamedVariableList (a
-                     * member failure is recorded in-band, WP-1f) */
-                    response->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
-                    response->params.readnamedvarlist.num_values = num_values;
-                    response->params.readnamedvarlist.failure = (num_failures > 0);
-                    response->params.readnamedvarlist.access_error = first_error;
-                    offset = temp_offset;
-                } else {
-                    /* Failed to decode — unknown content */
-                    response->service = MMS_SERVICE_TYPE_READ;
-                    offset = result_end;
-                    return MMS_ERROR_SERVICE_ERROR;
+                /* Decode listOfAccessResult: [1] in our dialect and
+                 * the reference server's (BUG-R2 wire evidence),
+                 * [2] per the standard ASN.1. A [1] element that
+                 * decodes to no AccessResults while further elements
+                 * follow is the standard [1] variableAccessSpecification
+                 * echo — the result list comes after it (WP-2y). */
+                if ((offset < read_end) &&
+                    ((buffer[offset] == 0xA1) || (buffer[offset] == 0xA2))) {
+                    size_t list_start = offset;
+                    int echo_attempt;
+
+                    for (echo_attempt = 0; echo_attempt < 2; echo_attempt++) {
+                        offset = list_start;
+                        offset++;
+                        size_t result_len;
+                        ret = mms_decode_length(buffer + offset, buflen - offset, &result_len);
+                        if (ret < 0) {
+                            return ret;
+                        }
+                        offset += (size_t)ret;
+                        if (!length_fits(offset, result_len, read_end)) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
+                        size_t result_end = offset + result_len;
+
+                        /* Walk the AccessResult elements. An element tagged
+                         * [0] (0x80) is a failure (IMPLICIT DataAccessError)
+                         * — valid MMS carried in-band (WP-1f, BUG-R2); any
+                         * other tag is a data value. */
+                        uint32_t num_values = 0;
+                        uint32_t num_failures = 0;
+                        int32_t first_error = 0;
+                        size_t temp_offset = offset;
+                        while (temp_offset < result_end && num_values < MMS_MAX_NAMED_VARIABLES) {
+                            if (buffer[temp_offset] == 0x80) {
+                                /* failure [0] IMPLICIT INTEGER — data access error */
+                                size_t fail_len;
+                                int32_t fail_code = 0;
+                                temp_offset++;
+                                ret = mms_decode_length(buffer + temp_offset,
+                                                        result_end - temp_offset, &fail_len);
+                                if (ret < 0) {
+                                    return ret;
+                                }
+                                temp_offset += (size_t)ret;
+                                if (!length_fits(temp_offset, fail_len, result_end)) {
+                                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                                }
+                                if (fail_len < 1) {
+                                    return MMS_ERROR_INVALID_ENCODING;
+                                }
+                                ret = decode_integer(buffer + temp_offset, fail_len, &fail_code);
+                                if (ret < 0) {
+                                    return ret;
+                                }
+                                temp_offset += fail_len;
+                                if (num_failures == 0) {
+                                    first_error = fail_code;
+                                }
+                                num_failures++;
+                                continue;
+                            }
+                            ret = mms_decode_value(buffer + temp_offset, result_end - temp_offset,
+                                                 &response->params.readnamedvarlist.values[num_values]);
+                            if (ret < 0) {
+                                break;  /* Not a valid value, might be single value */
+                            }
+                            temp_offset += ret;
+                            num_values++;
+                        }
+
+                        if ((buffer[list_start] == 0xA1) &&
+                            (num_values == 0) && (num_failures == 0) &&
+                            (result_end < read_end) &&
+                            ((buffer[result_end] == 0xA1) ||
+                             (buffer[result_end] == 0xA2))) {
+                            /* The [1] element just walked was the
+                             * standard variableAccessSpecification
+                             * echo, not the access-result list (it
+                             * decoded to no AccessResults and more
+                             * elements follow); the listOfAccessResult
+                             * comes next. */
+                            list_start = result_end;
+                            spec_with_result = true;
+                            continue;
+                        }
+
+                        /* Determine if it's a single Read or
+                         * ReadNamedVariableList */
+                        if (spec_with_result) {
+                            /* Named-variable-list read (WP-2y): the
+                             * response echoes the requested access
+                             * specification. Any member count is valid
+                             * — including 0 (a legitimate empty
+                             * listOfAccessResult decodes to
+                             * num_values == 0 with success) and 1 (a
+                             * 1-member list is no longer mistaken for
+                             * a plain Read). */
+                            response->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+                            response->params.readnamedvarlist.num_values = num_values;
+                            response->params.readnamedvarlist.failure = (num_failures > 0);
+                            response->params.readnamedvarlist.access_error = first_error;
+                            offset = temp_offset;
+                        } else if (num_values == 0 && num_failures > 0) {
+                            /* Single-variable Read answered with a failure
+                             * AccessResult: a delivered (decoded) response
+                             * carrying the in-band failure (WP-1f, BUG-R2). */
+                            response->service = MMS_SERVICE_TYPE_READ;
+                            response->params.read.failure = true;
+                            response->params.read.access_error = first_error;
+                            offset = result_end;
+                        } else if (num_values == 1 && num_failures == 0 &&
+                                   temp_offset == result_end) {
+                            /* Single value - regular Read */
+                            response->service = MMS_SERVICE_TYPE_READ;
+                            response->params.read.value = response->params.readnamedvarlist.values[0];
+                            response->params.read.failure = false;
+                            response->params.read.access_error = 0;
+                            offset = temp_offset;
+                        } else if (num_values > 0) {
+                            /* Multiple values - ReadNamedVariableList (a
+                             * member failure is recorded in-band, WP-1f) */
+                            response->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+                            response->params.readnamedvarlist.num_values = num_values;
+                            response->params.readnamedvarlist.failure = (num_failures > 0);
+                            response->params.readnamedvarlist.access_error = first_error;
+                            offset = temp_offset;
+                        } else {
+                            /* Failed to decode — unknown content */
+                            response->service = MMS_SERVICE_TYPE_READ;
+                            offset = result_end;
+                            return MMS_ERROR_SERVICE_ERROR;
+                        }
+                        have_list = true;
+                        break;
+                    }
                 }
-            } else {
-                response->service = MMS_SERVICE_TYPE_READ;
-                offset += field_len;
+
+                if (!have_list) {
+                    if (spec_with_result) {
+                        /* Access-specification echo with no result
+                         * list: an empty named-variable-list read. */
+                        response->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+                        response->params.readnamedvarlist.num_values = 0;
+                        response->params.readnamedvarlist.failure = false;
+                        response->params.readnamedvarlist.access_error = 0;
+                        offset = read_end;
+                    } else {
+                        response->service = MMS_SERVICE_TYPE_READ;
+                        offset = read_end;
+                    }
+                }
             }
             break;
 
