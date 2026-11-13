@@ -35,7 +35,10 @@ import sys
 
 def run_tshark_json(pcap_file, decode_as):
     """Run tshark and return JSON-decoded packets."""
-    cmd = ["tshark", "-r", pcap_file, "-T", "json"]
+    # --no-duplicate-keys: repeated JSON keys (e.g. one
+    # mms.AccessResult per report member) are merged into arrays so
+    # no field is lost to dict-key collapsing.
+    cmd = ["tshark", "-r", pcap_file, "-T", "json", "--no-duplicate-keys"]
     for spec in decode_as:
         cmd += ["-d", spec]
     try:
@@ -165,10 +168,18 @@ DEFAULT_CHECKS = {
     "goose": ["eth.type=0x000088b8"],
     "sv": ["eth.type=0x000088ba"],
     "mms": ["tpkt.version=3"],
+    # WP-2z: the report bodies are conformant IEC 61850-7-2 reports —
+    # the VAS is the vmd-specific "RPT" marker and rptID/seqNum are
+    # dissected from listOfAccessResult (previously the non-conformant
+    # layout only exposed the rptID as a domainId and raised BER
+    # errors in tshark).
     "mms_report": [
         "tpkt.version=3",
-        "mms.domainId=R1",     # rptID carried in the report VAS
-        "mms.failure=2",       # Ed.2 rejection: in-band DataAccessError
+        "mms.vmd_specific=RPT",       # report VAS: vmd-specific "RPT"
+        "mms.iec61850.rptid=R1",      # rptID dissected from the report body
+        "mms.iec61850.rptid=B1",
+        "mms.iec61850.seqnum=1",      # sqNum dissected as an AccessResult
+        "mms.failure=2",              # Ed.2 rejection: in-band DataAccessError
     ],
     "mms_control_ed2": [
         "tpkt.version=3",
