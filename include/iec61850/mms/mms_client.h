@@ -4,6 +4,9 @@
  *
  * Blocking MMS client: connect to server, read/write variables,
  * get name lists, manage data sets.
+ *
+ * Thin wrapper over the async core (mms_client_core.h): each public
+ * operation submits a confirmed request and blocks in core wait().
  */
 
 #ifndef IEC61850_MMS_CLIENT_H
@@ -11,6 +14,7 @@
 
 #include "transport/iso_stack.h"
 #include "asn1/mms_ber.h"
+#include "mms/mms_client_core.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -39,6 +43,7 @@ typedef struct {
     uint32_t max_pdu_size;
     uint32_t invoke_id;
     int request_timeout_ms;
+    iec61850_mms_client_core_t core;  /* async core attached to iso */
 } iec61850_mms_client_t;
 
 /**
