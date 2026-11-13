@@ -166,6 +166,18 @@ static int process_request(iec61850_mms_session_t *session,
         }
 
         case MMS_SERVICE_TYPE_READ: {
+            /* SGCB bridge: SGCB attributes and SE (setting-group)
+             * values are served from the manager, not the store. */
+            if (session->sg_manager != NULL) {
+                int sg_ret = iec61850_sg_bridge_read(
+                    session->sg_manager,
+                    req->params.read.variable_spec.domain,
+                    req->params.read.variable_spec.item_id,
+                    &resp->params.read.value);
+                if (sg_ret == 0) {
+                    return 0;
+                }
+            }
             ds_ret = iec61850_mms_ds_read_variable(session->data_store,
                                                       req->params.read.variable_spec.domain,
                                                       req->params.read.variable_spec.item_id,
@@ -239,6 +251,29 @@ static int process_request(iec61850_mms_session_t *session,
                 }
             }
 
+            /* SGCB bridge: ActSG/EditSG selection and SE
+             * (setting-group) value writes are validated and
+             * committed by the manager; the live model is only
+             * touched on activation. */
+            if (session->sg_manager != NULL) {
+                int sg_ret = iec61850_sg_bridge_write(
+                    session->sg_manager,
+                    req->params.write.variable_spec.domain,
+                    req->params.write.variable_spec.item_id,
+                    &req->params.write.value,
+                    (void *)session);
+                if (sg_ret == 0) {
+                    return 0;   /* bridge committed the variable */
+                }
+                if (sg_ret != -ENOENT) {
+                    resp->params.write.failure = true;
+                    resp->params.write.access_error =
+                        (sg_ret == -EINVAL) ?
+                            (int32_t)MMS_DATAACCESS_TYPE_INCONSISTENT :
+                            (int32_t)MMS_DATAACCESS_TEMPORARILY_UNAVAILABLE;
+                    return 0;   /* Write-Response failure */
+                }
+            }
             ds_ret = iec61850_mms_ds_write_variable(session->data_store,
                                                        req->params.write.variable_spec.domain,
                                                        req->params.write.variable_spec.item_id,
@@ -844,6 +879,7 @@ static void *accept_thread(void *arg)
                 sess->journal = server->journal;
                 sess->rcb_regs = server->rcb_regs;   /* WP-2x (fixed before start) */
                 sess->rcb_reg_count = server->rcb_reg_count;
+                sess->sg_manager = server->sg_manager;
                 sess->max_pdu_size = server->config.max_pdu_size;
                 sess->invoke_id = 0;
                 sess->session_id = server->next_session_id; server->next_session_id++;
@@ -1014,4 +1050,19 @@ uint32_t iec61850_mms_server_get_session_count(
 {
     if (server == NULL) { return 0; }
     return atomic_load(&server->active_session_count);
+}
+
+int iec61850_mms_server_set_sg_manager(iec61850_mms_server_t *server,
+                                       iec61850_sg_manager_t *mgr)
+{
+    if ((server == NULL) || (mgr == NULL)) {
+        return -EINVAL;
+    }
+    /* Sessions copy the pointer at accept time; refuse while
+     * running so no session can miss the manager. */
+    if (atomic_load(&server->running)) {
+        return -EBUSY;
+    }
+    server->sg_manager = mgr;
+    return 0;
 }

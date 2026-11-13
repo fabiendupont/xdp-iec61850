@@ -134,6 +134,7 @@ if get_option('enable_mms')
         'src/mms/mms_client_rcb.c',
         'src/mms/mms_report.c',
         'src/mms/mms_control.c',
+        'src/mms/mms_setting_groups.c',
         'src/mms/mms_file_service.c',
         'src/mms/mms_journal.c',
         'src/transport/tcp_socket.c',

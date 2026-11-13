@@ -1063,3 +1063,13 @@ if get_option('enable_mms')
     test('long_duration', test_long_duration,
          suite: 'longrun', timeout: 600, is_parallel: false)
 endif
+
+# Setting groups (SGCB)
+test_setting_groups = executable('test_setting_groups',
+    'unit/test_setting_groups.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+
+test('setting_groups', test_setting_groups, suite: 'unit')

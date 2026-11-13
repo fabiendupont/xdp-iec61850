@@ -16,6 +16,7 @@
 #include "mms/mms_file_service.h"
 #include "mms/mms_journal.h"
 #include "mms/mms_report.h"
+#include "mms/mms_setting_groups.h"
 #include "transport/iso_stack.h"
 #include "asn1/mms_ber.h"
 
@@ -97,6 +98,7 @@ typedef struct iec61850_mms_session_s {
      * fixed before start; not owned). Empty when no manager is set. */
     iec61850_mms_server_rcb_reg_t *rcb_regs;
     uint32_t rcb_reg_count;
+    iec61850_sg_manager_t *sg_manager;   /* shared, not owned (optional) */
     uint32_t max_pdu_size;
     uint32_t invoke_id;
     uint32_t session_id;
@@ -118,6 +120,9 @@ typedef struct {
     iec61850_mms_server_rcb_reg_t
         rcb_regs[IEC61850_MMS_SERVER_MAX_RCB_MANAGERS];
     uint32_t rcb_reg_count;
+    /* SGCB (setting groups): wired into the Read/Write dispatch.
+     * Set before start; shared with every session. */
+    iec61850_sg_manager_t *sg_manager;
     iec61850_tcp_listener_t listener;
     pthread_t accept_thread;
     atomic_bool running;
@@ -199,6 +204,14 @@ uint32_t iec61850_mms_server_get_session_count(
  */
 int iec61850_mms_server_set_rcb_manager(iec61850_mms_server_t *server,
                                          iec61850_rcb_manager_t *mgr);
+
+/**
+ * Attach a setting-group manager (SGCB). Accepted only while the
+ * server is stopped. Sessions bridge SG/SE variable reads and
+ * writes through it before the data store.
+ */
+int iec61850_mms_server_set_sg_manager(iec61850_mms_server_t *server,
+                                       iec61850_sg_manager_t *mgr);
 
 /**
  * WP-2x: per-domain variant of iec61850_mms_server_set_rcb_manager()
