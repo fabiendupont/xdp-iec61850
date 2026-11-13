@@ -124,7 +124,12 @@ int iec61850_mms_client_core_submit(iec61850_mms_client_core_t *core,
 /**
  * Poll for PDU(s) and dispatch callbacks. Non-blocking when
  * timeout_ms == 0. Handles responses, error PDUs, and unsolicited
- * InformationReports.
+ * InformationReports. Each call processes at most one PDU (TPKT
+ * framing atomicity); callers loop to drain.
+ *
+ * A delivered pending entry remains in its slot (a "tombstone")
+ * until wait() reaps it or detach() drops it; submit() recycles
+ * tombstone slots.
  *
  * @return Number of events dispatched (>= 0), or negative errno.
  */
@@ -135,7 +140,7 @@ int iec61850_mms_client_core_poll(iec61850_mms_client_core_t *core,
  * Blocking convenience: poll until the given invoke_id has been
  * delivered or the timeout expires.
  * @return The delivery status of the pending entry (0 = PDU decoded),
- *         or -ETIMEDOUT.
+ *         or -ETIMEDOUT, or -EINVAL for an unknown/reaped invoke_id.
  */
 int iec61850_mms_client_core_wait(iec61850_mms_client_core_t *core,
                                    uint32_t invoke_id, int timeout_ms);
