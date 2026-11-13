@@ -2,7 +2,10 @@
 /*
  * MMS Client Implementation
  *
- * Blocking MMS client using ISO stack transport.
+ * Blocking MMS client: a thin wrapper over the async client core
+ * (mms_client_core.c). Every confirmed service encodes a request,
+ * submits it to the core, and blocks in core wait() until the
+ * response, error PDU, or a timeout is delivered.
  */
 
 
@@ -16,6 +19,7 @@ void iec61850_mms_client_init(iec61850_mms_client_t *client)
 
     (void)memset(client, 0, sizeof(*client));
     iec61850_iso_conn_init(&client->iso);
+    iec61850_mms_client_core_init(&client->core);
     client->connected = false;
     client->max_pdu_size = 65000;
     client->invoke_id = 0;
@@ -48,6 +52,12 @@ int iec61850_mms_client_connect(iec61850_mms_client_t *client,
         return IEC61850_MMS_CLIENT_ERR_CONNECT;
     }
 
+    ret = iec61850_mms_client_core_attach(&client->core, &client->iso);
+    if (ret != 0) {
+        (void)iec61850_iso_disconnect(&client->iso);
+        return IEC61850_MMS_CLIENT_ERR_CONNECT;
+    }
+
     client->connected = true;
     return IEC61850_MMS_CLIENT_OK;
 }
@@ -56,7 +66,10 @@ int iec61850_mms_client_disconnect(iec61850_mms_client_t *client)
 {
     if (client == NULL) { return IEC61850_MMS_CLIENT_ERR_ARGS; }
 
-    iec61850_iso_disconnect(&client->iso);
+    /* Cancel any outstanding core request before tearing down the
+     * association the pending entries point at. */
+    iec61850_mms_client_core_detach(&client->core);
+    (void)iec61850_iso_disconnect(&client->iso);
     client->connected = false;
     return IEC61850_MMS_CLIENT_OK;
 }
@@ -66,29 +79,107 @@ bool iec61850_mms_client_is_connected(const iec61850_mms_client_t *client)
     return (client != NULL) && (client->connected);
 }
 
-/* Send confirmed request and receive confirmed response */
+/* Map a core (negative errno) result to a client error code. */
+static int core_err_to_client(int err)
+{
+    switch (err) {
+    case 0:
+        return IEC61850_MMS_CLIENT_OK;
+    case -EINVAL:
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    case -ENOTCONN:
+        return IEC61850_MMS_CLIENT_ERR_NOT_CONNECTED;
+    case -EAGAIN:
+        return IEC61850_MMS_CLIENT_ERR_BUFFER;
+    case -ETIMEDOUT:
+        return IEC61850_MMS_CLIENT_ERR_TIMEOUT;
+    case -EBADMSG:
+        return IEC61850_MMS_CLIENT_ERR_DECODE;
+    default:
+        return IEC61850_MMS_CLIENT_ERR_TRANSPORT;
+    }
+}
+
+/* Context handed to the core delivery callback from transact(). */
+typedef struct {
+    mms_confirmed_response_t *resp;
+    bool got_response;
+    bool got_error;
+} transact_ctx_t;
+
+/* Core delivery callback: copies the decoded PDU into the transact()
+ * caller's response buffer before returning (the core's decode buffer
+ * is only valid for the duration of the callback). */
+static void transact_cb(int status,
+                         const mms_confirmed_response_t *response,
+                         const mms_confirmed_error_t *error,
+                         void *user_data)
+{
+    transact_ctx_t *ctx = (transact_ctx_t *)user_data;
+
+    if (status != 0) {
+        return; /* transport failure: transact maps it from wait() */
+    }
+    if (response != NULL) {
+        *ctx->resp = *response;
+        ctx->got_response = true;
+    } else if (error != NULL) {
+        ctx->got_error = true;
+    }
+}
+
+/* Silently drop a still-pending entry (no callback) so a timed-out
+ * transact() never leaves a callback pointing at dead stack memory. */
+static void core_cancel_pending(iec61850_mms_client_core_t *core,
+                                 uint32_t invoke_id)
+{
+    uint32_t i;
+
+    for (i = 0; i < (uint32_t)IEC61850_CLIENT_CORE_MAX_PENDING; i++) {
+        iec61850_mms_core_pending_t *entry = &core->pending[i];
+        if ((entry->in_use) && (!entry->delivered) &&
+            (entry->invoke_id == invoke_id)) {
+            entry->in_use = false;
+            entry->cb = NULL;
+        }
+    }
+}
+
+/* Send confirmed request and receive confirmed response via the core */
 static int transact(iec61850_mms_client_t *client,
                       const mms_confirmed_request_t *req,
                       mms_confirmed_response_t *resp)
 {
     uint8_t req_buf[4096];
-    uint8_t resp_buf[IEC61850_ISO_MAX_PDU];
-    size_t resp_len;
+    transact_ctx_t ctx;
     int ret;
 
     ret = mms_encode_confirmed_request(req, req_buf, sizeof(req_buf));
     if (ret <= 0) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
 
-    ret = iec61850_iso_send(&client->iso, req_buf, (size_t)ret);
-    if (ret < 0) { return IEC61850_MMS_CLIENT_ERR_TRANSPORT; }
+    (void)memset(&ctx, 0, sizeof(ctx));
+    ctx.resp = resp;
 
-    ret = iec61850_iso_recv(&client->iso, resp_buf, sizeof(resp_buf),
-                              &resp_len, client->request_timeout_ms);
-    if (ret != 0) { return IEC61850_MMS_CLIENT_ERR_TRANSPORT; }
+    ret = iec61850_mms_client_core_submit(&client->core, req_buf,
+                                            (size_t)ret, req->invoke_id,
+                                            transact_cb, &ctx);
+    if (ret != 0) { return core_err_to_client(ret); }
 
-    ret = mms_decode_confirmed_response(resp_buf, resp_len, resp);
-    if (ret < 0) {
-        return IEC61850_MMS_CLIENT_ERR_DECODE;
+    ret = iec61850_mms_client_core_wait(&client->core, req->invoke_id,
+                                          client->request_timeout_ms);
+    if (ret != 0) {
+        /* On timeout (or any abnormal end) the entry may still hold
+         * the transact_cb / &ctx pair; drop it before returning. */
+        core_cancel_pending(&client->core, req->invoke_id);
+        return core_err_to_client(ret);
+    }
+
+    if (ctx.got_error) {
+        /* ConfirmedError PDU: server rejected the service. */
+        return IEC61850_MMS_CLIENT_ERR_MMS;
+    }
+    if (!ctx.got_response) {
+        return IEC61850_MMS_CLIENT_ERR_MMS;
     }
 
     return IEC61850_MMS_CLIENT_OK;
