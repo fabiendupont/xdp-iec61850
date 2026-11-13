@@ -138,6 +138,8 @@ if get_option('enable_mms')
         'src/mms/mms_file_service.c',
         'src/mms/mms_journal.c',
         'src/transport/tcp_socket.c',
+        'src/transport/ptp_message.c',
+        'src/transport/ptp_slave.c',
         'src/transport/iso_stack.c',
         'src/scl/scl_parser.c',
         'src/scl/scl_ied_builder.c',

@@ -1073,3 +1073,13 @@ test_setting_groups = executable('test_setting_groups',
 )
 
 test('setting_groups', test_setting_groups, suite: 'unit')
+
+# PTP (message codec + slave state machine)
+test_ptp = executable('test_ptp',
+    'unit/test_ptp.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+
+test('ptp', test_ptp, suite: 'unit')
