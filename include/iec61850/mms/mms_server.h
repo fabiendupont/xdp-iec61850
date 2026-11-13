@@ -37,9 +37,15 @@ extern "C" {
  * device each; see iec61850_mms_server_set_rcb_manager). */
 #define IEC61850_MMS_SERVER_MAX_RCB_MANAGERS 4
 
+/* WP-2w: per-control-object bridge state budget — one entry per
+ * control object registered in the wired manager (bounded by the
+ * manager's own IEC61850_CONTROL_MAX_OBJECTS). */
+#define IEC61850_MMS_SERVER_MAX_CONTROL_REGS IEC61850_CONTROL_MAX_OBJECTS
+
 /* Server configuration */
 /* Forward declaration for use in callback typedef */
 struct iec61850_mms_session_s;
+struct iec61850_mms_server_s;
 
 /* Callback invoked after the server sends each confirmed response, while the
  * session is still active. Use to send unsolicited PDUs (e.g. InformationReport)
@@ -84,12 +90,35 @@ typedef struct iec61850_mms_server_rcb_reg_s {
     char domain[MMS_MAX_DOMAIN_NAME];
 } iec61850_mms_server_rcb_reg_t;
 
+/* WP-2w: one control-object bridge registration. Snapshotted from
+ * the wired iec61850_control_manager_t (public manager struct) while
+ * the server is stopped; carries the bridge's per-object wire state.
+ *
+ * The mutable fields (selection_id, owner_session, oper_echo) are
+ * guarded by the server's control_bridge_mutex: writes happen from
+ * the owning session's request path, reads from the command-
+ * termination callback which may run on any session thread that
+ * drives iec61850_control_process(). */
+typedef struct iec61850_mms_control_reg_s {
+    char domain[MMS_MAX_DOMAIN_NAME];
+    char item_id[MMS_MAX_VARIABLE_NAME];  /* "<LN>$CO$<DO>" */
+    uint32_t selection_id;                /* selection issued by this bridge */
+    void *owner_session;                  /* session owning the selection */
+    uint8_t oper_echo[MMS_MAX_STRING_LENGTH]; /* last accepted Oper body */
+    size_t oper_echo_len;
+    /* Application termination callback chained after the bridge's
+     * CommandTermination PDU send (captured at wiring time). */
+    iec61850_control_termination_cb_t app_termination_cb;
+    void *app_termination_user_data;
+} iec61850_mms_control_reg_t;
+
 /* Per-session state */
 typedef struct iec61850_mms_session_s {
     iec61850_iso_conn_t iso;
     pthread_t thread;
     atomic_bool active;
     atomic_bool stop_requested;
+    struct iec61850_mms_server_s *server;       /* owning server (WP-2w) */
     iec61850_mms_data_store_t *data_store;  /* shared, not owned */
     iec61850_control_manager_t *control_manager;  /* shared, not owned */
     iec61850_mms_file_service_t *file_service;    /* shared, not owned */
@@ -99,6 +128,11 @@ typedef struct iec61850_mms_session_s {
     iec61850_mms_server_rcb_reg_t *rcb_regs;
     uint32_t rcb_reg_count;
     iec61850_sg_manager_t *sg_manager;   /* shared, not owned (optional) */
+    /* WP-2w: control-object bridge registrations (array shared with
+     * the server, fixed before start; not owned). Empty when no
+     * control manager is wired through the bridge API. */
+    iec61850_mms_control_reg_t *control_regs;
+    uint32_t control_reg_count;
     uint32_t max_pdu_size;
     uint32_t invoke_id;
     uint32_t session_id;
@@ -107,7 +141,7 @@ typedef struct iec61850_mms_session_s {
 } iec61850_mms_session_t;
 
 /* MMS Server */
-typedef struct {
+typedef struct iec61850_mms_server_s {
     iec61850_mms_server_config_t config;
     iec61850_mms_data_store_t *data_store;  /* shared, not owned */
     iec61850_control_manager_t *control_manager;  /* shared, not owned (optional) */
@@ -123,6 +157,18 @@ typedef struct {
     /* SGCB (setting groups): wired into the Read/Write dispatch.
      * Set before start; shared with every session. */
     iec61850_sg_manager_t *sg_manager;
+    /* WP-2w: control-object bridge — the per-object wire state of the
+     * control manager wired via iec61850_mms_server_set_control_
+     * manager(). The registration table is snapshotted while the
+     * server is stopped; the mutex guards the mutable fields across
+     * session threads (see iec61850_mms_control_reg_t). It is never
+     * destroyed: the server type has no destroy API and the mutex
+     * holds no allocation (same lifetime pattern as the session
+     * resources released by server_stop()). */
+    iec61850_mms_control_reg_t
+        control_regs[IEC61850_MMS_SERVER_MAX_CONTROL_REGS];
+    uint32_t control_reg_count;
+    pthread_mutex_t control_bridge_mutex;
     iec61850_tcp_listener_t listener;
     pthread_t accept_thread;
     atomic_bool running;
@@ -228,6 +274,58 @@ int iec61850_mms_server_set_sg_manager(iec61850_mms_server_t *server,
 int iec61850_mms_server_set_rcb_manager_domain(
     iec61850_mms_server_t *server, iec61850_rcb_manager_t *mgr,
     const char *domain);
+
+/**
+ * WP-2w: wire a control manager into the server as IEC 61850-8-1
+ * Ed.2 control objects (the CO-object wire mapping).
+ *
+ * The manager's registered control objects (domain +
+ * "<LN>$CO$<DO>" item references) are exposed at server start as
+ * data-store named variables and dispatched by the bridge:
+ *
+ *   - Write of TRUE / of the Oper structure to
+ *     "<LN>$CO$<DO>$SBO" (or the structure to "$SBOw") performs a
+ *     select with the writing session as owner
+ *     (iec61850_control_select / _select_with_value);
+ *   - Read of "<LN>$CO$<DO>$SBO" also performs a select (the
+ *     8-1 sbo-with-normal-security form observed from conformant
+ *     clients) and answers with the selected object reference
+ *     "<domain>/<LN>$CO$<DO>" as a VisibleString; a rejected select
+ *     answers with an in-band DataAccessError;
+ *   - Write of the Oper structure to "<LN>$CO$<DO>$Oper" performs
+ *     the operate (iec61850_control_operate_ed2, operTm honored when
+ *     the structure carries it);
+ *   - Write to "<LN>$CO$<DO>$Cancel" cancels the outstanding
+ *     selection / time-activated operate;
+ *   - "<LN>$CO$<DO>$ctlModel", "$sboTimeout" and "$OperTm" (plus
+ *     the 7-2 configuration-attribute spellings
+ *     "<LN>$CF$<DO>$ctlModel" / "$sboTimeout") are readable and
+ *     serve the configured values.
+ *
+ * Command termination is wired: the bridge installs a termination
+ * callback on every bridged object and sends the Ed.2
+ * CommandTermination as an unsolicited MMS InformationReport on the
+ * "<LN>$CO$<DO>$Oper" object (the 8-1 mapping) to the owning
+ * association. A termination callback the application installed
+ * before this call is chained after the PDU send; one installed
+ * afterwards replaces the bridge's (no CommandTermination PDU).
+ *
+ * The session loop's recv-timeout tick and post-response hook run
+ * iec61850_control_process() (selection timeout cleanup, operTm
+ * firing) while a bridge registration exists.
+ *
+ * The house-encoded ISO 9506-2-style Select/Operate/Cancel confirmed
+ * services (server->control_manager set directly) keep working
+ * unchanged; wiring through this API adds the object mapping on top.
+ *
+ * @param server  Server (must be stopped)
+ * @param mgr     Control manager (must outlive the server; not owned)
+ * @return 0 on success, -EINVAL on bad arguments, -EBUSY while the
+ *         server is running, -ENOSPC when the registration table is
+ *         full.
+ */
+int iec61850_mms_server_set_control_manager(
+    iec61850_mms_server_t *server, iec61850_control_manager_t *mgr);
 
 #ifdef __cplusplus
 }

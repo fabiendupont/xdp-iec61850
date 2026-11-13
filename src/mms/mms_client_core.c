@@ -37,6 +37,7 @@
  */
 
 #include "mms/mms_client_core.h"
+#include "mms/mms_client.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -159,6 +160,8 @@ static int64_t now_ms(void)
 
 /* Decode one received MMS PDU and dispatch it. Returns the number of
  * callbacks dispatched (0 or 1) or a negative errno. */
+static int ct_try_deliver(const uint8_t *pdu, size_t pdu_len);
+
 static int dispatch_pdu(iec61850_mms_client_core_t *core,
                          const uint8_t *pdu, size_t pdu_len)
 {
@@ -216,27 +219,309 @@ static int dispatch_pdu(iec61850_mms_client_core_t *core,
     case MMS_TAG_UNCONFIRMED: {
         mms_information_report_t report;
 
-        if (core->report_cb == NULL) {
-            return 0; /* no handler: report discarded */
-        }
-        (void)memset(&report, 0, sizeof(report));
-        if (mms_decode_information_report(pdu, pdu_len, &report) < 0) {
-            /* Fall back to the full IEC 61850-7-2 report format
-             * (mms_encode_iec61850_report wire format): the generic
-             * decoder rejects its different listOfAccessResult tag. */
+        if (core->report_cb != NULL) {
             (void)memset(&report, 0, sizeof(report));
-            if (mms_decode_iec61850_report(pdu, pdu_len, &report) < 0) {
-                return -EBADMSG;
+            if (mms_decode_information_report(pdu, pdu_len, &report) < 0) {
+                /* Fall back to the full IEC 61850-7-2 report format
+                 * (mms_encode_iec61850_report wire format): the generic
+                 * decoder rejects its different listOfAccessResult tag. */
+                (void)memset(&report, 0, sizeof(report));
+                if (mms_decode_iec61850_report(pdu, pdu_len, &report) < 0) {
+                    /* WP-2w: neither report decoder matches — the PDU
+                     * may be an IEC 61850-8-1 CommandTermination (an
+                     * InformationReport on the operated "$Oper" object
+                     * whose listOfAccessResult is tagged [0]). */
+                    if (ct_try_deliver(pdu, pdu_len) == 1) {
+                        return 1;
+                    }
+                    return -EBADMSG;
+                }
             }
+            core->report_cb(&report, core->report_user_data);
+            return 1;
         }
-        core->report_cb(&report, core->report_user_data);
-        return 1;
+
+        /* No report handler: a CommandTermination still delivers
+         * (WP-2w); anything else is discarded as before. */
+        return (ct_try_deliver(pdu, pdu_len) == 1) ? 1 : 0;
     }
 
     default:
         /* Reject, conclude, initiate... not handled by the core. */
         return 0;
     }
+}
+
+/* ========================================================================
+ * WP-2w: unsolicited CommandTermination dispatch
+ * ======================================================================== */
+
+/* Process-global delivery hook (the core header is a frozen
+ * interface, so the hook lives in the implementation and is declared
+ * in mms_client.h). See the limitation note on
+ * iec61850_mms_client_set_command_termination_handler(). */
+static iec61850_mms_client_command_termination_cb_t g_ct_cb;
+static void *g_ct_user_data;
+
+void iec61850_mms_client_core_set_command_termination_handler(
+    iec61850_mms_client_command_termination_cb_t cb, void *user_data)
+{
+    g_ct_cb = cb;
+    g_ct_user_data = user_data;
+}
+
+/* Read one BER TLV header (bounded; long-form lengths up to 4). */
+static int ct_read_tlv(const uint8_t *buf, size_t len, size_t *pos,
+                        uint8_t *tag, const uint8_t **content,
+                        size_t *content_len)
+{
+    size_t p = *pos;
+    size_t vlen = 0U;
+    uint8_t b;
+    uint32_t i;
+
+    if ((p + 2U) > len) { return -EINVAL; }
+    *tag = buf[p++];
+    b = buf[p++];
+    if ((b & 0x80U) == 0U) {
+        vlen = b;
+    } else {
+        uint32_t n = (uint32_t)(b & 0x7FU);
+
+        if ((n == 0U) || (n > 4U) || ((p + n) > len)) { return -EINVAL; }
+        for (i = 0U; i < n; i++) {
+            vlen = (vlen << 8) | (uint32_t)buf[p++];
+        }
+    }
+    if ((p + vlen) > len) { return -EINVAL; }
+    *content = &buf[p];
+    *content_len = vlen;
+    *pos = p + vlen;
+    return 0;
+}
+
+static uint64_t ct_be_uint(const uint8_t *b, size_t len)
+{
+    uint64_t v = 0U;
+    size_t i;
+
+    for (i = 0U; i < len; i++) {
+        v = (v << 8) | (uint64_t)b[i];
+    }
+    return v;
+}
+
+/* IEC 61850-8-1 UTC-Time (4-byte seconds + 3-byte binary fraction +
+ * 1-byte time quality) to UTC milliseconds. */
+static uint64_t ct_utc_time_ms(const uint8_t *b)
+{
+    uint64_t sec = ct_be_uint(b, 4U);
+    uint32_t frac = (uint32_t)ct_be_uint(b + 4, 3U);
+
+    return (sec * 1000ULL) + (((uint64_t)frac * 1000ULL) / 16777216ULL);
+}
+
+/*
+ * Parse the IEC 61850-8-1 CommandTermination PDU: an unconfirmed-PDU
+ * [3] wrapping an informationReport [0] on the operated "$Oper"
+ * object whose single AccessResult echoes the Oper structure. Both
+ * variableAccessSpecification CHOICE spellings seen on the wire
+ * (listOfVariable [0] and variableListName [1]) are accepted.
+ */
+static int ct_parse(const uint8_t *pdu, size_t pdu_len,
+                     iec61850_mms_client_command_termination_t *out)
+{
+    const uint8_t *content;
+    const uint8_t *vas;
+    const uint8_t *vas_body;
+    const uint8_t *echo;
+    size_t content_len;
+    size_t vas_len;
+    size_t vas_body_len;
+    size_t echo_len;
+    size_t pos = 0U;
+    size_t rpos = 0U;
+    uint8_t tag;
+
+    (void)memset(out, 0, sizeof(*out));
+
+    if ((pdu == NULL) || (pdu_len < 2U)) { return -EINVAL; }
+
+    /* unconfirmed-PDU [3] { informationReport [0] } */
+    if (ct_read_tlv(pdu, pdu_len, &pos, &tag, &content, &content_len) != 0) {
+        return -EINVAL;
+    }
+    if (tag != (uint8_t)MMS_TAG_UNCONFIRMED) { return -EINVAL; }
+
+    /* informationReport [0] { VAS, listOfAccessResult } — remember
+     * where the results start (rpos) before parsing the VAS. */
+    pos = 0U;
+    if (ct_read_tlv(content, content_len, &rpos, &tag, &vas,
+                    &vas_len) != 0) {
+        return -EINVAL;
+    }
+    if (tag != 0xA0U) { return -EINVAL; }   /* informationReport [0] */
+    if (ct_read_tlv(vas, vas_len, &pos, &tag, &vas_body,
+                    &vas_body_len) != 0) {
+        return -EINVAL;
+    }
+    /* pos = offset just past the VAS TLV (start of the results) */
+
+    /* variableAccessSpecification -> domain-specific name */
+    {
+        const uint8_t *ds = vas_body;
+        size_t ds_len = vas_body_len;
+        const uint8_t *dom;
+        size_t dom_len;
+        const uint8_t *item;
+        size_t item_len;
+        size_t dpos = 0U;
+
+        if (tag == 0xA0U) {
+            /* listOfVariable [0] { SEQUENCE { name [0] { ... } } } */
+            if (ct_read_tlv(ds, ds_len, &dpos, &tag, &ds,
+                            &ds_len) != 0) {
+                return -EINVAL;
+            }
+            if (tag != 0x30U) { return -EINVAL; }
+            dpos = 0U;
+            if (ct_read_tlv(ds, ds_len, &dpos, &tag, &ds, &ds_len) != 0) {
+                return -EINVAL;
+            }
+            if (tag != 0xA0U) { return -EINVAL; }
+            dpos = 0U;
+            if (ct_read_tlv(ds, ds_len, &dpos, &tag, &ds, &ds_len) != 0) {
+                return -EINVAL;
+            }
+            if (tag != 0xA1U) { return -EINVAL; }
+        } else if (tag == 0xA1U) {
+            /* variableListName [1] { domain-specific [1] { ... } } */
+            dpos = 0U;
+            if (ct_read_tlv(ds, ds_len, &dpos, &tag, &ds, &ds_len) != 0) {
+                return -EINVAL;
+            }
+            if (tag != 0xA1U) { return -EINVAL; }
+        } else {
+            return -EINVAL;
+        }
+
+        dpos = 0U;
+        if (ct_read_tlv(ds, ds_len, &dpos, &tag, &dom, &dom_len) != 0) {
+            return -EINVAL;
+        }
+        if ((tag != 0x1AU) || (dom_len >= MMS_MAX_DOMAIN_NAME)) {
+            return -EINVAL;
+        }
+        (void)memcpy(out->domain, dom, dom_len);
+        if (ct_read_tlv(ds, ds_len, &dpos, &tag, &item, &item_len) != 0) {
+            return -EINVAL;
+        }
+        if ((tag != 0x1AU) || (item_len >= MMS_MAX_VARIABLE_NAME)) {
+            return -EINVAL;
+        }
+        (void)memcpy(out->item_id, item, item_len);
+    }
+
+    /* listOfAccessResult [0] { AccessResult: structure (the echoed
+     * Oper) } — parsed positionally like cw_parse_oper() on the
+     * server side. */
+    if (ct_read_tlv(vas, vas_len, &pos, &tag, &echo, &echo_len) != 0) {
+        return -EINVAL;
+    }
+    if (tag != 0xA0U) { return -EINVAL; }
+    pos = 0U;
+    if (ct_read_tlv(echo, echo_len, &pos, &tag, &content,
+                    &content_len) != 0) {
+        return -EINVAL;
+    }
+    if (tag != (uint8_t)MMS_DATA_STRUCTURE) { return -EINVAL; }
+
+    {
+        const uint8_t *body = content;
+        size_t body_len = content_len;
+        size_t bpos = 0U;
+
+        /* ctlVal */
+        if (ct_read_tlv(body, body_len, &bpos, &tag, &content,
+                        &content_len) != 0) {
+            return -EINVAL;
+        }
+        if (tag == (uint8_t)MMS_DATA_BOOLEAN) {
+            out->ctl_val = (content_len > 0U) && (content[0] != 0U);
+        } else if (tag == (uint8_t)MMS_DATA_BIT_STRING) {
+            out->ctl_val = (content_len > 1U) && (content[1] != 0U);
+        } else {
+            return -EINVAL;
+        }
+
+        /* operTm (time-activated form) or origin */
+        if (ct_read_tlv(body, body_len, &bpos, &tag, &content,
+                        &content_len) != 0) {
+            return -EINVAL;
+        }
+        if (tag == (uint8_t)MMS_DATA_UTC_TIME) {
+            if (ct_read_tlv(body, body_len, &bpos, &tag, &content,
+                            &content_len) != 0) {
+                return -EINVAL;
+            }
+        }
+        if (tag == (uint8_t)MMS_DATA_STRUCTURE) {
+            const uint8_t *org = content;
+            size_t org_len = content_len;
+            size_t opos = 0U;
+
+            if (ct_read_tlv(org, org_len, &opos, &tag, &content,
+                            &content_len) == 0) {
+                if (tag == (uint8_t)MMS_DATA_INTEGER) {
+                    out->origin_cat = (content_len > 0U)
+                                          ? (int32_t)content[content_len - 1U]
+                                          : 0;
+                }
+            }
+            if (ct_read_tlv(org, org_len, &opos, &tag, &content,
+                            &content_len) == 0) {
+                if ((tag == (uint8_t)MMS_DATA_OCTET_STRING) &&
+                    (content_len <= sizeof(out->origin_ident))) {
+                    if (content_len > 0U) {
+                        (void)memcpy(out->origin_ident, content,
+                                     content_len);
+                    }
+                    out->origin_ident_len = content_len;
+                }
+            }
+        }
+
+        /* ctlNum, T (both optional in a degraded echo) */
+        if (ct_read_tlv(body, body_len, &bpos, &tag, &content,
+                        &content_len) == 0) {
+            if (tag == (uint8_t)MMS_DATA_UNSIGNED) {
+                out->ctl_num = (uint32_t)ct_be_uint(content, content_len);
+            }
+            if (ct_read_tlv(body, body_len, &bpos, &tag, &content,
+                            &content_len) == 0) {
+                if ((tag == (uint8_t)MMS_DATA_UTC_TIME) &&
+                    (content_len == 8U)) {
+                    out->timestamp_ms = ct_utc_time_ms(content);
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+/*
+ * WP-2w: try delivering an unconfirmed PDU as a CommandTermination.
+ * Returns 1 when delivered to the hook, 0 when no hook is installed
+ * or the PDU does not parse as one.
+ */
+static int ct_try_deliver(const uint8_t *pdu, size_t pdu_len)
+{
+    iec61850_mms_client_command_termination_t ct;
+
+    if (g_ct_cb == NULL) { return 0; }
+    if (ct_parse(pdu, pdu_len, &ct) != 0) { return 0; }
+    g_ct_cb(&ct, g_ct_user_data);
+    return 1;
 }
 
 /* ========================================================================

@@ -11,10 +11,14 @@
  */
 
 #include "mms/mms_control.h"
+#include "mms/mms_client.h"
+#include "mms/mms_data_store.h"
+#include "mms/mms_server.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -1170,6 +1174,384 @@ static void test_ed2_api_edges(void)
     PASS();
 }
 
+/* ========================================================================
+ * WP-2w: control-object bridge closed loop (IEC 61850-8-1 Ed.2)
+ *
+ * Drives the server bridge through the real MMS client stack: the
+ * CO-object helpers (select/operate/cancel as Reads/Writes on
+ * "<LN>$CO$<DO>$SBO"/"$Oper"/"$Cancel"), the readable control-model
+ * attributes, strict-class rejection, the operTm time-activated flow
+ * and the CommandTermination received as an unsolicited PDU.
+ * ======================================================================== */
+
+#define CWB_PORT 10941
+#define CWB_LD   "LDW"
+#define CWB_STRICT  "XCBR1$CO$Pos"   /* strict: select -> operate */
+#define CWB_STRICT2 "CSWI1$CO$Pos"   /* strict: rejection/cancel target */
+#define CWB_DYNAMIC "GGIO3$CO$Pos"   /* dynamic: bare operate accepted */
+
+static iec61850_mms_data_store_t cwb_ds;
+static iec61850_control_manager_t cwb_mgr;
+static iec61850_mms_server_t cwb_srv;
+static bool cwb_up = false;
+
+static int cwb_action_count;
+static int cwb_app_term_count;
+
+static int cwb_on_action(const char *domain, const char *item_id,
+                          const mms_value_t *value, void *user_data)
+{
+    (void)domain; (void)item_id; (void)value; (void)user_data;
+    cwb_action_count++;
+    return 0;
+}
+
+static void cwb_on_app_termination(const char *domain,
+                                    const char *item_id,
+                                    uint32_t selection_id, bool success,
+                                    iec61850_control_addcause_t addcause,
+                                    uint64_t timestamp_ms, void *user_data)
+{
+    (void)domain; (void)item_id; (void)selection_id; (void)success;
+    (void)addcause; (void)timestamp_ms; (void)user_data;
+    cwb_app_term_count++;
+}
+
+static int cwb_ct_count;
+static iec61850_mms_client_command_termination_t cwb_last_ct;
+
+static void cwb_on_ct(
+    const iec61850_mms_client_command_termination_t *termination,
+    void *user_data)
+{
+    (void)user_data;
+    cwb_ct_count++;
+    cwb_last_ct = *termination;
+}
+
+static void cwb_setup(void)
+{
+    iec61850_mms_server_config_t cfg;
+    iec61850_control_config_t strict;
+    iec61850_control_config_t dynamic;
+    mms_value_t v;
+
+    iec61850_mms_ds_init(&cwb_ds);
+    (void)iec61850_mms_ds_create_domain(&cwb_ds, CWB_LD);
+    (void)memset(&v, 0, sizeof(v));
+    v.type = MMS_TYPE_BOOLEAN;
+    v.value.boolean = false;
+    (void)iec61850_mms_ds_create_variable(&cwb_ds, CWB_LD,
+                                           "XCBR1$ST$Pos$stVal",
+                                           MMS_TYPE_BOOLEAN, &v);
+
+    iec61850_control_manager_init(&cwb_mgr);
+    ASSERT_EQ(iec61850_control_register(&cwb_mgr, CWB_LD, CWB_STRICT), 0);
+    ASSERT_EQ(iec61850_control_register(&cwb_mgr, CWB_LD, CWB_STRICT2), 0);
+    ASSERT_EQ(iec61850_control_register(&cwb_mgr, CWB_LD, CWB_DYNAMIC), 0);
+
+    (void)memset(&strict, 0, sizeof(strict));
+    strict.sbo_class = IEC61850_CONTROL_SBO_CLASS_STRICT;
+    ASSERT_EQ(iec61850_control_configure(&cwb_mgr, CWB_LD, CWB_STRICT,
+                                          &strict), 0);
+    ASSERT_EQ(iec61850_control_configure(&cwb_mgr, CWB_LD, CWB_STRICT2,
+                                          &strict), 0);
+    (void)memset(&dynamic, 0, sizeof(dynamic));
+    dynamic.sbo_class = IEC61850_CONTROL_SBO_CLASS_DYNAMIC;
+    ASSERT_EQ(iec61850_control_configure(&cwb_mgr, CWB_LD, CWB_DYNAMIC,
+                                          &dynamic), 0);
+
+    ASSERT_EQ(iec61850_control_set_action_callback(&cwb_mgr, CWB_LD,
+                                                    CWB_STRICT,
+                                                    cwb_on_action, NULL), 0);
+    ASSERT_EQ(iec61850_control_set_action_callback(&cwb_mgr, CWB_LD,
+                                                    CWB_STRICT2,
+                                                    cwb_on_action, NULL), 0);
+    ASSERT_EQ(iec61850_control_set_action_callback(&cwb_mgr, CWB_LD,
+                                                    CWB_DYNAMIC,
+                                                    cwb_on_action, NULL), 0);
+    /* Installed BEFORE the bridge wiring: the bridge must chain it. */
+    ASSERT_EQ(iec61850_control_set_termination_callback(&cwb_mgr, CWB_LD,
+                                                          CWB_STRICT,
+                                                          cwb_on_app_termination,
+                                                          NULL), 0);
+
+    iec61850_mms_server_config_init(&cfg);
+    cfg.port = CWB_PORT;
+    iec61850_mms_server_init(&cwb_srv, &cfg, &cwb_ds);
+    ASSERT_EQ(iec61850_mms_server_set_control_manager(&cwb_srv, &cwb_mgr),
+              0);
+    ASSERT_EQ(iec61850_mms_server_start(&cwb_srv),
+              (int)IEC61850_MMS_SERVER_OK);
+    cwb_up = true;
+    usleep(200000);
+}
+
+static void cwb_teardown(void)
+{
+    if (cwb_up) {
+        (void)iec61850_mms_server_stop(&cwb_srv);
+        cwb_up = false;
+    }
+    iec61850_control_manager_destroy(&cwb_mgr);
+    iec61850_mms_ds_destroy(&cwb_ds);
+}
+
+static void test_bridge_ctl_model_attributes(void)
+{
+    TEST("bridge_ctl_model_attributes (CW-01)");
+    iec61850_mms_client_t client;
+    int32_t ctl_model = -1;
+    uint32_t sbo_timeout = 0U;
+    mms_variable_access_attrs_t attrs;
+
+    iec61850_mms_client_init(&client);
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+                                           5000),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* ctlModel: strict object maps to sbo-with-normal-security (2),
+     * dynamic to direct-with-normal-security (1); both the CF (7-2)
+     * and CO spellings serve it. */
+    ASSERT_EQ(iec61850_mms_client_read_ctl_model(&client, CWB_LD,
+                                                  CWB_STRICT, &ctl_model),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(ctl_model, 2);
+    ASSERT_EQ(iec61850_mms_client_read_ctl_model(&client, CWB_LD,
+                                                  CWB_DYNAMIC, &ctl_model),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(ctl_model, 1);
+    ASSERT_EQ(iec61850_mms_client_read_sbo_timeout(&client, CWB_LD,
+                                                    CWB_STRICT,
+                                                    &sbo_timeout),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(sbo_timeout, (uint32_t)IEC61850_CONTROL_DEFAULT_TIMEOUT_MS);
+
+    /* The control object itself answers GetVariableAccessAttributes
+     * as a structure of its components. */
+    ASSERT_EQ(iec61850_mms_client_get_var_attrs(&client, CWB_LD, CWB_STRICT,
+                                                 &attrs),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_TRUE(attrs.type == MMS_TYPE_STRUCTURE);
+
+    (void)iec61850_mms_client_disconnect(&client);
+    PASS();
+}
+
+static void test_bridge_select_operate_ct(void)
+{
+    TEST("bridge_select_operate_command_termination (CW-02)");
+    iec61850_mms_client_t client;
+    iec61850_mms_client_operate_params_t params;
+
+    cwb_action_count = 0;
+    cwb_app_term_count = 0;
+    cwb_ct_count = 0;
+
+    iec61850_mms_client_init(&client);
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+                                           5000),
+              (int)IEC61850_MMS_CLIENT_OK);
+    iec61850_mms_client_set_command_termination_handler(&client, cwb_on_ct,
+                                                          NULL);
+
+    /* Select (8-1 sbo-with-normal-security: Read of $SBO). */
+    ASSERT_EQ(iec61850_mms_client_select(&client, CWB_LD, CWB_STRICT),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* Operate (Write of the Oper structure to $Oper). */
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    params.origin_cat = 1;   /* bay-level */
+    params.origin_ident = "cwb-client";
+    params.ctl_num = 7U;
+    ASSERT_EQ(iec61850_mms_client_operate(&client, CWB_LD, CWB_STRICT,
+                                           &params),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* The command executed and terminated: action ran, the chained
+     * application callback fired and the CommandTermination arrived
+     * as an unsolicited PDU (dispatched during the operate's wait or
+     * on the first poll). */
+    for (int i = 0; (i < 20) && (cwb_ct_count == 0); i++) {
+        (void)iec61850_mms_client_poll(&client, 200);
+    }
+    ASSERT_EQ(cwb_action_count, 1);
+    ASSERT_EQ(cwb_app_term_count, 1);
+    ASSERT_EQ(cwb_ct_count, 1);
+    ASSERT_TRUE(strcmp(cwb_last_ct.domain, CWB_LD) == 0);
+    ASSERT_TRUE(strcmp(cwb_last_ct.item_id, "XCBR1$CO$Pos$Oper") == 0);
+    ASSERT_TRUE(cwb_last_ct.ctl_val);
+    ASSERT_EQ((int)cwb_last_ct.origin_cat, 1);
+    ASSERT_EQ(cwb_last_ct.ctl_num, 7U);
+    ASSERT_TRUE(cwb_last_ct.timestamp_ms > 0ULL);
+
+    (void)iec61850_mms_client_disconnect(&client);
+    PASS();
+}
+
+static void test_bridge_strict_rejection(void)
+{
+    TEST("bridge_strict_rejects_bare_operate (CW-03)");
+    iec61850_mms_client_t client;
+    iec61850_mms_client_operate_params_t params;
+    iec61850_control_addcause_t addcause = IEC61850_ADDCAUSE_UNKNOWN;
+
+    cwb_action_count = 0;
+    iec61850_mms_client_init(&client);
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+                                           5000),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* Operate without a prior select on a strict object: rejected in
+     * band (Write-Response failure) with AddCause OBJECT_NOT_SELECTED
+     * recorded server-side. */
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    ASSERT_EQ(iec61850_mms_client_operate(&client, CWB_LD, CWB_STRICT2,
+                                           &params),
+              (int)IEC61850_MMS_CLIENT_ERR_MMS);
+    ASSERT_EQ(iec61850_control_get_last_addcause(&cwb_mgr, CWB_LD,
+                                                   CWB_STRICT2, &addcause),
+              0);
+    ASSERT_EQ((int)addcause, (int)IEC61850_ADDCAUSE_OBJECT_NOT_SELECTED);
+    ASSERT_EQ(cwb_action_count, 0);   /* never ran */
+
+    (void)iec61850_mms_client_disconnect(&client);
+    PASS();
+}
+
+static void test_bridge_select_cancel(void)
+{
+    TEST("bridge_select_then_cancel (CW-04)");
+    iec61850_mms_client_t client;
+    iec61850_mms_client_operate_params_t params;
+
+    cwb_action_count = 0;
+    iec61850_mms_client_init(&client);
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+                                           5000),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    ASSERT_EQ(iec61850_mms_client_select(&client, CWB_LD, CWB_STRICT2),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(iec61850_mms_client_cancel(&client, CWB_LD, CWB_STRICT2),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* The cancel released the selection: the operate is now refused
+     * (strict object without a valid select). */
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    ASSERT_EQ(iec61850_mms_client_operate(&client, CWB_LD, CWB_STRICT2,
+                                           &params),
+              (int)IEC61850_MMS_CLIENT_ERR_MMS);
+    ASSERT_EQ(cwb_action_count, 0);
+
+    (void)iec61850_mms_client_disconnect(&client);
+    PASS();
+}
+
+static void test_bridge_oper_tm_flow(void)
+{
+    TEST("bridge_oper_tm_time_activated (CW-05)");
+    iec61850_mms_client_t client;
+    iec61850_mms_client_operate_params_t params;
+    mms_value_t v;
+    char item[MMS_MAX_VARIABLE_NAME];
+    int i;
+
+    cwb_action_count = 0;
+    cwb_ct_count = 0;
+    iec61850_mms_client_init(&client);
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+                                           5000),
+              (int)IEC61850_MMS_CLIENT_OK);
+    iec61850_mms_client_set_command_termination_handler(&client, cwb_on_ct,
+                                                          NULL);
+
+    ASSERT_EQ(iec61850_mms_client_select(&client, CWB_LD, CWB_STRICT),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* Time-activated operate: operTm ~1 s in the future (7-element
+     * Oper form). Accepted immediately; fires on the server's
+     * processing tick (recv-timeout, up to 5 s later). */
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    params.origin_cat = 1;
+    params.ctl_num = 9U;
+    params.oper_tm_utc_ms = test_utc_ms() + 1000ULL;
+    ASSERT_EQ(iec61850_mms_client_operate(&client, CWB_LD, CWB_STRICT,
+                                           &params),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* The $OperTm attribute reports the armed command. */
+    (void)snprintf(item, sizeof(item), "%s$OperTm", CWB_STRICT);
+    ASSERT_EQ(iec61850_mms_client_read(&client, CWB_LD, item, &v),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_TRUE(v.type == MMS_TYPE_BOOLEAN);
+    ASSERT_TRUE(v.value.boolean);
+
+    /* CommandTermination for the fired command (worst case: the 5 s
+     * recv-timeout tick). */
+    for (i = 0; (i < 40) && (cwb_ct_count == 0); i++) {
+        (void)iec61850_mms_client_poll(&client, 250);
+    }
+    ASSERT_EQ(cwb_ct_count, 1);
+    ASSERT_EQ(cwb_action_count, 1);
+    ASSERT_TRUE(strcmp(cwb_last_ct.item_id, "XCBR1$CO$Pos$Oper") == 0);
+    ASSERT_EQ(cwb_last_ct.ctl_num, 9U);
+
+    (void)iec61850_mms_client_disconnect(&client);
+    PASS();
+}
+
+static void test_bridge_sbo_write_forms(void)
+{
+    TEST("bridge_sbo_write_select_forms (CW-06)");
+    iec61850_mms_client_t client;
+    iec61850_mms_client_operate_params_t params;
+
+    cwb_action_count = 0;
+    iec61850_mms_client_init(&client);
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+                                           5000),
+              (int)IEC61850_MMS_CLIENT_OK);
+
+    /* Select via the plain Write of TRUE to $SBO. */
+    {
+        mms_value_t v;
+
+        (void)memset(&v, 0, sizeof(v));
+        v.type = MMS_TYPE_BOOLEAN;
+        v.value.boolean = true;
+        ASSERT_EQ(iec61850_mms_client_write(&client, CWB_LD,
+                                             "CSWI1$CO$Pos$SBO", &v),
+                  (int)IEC61850_MMS_CLIENT_OK);
+    }
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    ASSERT_EQ(iec61850_mms_client_operate(&client, CWB_LD, CWB_STRICT2,
+                                           &params),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(cwb_action_count, 1);
+
+    /* Select-with-value via the Oper structure write to $SBOw on the
+     * dynamic object (bare operate also legal there). */
+    ASSERT_EQ(iec61850_mms_client_select_with_value(&client, CWB_LD,
+                                                      CWB_DYNAMIC, true),
+              (int)IEC61850_MMS_CLIENT_OK);
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    params.ctl_num = 3U;
+    ASSERT_EQ(iec61850_mms_client_operate(&client, CWB_LD, CWB_DYNAMIC,
+                                           &params),
+              (int)IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(cwb_action_count, 2);
+
+    (void)iec61850_mms_client_disconnect(&client);
+    PASS();
+}
+
 int main(void)
 {
     printf("=== MMS Control Service Tests ===\n");
@@ -1220,6 +1602,22 @@ int main(void)
     test_addcause_action_callback_failure();
     test_command_termination_timestamp();
     test_ed2_api_edges();
+
+    printf("\n--- WP-2w: Control-Object Bridge (IEC 61850-8-1 Ed.2) ---\n");
+    cwb_setup();
+    if (cwb_up) {
+        test_bridge_ctl_model_attributes();
+        test_bridge_select_operate_ct();
+        test_bridge_strict_rejection();
+        test_bridge_select_cancel();
+        test_bridge_oper_tm_flow();
+        test_bridge_sbo_write_forms();
+        cwb_teardown();
+    } else {
+        printf("  [SKIP] bridge suite: server start failed\n");
+        tests_run++;
+        tests_failed++;
+    }
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);

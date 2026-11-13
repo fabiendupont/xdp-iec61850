@@ -10,7 +10,9 @@
 
 
 #include "mms/mms_client.h"
+#include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <errno.h>
 
 void iec61850_mms_client_init(iec61850_mms_client_t *client)
@@ -650,4 +652,419 @@ int iec61850_mms_client_file_close(
     int ret = transact(client, &req, &resp);
     if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
     return IEC61850_MMS_CLIENT_OK;
+}
+
+/* ========================================================================
+ * WP-2w: IEC 61850-8-1 Ed.2 control-object helpers
+ * ======================================================================== */
+
+/* Append a TLV (bounded; long-form lengths up to 2 length bytes). */
+static size_t cw_cli_put_tlv(uint8_t *buf, size_t cap, size_t pos,
+                              uint8_t tag, const uint8_t *content,
+                              size_t len)
+{
+    size_t need;
+
+    if (len < 128U) {
+        need = 1U + 1U + len;
+    } else if (len < 256U) {
+        need = 1U + 2U + len;
+    } else {
+        need = 1U + 3U + len;
+    }
+    if ((pos + need) > cap) { return 0U; }
+    buf[pos++] = tag;
+    if (len < 128U) {
+        buf[pos++] = (uint8_t)len;
+    } else if (len < 256U) {
+        buf[pos++] = 0x81U;
+        buf[pos++] = (uint8_t)len;
+    } else {
+        buf[pos++] = 0x82U;
+        buf[pos++] = (uint8_t)(len >> 8);
+        buf[pos++] = (uint8_t)(len & 0xFFU);
+    }
+    if (len > 0U) {
+        (void)memcpy(buf + pos, content, len);
+        pos += len;
+    }
+    return pos;
+}
+
+/* Current UTC time in milliseconds (the Oper structure's T). */
+static uint64_t cw_cli_now_utc_ms(void)
+{
+    struct timespec ts;
+
+    (void)clock_gettime(CLOCK_REALTIME, &ts);
+    return ((uint64_t)ts.tv_sec * 1000ULL) +
+           ((uint64_t)ts.tv_nsec / 1000000ULL);
+}
+
+/*
+ * IEC 61850-8-1 UTC-Time (MMS UtcTime): 4-byte seconds since the Unix
+ * epoch, 3-byte binary fraction of a second, 1-byte time quality
+ * (0 = clock OK, not synchronized, full accuracy).
+ */
+static void cw_cli_put_utc_time(uint8_t *out, uint64_t utc_ms)
+{
+    uint32_t sec = (uint32_t)(utc_ms / 1000ULL);
+    uint32_t frac =
+        (uint32_t)(((utc_ms % 1000ULL) * 16777216ULL) / 1000ULL);
+
+    out[0] = (uint8_t)(sec >> 24);
+    out[1] = (uint8_t)(sec >> 16);
+    out[2] = (uint8_t)(sec >> 8);
+    out[3] = (uint8_t)sec;
+    out[4] = (uint8_t)(frac >> 16);
+    out[5] = (uint8_t)(frac >> 8);
+    out[6] = (uint8_t)frac;
+    out[7] = 0U;   /* TimeQuality */
+}
+
+/*
+ * Build the 8-1 originator-controlled Oper structure as a raw BER TLV
+ * stashed in an mms_value_t (MMS_TYPE_STRUCTURE — see
+ * mms_encode_value()/mms_decode_value()).
+ *
+ * Immediate form (6 elements): ctlVal, origin, ctlNum, T, Test, Check.
+ * Time-activated form (7 elements, operTm second) when
+ * params->oper_tm_utc_ms != 0.
+ */
+static int cw_cli_build_oper(const iec61850_mms_client_operate_params_t *p,
+                              bool cancel_form,
+                              mms_value_t *out)
+{
+    uint8_t ctl_val_buf[4];
+    uint8_t origin_buf[96];
+    uint8_t ctl_num_buf[8];
+    uint8_t t_buf[8];
+    uint8_t test_buf[4];
+    uint8_t check_buf[4];
+    uint8_t body[192];
+    size_t body_len = 0U;
+    size_t origin_len = 0U;
+    size_t ctl_val_len;
+    size_t ctl_num_len;
+    size_t check_len;
+    uint32_t ctl_num = p->ctl_num;
+    uint8_t check_bits = (uint8_t)((p->check_interlock ? 0x40U : 0U) |
+                                   (p->check_synchro ? 0x80U : 0U));
+
+    (void)memset(out, 0, sizeof(*out));
+
+    /* ctlVal — BOOLEAN (FALSE for the cancel form) */
+    ctl_val_buf[0] = (cancel_form || !p->ctl_val) ? 0x00U : 0xFFU;
+    ctl_val_len = 1U;
+
+    /* origin: SEQUENCE { orCat INTEGER, orIdent OCTET STRING } */
+    {
+        uint8_t cat_buf[4];
+        size_t cat_len = 0U;
+        const char *ident = (p->origin_ident != NULL) ? p->origin_ident : "";
+        size_t ident_len = strlen(ident);
+
+        if (ident_len > 64U) { ident_len = 64U; }
+        cat_buf[cat_len++] =
+            (uint8_t)((uint32_t)p->origin_cat & 0xFFU);
+        origin_len = cw_cli_put_tlv(origin_buf, sizeof(origin_buf),
+                                     origin_len, 0x85U, cat_buf, cat_len);
+        if (origin_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+        origin_len = cw_cli_put_tlv(origin_buf, sizeof(origin_buf),
+                                     origin_len, 0x89U,
+                                     (const uint8_t *)ident, ident_len);
+        if (origin_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+    }
+
+    /* ctlNum — UNSIGNED */
+    ctl_num_len = 0U;
+    if ((ctl_num == 0U) || (ctl_num > 0xFFFFFFU)) {
+        ctl_num_buf[ctl_num_len++] = (uint8_t)(ctl_num & 0xFFU);
+    } else {
+        uint8_t tmp[4];
+        size_t n = 0U;
+
+        while (ctl_num > 0U) {
+            tmp[n++] = (uint8_t)(ctl_num & 0xFFU);
+            ctl_num >>= 8;
+        }
+        while (n > 0U) {
+            ctl_num_buf[ctl_num_len++] = tmp[--n];
+        }
+    }
+
+    /* T — UTC_TIME (8 bytes) */
+    cw_cli_put_utc_time(t_buf, cw_cli_now_utc_ms());
+
+    /* Test — BOOLEAN */
+    test_buf[0] = p->test ? 0xFFU : 0x00U;
+
+    /* Check — BIT STRING (2 bits: synchrocheck, interlock-check) */
+    check_buf[0] = 6U;   /* unused bits */
+    check_buf[1] = check_bits;
+    check_len = 2U;
+
+    /* Assemble the structure body positionally per 8-1. */
+    body_len = cw_cli_put_tlv(body, sizeof(body), body_len,
+                               (uint8_t)MMS_DATA_BOOLEAN, ctl_val_buf,
+                               ctl_val_len);
+    if (body_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+    if (p->oper_tm_utc_ms != 0ULL) {
+        uint8_t oper_tm_buf[8];
+
+        cw_cli_put_utc_time(oper_tm_buf, p->oper_tm_utc_ms);
+        body_len = cw_cli_put_tlv(body, sizeof(body), body_len,
+                                   (uint8_t)MMS_DATA_UTC_TIME, oper_tm_buf,
+                                   8U);
+        if (body_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+    }
+    body_len = cw_cli_put_tlv(body, sizeof(body), body_len,
+                               (uint8_t)MMS_DATA_STRUCTURE, origin_buf,
+                               origin_len);
+    if (body_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+    body_len = cw_cli_put_tlv(body, sizeof(body), body_len,
+                               (uint8_t)MMS_DATA_UNSIGNED, ctl_num_buf,
+                               ctl_num_len);
+    if (body_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+    body_len = cw_cli_put_tlv(body, sizeof(body), body_len,
+                               (uint8_t)MMS_DATA_UTC_TIME, t_buf, 8U);
+    if (body_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+    body_len = cw_cli_put_tlv(body, sizeof(body), body_len,
+                               (uint8_t)MMS_DATA_BOOLEAN, test_buf, 1U);
+    if (body_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+    body_len = cw_cli_put_tlv(body, sizeof(body), body_len,
+                               (uint8_t)MMS_DATA_BIT_STRING, check_buf,
+                               check_len);
+    if (body_len == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+
+    /* Stash the full structure TLV (tag + length + body). */
+    out->type = MMS_TYPE_STRUCTURE;
+    if ((body_len + 4U) > MMS_MAX_STRING_LENGTH) {
+        return IEC61850_MMS_CLIENT_ERR_ENCODE;
+    }
+    {
+        size_t pos = cw_cli_put_tlv(out->value.octet_string.data,
+                                     MMS_MAX_STRING_LENGTH, 0U,
+                                     (uint8_t)MMS_DATA_STRUCTURE, body,
+                                     body_len);
+
+        if (pos == 0U) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
+        out->value.octet_string.len = pos;
+    }
+    return IEC61850_MMS_CLIENT_OK;
+}
+
+/* Bounded "base + suffix" item-name builder (no truncation: fails
+ * when the composed name does not fit). */
+static int cw_cli_item_suffix(char *out, size_t out_size,
+                               const char *base, const char *suffix)
+{
+    size_t bl = strlen(base);
+    size_t sl = strlen(suffix);
+
+    if ((bl + sl + 1U) > out_size) { return -EINVAL; }
+    (void)memcpy(out, base, bl);
+    (void)memcpy(out + bl, suffix, sl + 1U);
+    return 0;
+}
+
+/* Write an mms_value_t to "<item_id><suffix>". */
+static int cw_cli_write_component(iec61850_mms_client_t *client,
+                                   const char *domain, const char *item_id,
+                                   const char *suffix,
+                                   const mms_value_t *value)
+{
+    char item[MMS_MAX_VARIABLE_NAME];
+
+    if (cw_cli_item_suffix(item, sizeof(item), item_id, suffix) != 0) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+    return iec61850_mms_client_write(client, domain, item, value);
+}
+
+int iec61850_mms_client_select(iec61850_mms_client_t *client,
+                                const char *domain, const char *item_id)
+{
+    char item[MMS_MAX_VARIABLE_NAME];
+    mms_value_t v;
+    int ret;
+
+    if ((client == NULL) || (!client->connected) || (domain == NULL) ||
+        (item_id == NULL)) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+    if (cw_cli_item_suffix(item, sizeof(item), item_id, "$SBO") != 0) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+
+    /* 8-1 sbo-with-normal-security: the select is a Read of the SBO
+     * attribute; the server answers with the selected object's
+     * reference ("<domain>/<LN>$CO$<DO>") on success. */
+    (void)memset(&v, 0, sizeof(v));
+    ret = iec61850_mms_client_read(client, domain, item, &v);
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
+    if ((v.type != MMS_TYPE_VISIBLE_STRING) ||
+        (v.value.visible_string.len == 0U)) {
+        return IEC61850_MMS_CLIENT_ERR_MMS;
+    }
+    return IEC61850_MMS_CLIENT_OK;
+}
+
+int iec61850_mms_client_select_with_value(
+    iec61850_mms_client_t *client, const char *domain,
+    const char *item_id, bool ctl_val)
+{
+    iec61850_mms_client_operate_params_t params;
+    mms_value_t v;
+    int ret;
+
+    if ((client == NULL) || (!client->connected) || (domain == NULL) ||
+        (item_id == NULL)) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = ctl_val;
+    ret = cw_cli_build_oper(&params, false, &v);
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
+
+    return cw_cli_write_component(client, domain, item_id, "$SBOw", &v);
+}
+
+int iec61850_mms_client_operate(
+    iec61850_mms_client_t *client, const char *domain,
+    const char *item_id,
+    const iec61850_mms_client_operate_params_t *params)
+{
+    mms_value_t v;
+    int ret;
+
+    if ((client == NULL) || (!client->connected) || (domain == NULL) ||
+        (item_id == NULL) || (params == NULL)) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+
+    ret = cw_cli_build_oper(params, false, &v);
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
+
+    return cw_cli_write_component(client, domain, item_id, "$Oper", &v);
+}
+
+int iec61850_mms_client_cancel(iec61850_mms_client_t *client,
+                                const char *domain, const char *item_id)
+{
+    iec61850_mms_client_operate_params_t params;
+    mms_value_t v;
+    int ret;
+
+    if ((client == NULL) || (!client->connected) || (domain == NULL) ||
+        (item_id == NULL)) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+
+    (void)memset(&params, 0, sizeof(params));
+    ret = cw_cli_build_oper(&params, true, &v);
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
+
+    return cw_cli_write_component(client, domain, item_id, "$Cancel", &v);
+}
+
+/* CF-first / CO-fallback attribute read (helper for ctlModel /
+ * sboTimeout; suffix carries the attribute name). */
+static int cw_cli_read_attribute(iec61850_mms_client_t *client,
+                                  const char *domain, const char *item_id,
+                                  const char *attr, mms_value_t *out)
+{
+    char item[MMS_MAX_VARIABLE_NAME];
+    const char *co = strstr(item_id, "$CO$");
+    int ret;
+
+    if (co != NULL) {
+        size_t head = (size_t)(co - item_id);
+        size_t tail_len = strlen(co + 4);
+        size_t attr_len = strlen(attr);
+
+        /* "<head>$CF$<rest><attr>" — built manually (bounded). */
+        if ((head + 4U + tail_len + attr_len + 1U) <= sizeof(item)) {
+            (void)memcpy(item, item_id, head);
+            (void)memcpy(item + head, "$CF$", 4U);
+            (void)memcpy(item + head + 4U, co + 4, tail_len);
+            (void)memcpy(item + head + 4U + tail_len, attr, attr_len + 1U);
+            ret = iec61850_mms_client_read(client, domain, item, out);
+            if (ret == (int)IEC61850_MMS_CLIENT_OK) { return ret; }
+        }
+    }
+    if (cw_cli_item_suffix(item, sizeof(item), item_id, attr) != 0) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+    return iec61850_mms_client_read(client, domain, item, out);
+}
+
+int iec61850_mms_client_read_ctl_model(iec61850_mms_client_t *client,
+                                        const char *domain,
+                                        const char *item_id,
+                                        int32_t *ctl_model)
+{
+    mms_value_t v;
+    int ret;
+
+    if ((client == NULL) || (ctl_model == NULL)) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+    (void)memset(&v, 0, sizeof(v));
+    ret = cw_cli_read_attribute(client, domain, item_id, "$ctlModel", &v);
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (v.type != MMS_TYPE_INTEGER) {
+        return IEC61850_MMS_CLIENT_ERR_MMS;
+    }
+    *ctl_model = v.value.integer;
+    return IEC61850_MMS_CLIENT_OK;
+}
+
+int iec61850_mms_client_read_sbo_timeout(iec61850_mms_client_t *client,
+                                          const char *domain,
+                                          const char *item_id,
+                                          uint32_t *sbo_timeout_ms)
+{
+    mms_value_t v;
+    int ret;
+
+    if ((client == NULL) || (sbo_timeout_ms == NULL)) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+    (void)memset(&v, 0, sizeof(v));
+    ret = cw_cli_read_attribute(client, domain, item_id, "$sboTimeout", &v);
+    if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
+    if (v.type != MMS_TYPE_UNSIGNED) {
+        return IEC61850_MMS_CLIENT_ERR_MMS;
+    }
+    *sbo_timeout_ms = v.value.unsigned_val;
+    return IEC61850_MMS_CLIENT_OK;
+}
+
+/* Core-hook shim: routes the core-level CommandTermination delivery
+ * to this client's handler. */
+static void cw_cli_termination_shim(
+    const iec61850_mms_client_command_termination_t *termination,
+    void *user_data)
+{
+    /* MISRA 11.5: callback context is the client, deviation Cat. 3 */
+    iec61850_mms_client_t *client =
+        (iec61850_mms_client_t *)user_data;
+
+    if ((client != NULL) && (client->command_termination_cb != NULL)) {
+        client->command_termination_cb(termination,
+                                       client->command_termination_user_data);
+    }
+}
+
+void iec61850_mms_client_set_command_termination_handler(
+    iec61850_mms_client_t *client,
+    iec61850_mms_client_command_termination_cb_t cb, void *user_data)
+{
+    if (client == NULL) { return; }
+    client->command_termination_cb = cb;
+    client->command_termination_user_data = user_data;
+    iec61850_mms_client_core_set_command_termination_handler(
+        cw_cli_termination_shim, (void *)client);
 }

@@ -354,6 +354,22 @@ int mms_encode_value(const mms_value_t* value, uint8_t* buffer, size_t buflen) {
         case MMS_TYPE_BIT_STRING:
             tag = MMS_DATA_BIT_STRING;
             break;
+        case MMS_TYPE_STRUCTURE:
+            /* WP-2w: structure values carry their pre-encoded BER
+             * (tag + length + content) in octet_string — see the
+             * MMS_DATA_STRUCTURE case in mms_decode_value(). The raw
+             * TLV is emitted verbatim so nested structures (IEC
+             * 61850-8-1 control Oper/SBOw bodies) round-trip without
+             * a recursive value model. */
+            if (value->value.octet_string.len == 0U) {
+                return MMS_ERROR_INVALID_PARAM;
+            }
+            if (!has_space(0U, value->value.octet_string.len, buflen)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            memcpy(buffer, value->value.octet_string.data,
+                   value->value.octet_string.len);
+            return (int)value->value.octet_string.len;
         default:
             return MMS_ERROR_NOT_SUPPORTED;
     }
@@ -558,6 +574,24 @@ int mms_decode_value(const uint8_t* buffer, size_t buflen, mms_value_t* value) {
             }
             memcpy(value->value.octet_string.data, buffer + offset, length);
             value->value.octet_string.len = length;
+            break;
+
+        case MMS_DATA_STRUCTURE:
+            /* WP-2w: stash the raw TLV (tag + length + content) in
+             * octet_string with type MMS_TYPE_STRUCTURE — the control
+             * bridge and client helpers parse/emit the nested
+             * IEC 61850-8-1 fields themselves; mms_encode_value()
+             * re-emits the bytes verbatim. */
+            value->type = MMS_TYPE_STRUCTURE;
+            {
+                size_t tlv_len = offset + length;
+
+                if (tlv_len > MMS_MAX_STRING_LENGTH) {
+                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                }
+                memcpy(value->value.octet_string.data, buffer, tlv_len);
+                value->value.octet_string.len = tlv_len;
+            }
             break;
 
         case MMS_DATA_BIT_STRING:
@@ -1911,6 +1945,138 @@ static int encode_get_named_type_attrs_req_body(const mms_confirmed_request_t *r
     gettypeattrs_offset += typename_len;
     return (int)(gettypeattrs_offset);
 }
+/* --------------------------------------------------------------------------
+ * WP-2w: IEC 61850-8-1 control-object type description
+ *
+ * GetVariableAccessAttributes on a control object ("<LN>$CO$<DO>")
+ * answers a TypeSpecification CHOICE of a structure whose components
+ * are the object's control data attributes (Oper / SBOw / Cancel,
+ * each the 8-1 originator-controlled structure, plus ctlVal). The
+ * component layout is the wire-observed conformant-server encoding;
+ * the frozen mms_variable_access_attrs_t cannot express component
+ * lists, so the structure form is emitted for MMS_TYPE_STRUCTURE
+ * attributes (TR-review flag: a component-capable type-description
+ * struct belongs in the frozen header).
+ * -------------------------------------------------------------------------- */
+
+/* TypeSpecification of the 8-1 originator structure
+ * { ctlVal, origin{orCat, orIdent}, ctlNum, T, Test, Check } */
+static const uint8_t CONTROL_OPER_TYPESPEC[] = {
+    0xa2, 0x70, 0xa1, 0x6e,
+    0x30, 0x0c, 0x80, 0x06, 'c', 't', 'l', 'V', 'a', 'l',
+        0xa1, 0x02, 0x83, 0x00,
+    0x30, 0x2c, 0x80, 0x06, 'o', 'r', 'i', 'g', 'i', 'n',
+        0xa1, 0x22, 0xa2, 0x20, 0xa1, 0x1e,
+        0x30, 0x0c, 0x80, 0x05, 'o', 'r', 'C', 'a', 't',
+            0xa1, 0x03, 0x85, 0x01, 0x08,
+        0x30, 0x0e, 0x80, 0x07, 'o', 'r', 'I', 'd', 'e', 'n', 't',
+            0xa1, 0x03, 0x89, 0x01, 0xc0,
+    0x30, 0x0d, 0x80, 0x06, 'c', 't', 'l', 'N', 'u', 'm',
+        0xa1, 0x03, 0x86, 0x01, 0x08,
+    0x30, 0x07, 0x80, 0x01, 'T', 0xa1, 0x02, 0x91, 0x00,
+    0x30, 0x0a, 0x80, 0x04, 'T', 'e', 's', 't', 0xa1, 0x02, 0x83, 0x00,
+    0x30, 0x0c, 0x80, 0x05, 'C', 'h', 'e', 'c', 'k',
+        0xa1, 0x03, 0x84, 0x01, 0xfe,
+};
+
+/* Append one named component (SEQUENCE { componentName [0],
+ * componentType [1] }) with the given TypeSpecification bytes. */
+static int encode_typespec_component(uint8_t* buf, size_t buflen,
+                                     const char* name,
+                                     const uint8_t* typespec,
+                                     size_t typespec_len) {
+    size_t name_len = strlen(name);
+    size_t content = (2U + name_len) + (2U + typespec_len);
+    size_t pos = 0;
+    int ret;
+
+    if (buflen < (2U + content)) { return MMS_ERROR_BUFFER_TOO_SMALL; }
+    buf[pos++] = 0x30;
+    ret = mms_encode_length(content, buf + pos, buflen - pos);
+    if (ret < 0) { return ret; }
+    pos += (size_t)ret;
+
+    buf[pos++] = 0x80;   /* componentName [0] IMPLICIT Identifier */
+    ret = mms_encode_length(name_len, buf + pos, buflen - pos);
+    if (ret < 0) { return ret; }
+    pos += (size_t)ret;
+    memcpy(buf + pos, name, name_len);
+    pos += name_len;
+
+    buf[pos++] = 0xA1;   /* componentType [1] TypeSpecification */
+    ret = mms_encode_length(typespec_len, buf + pos, buflen - pos);
+    if (ret < 0) { return ret; }
+    pos += (size_t)ret;
+    memcpy(buf + pos, typespec, typespec_len);
+    pos += typespec_len;
+    return (int)pos;
+}
+
+/* TypeSpecification of an IEC 61850-8-1 control object:
+ * structure { components: Oper, SBOw, Cancel, ctlVal }. */
+static int encode_control_object_typespec(uint8_t* buf, size_t buflen) {
+    static const uint8_t ctlval_typespec[] = { 0x83, 0x00 };
+    uint8_t comps[512];
+    size_t comps_len = 0;
+    int ret;
+
+    ret = encode_typespec_component(comps + comps_len,
+                                     sizeof(comps) - comps_len, "Oper",
+                                     CONTROL_OPER_TYPESPEC,
+                                     sizeof(CONTROL_OPER_TYPESPEC));
+    if (ret < 0) { return ret; }
+    comps_len += (size_t)ret;
+    ret = encode_typespec_component(comps + comps_len,
+                                     sizeof(comps) - comps_len, "SBOw",
+                                     CONTROL_OPER_TYPESPEC,
+                                     sizeof(CONTROL_OPER_TYPESPEC));
+    if (ret < 0) { return ret; }
+    comps_len += (size_t)ret;
+    ret = encode_typespec_component(comps + comps_len,
+                                     sizeof(comps) - comps_len, "Cancel",
+                                     CONTROL_OPER_TYPESPEC,
+                                     sizeof(CONTROL_OPER_TYPESPEC));
+    if (ret < 0) { return ret; }
+    comps_len += (size_t)ret;
+    ret = encode_typespec_component(comps + comps_len,
+                                     sizeof(comps) - comps_len, "ctlVal",
+                                     ctlval_typespec,
+                                     sizeof(ctlval_typespec));
+    if (ret < 0) { return ret; }
+    comps_len += (size_t)ret;
+
+    /* structure [2] { components [1] { ... } } */
+    {
+        uint8_t a1_buf[520];
+        size_t a1_len = 0;
+        size_t pos = 0;
+        int hdr;
+
+        a1_buf[a1_len++] = 0xA1;
+        hdr = mms_encode_length(comps_len, a1_buf + a1_len,
+                                 sizeof(a1_buf) - a1_len);
+        if (hdr < 0) { return hdr; }
+        a1_len += (size_t)hdr;
+        if (!has_space(a1_len, comps_len, sizeof(a1_buf))) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        memcpy(a1_buf + a1_len, comps, comps_len);
+        a1_len += comps_len;
+
+        if (buflen < 4U) { return MMS_ERROR_BUFFER_TOO_SMALL; }
+        buf[pos++] = 0xA2;
+        hdr = mms_encode_length(a1_len, buf + pos, buflen - pos);
+        if (hdr < 0) { return hdr; }
+        pos += (size_t)hdr;
+        if (!has_space(pos, a1_len, buflen)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        memcpy(buf + pos, a1_buf, a1_len);
+        pos += a1_len;
+        return (int)pos;
+    }
+}
+
 int mms_encode_confirmed_request(const mms_confirmed_request_t* request,
                                  uint8_t* buffer, size_t buflen) {
     if (request == NULL || buffer == NULL) {
@@ -3685,19 +3851,80 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
 
         case MMS_SERVICE_TYPE_GET_VARIABLE_ATTRS:
             service_tag = MMS_SERVICE_GET_VARIABLE_ATTRS;
-            /* GetVariableAccessAttributes-Response */
-            size_t gva_resp_offset = 0;
-            /* name [0] IMPLICIT VisibleString */
-            service_buf[gva_resp_offset++] = 0xA0;  /* [0] IMPLICIT */
-            size_t gva_name_len = strlen(response->params.getvariableattrs.attributes.name);
-            service_buf[gva_resp_offset++] = (uint8_t)gva_name_len;
-            memcpy(service_buf + gva_resp_offset, response->params.getvariableattrs.attributes.name, gva_name_len);
-            gva_resp_offset += gva_name_len;
-            /* typeDescription [1] IMPLICIT INTEGER */
-            service_buf[gva_resp_offset++] = 0x81;  /* [1] IMPLICIT */
-            service_buf[gva_resp_offset++] = 0x01;
-            service_buf[gva_resp_offset++] = (uint8_t)response->params.getvariableattrs.attributes.type;
-            service_len = gva_resp_offset;
+            /* GetVariableAccessAttributes-Response (WP-2w, conformant
+             * per ISO 9506-2 and wire-observed from conformant
+             * servers): mmsDeletable [0] IMPLICIT BOOLEAN DEFAULT
+             * FALSE, then typeDescription — a TypeSpecification CHOICE
+             * (scalar data tags, or a structure of named components
+             * for IEC 61850-8-1 control objects). */
+            {
+                size_t gva_o = 0;
+
+                /* mmsDeletable [0] IMPLICIT BOOLEAN (FALSE) */
+                service_buf[gva_o++] = 0x80;
+                service_buf[gva_o++] = 0x01;
+                service_buf[gva_o++] = 0x00;
+
+                /* typeDescription: TypeDescription CHOICE
+                 * typeSpecification [2] wrapping the TypeSpecification
+                 * (structure of components for IEC 61850-8-1 control
+                 * objects, scalar data tags otherwise) */
+                {
+                    uint8_t ts_buf[MMS_MAX_PDU_SIZE];
+                    size_t ts_len = 0;
+                    int hdr;
+
+                    if (response->params.getvariableattrs.attributes.type ==
+                        MMS_TYPE_STRUCTURE) {
+                        int ts = encode_control_object_typespec(
+                            ts_buf, sizeof(ts_buf));
+
+                        if (ts < 0) { return ts; }
+                        ts_len = (size_t)ts;
+                    } else {
+                        /* Scalar TypeSpecification (wire-observed size
+                         * constraints) */
+                        ts_buf[ts_len++] = MMS_DATA_INTEGER;  /* default */
+                        switch (response->params.getvariableattrs.attributes.type) {
+                            case MMS_TYPE_BOOLEAN:
+                                ts_buf[ts_len - 1U] = MMS_DATA_BOOLEAN;
+                                ts_buf[ts_len++] = 0x00;
+                                break;
+                            case MMS_TYPE_UNSIGNED:
+                                ts_buf[ts_len - 1U] = MMS_DATA_UNSIGNED;
+                                ts_buf[ts_len++] = 0x01;
+                                ts_buf[ts_len++] = 0x08;
+                                break;
+                            case MMS_TYPE_BIT_STRING:
+                                ts_buf[ts_len - 1U] = MMS_DATA_BIT_STRING;
+                                ts_buf[ts_len++] = 0x01;
+                                ts_buf[ts_len++] = 0xFE;
+                                break;
+                            case MMS_TYPE_UTC_TIME:
+                                ts_buf[ts_len - 1U] = MMS_DATA_UTC_TIME;
+                                ts_buf[ts_len++] = 0x00;
+                                break;
+                            case MMS_TYPE_INTEGER:
+                            default:
+                                ts_buf[ts_len++] = 0x01;
+                                ts_buf[ts_len++] = 0x08;
+                                break;
+                        }
+                    }
+
+                    if (!has_space(gva_o, 4U + ts_len, sizeof(service_buf))) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
+                    service_buf[gva_o++] = 0xA2;   /* typeSpecification [2] */
+                    hdr = mms_encode_length(ts_len, service_buf + gva_o,
+                                             sizeof(service_buf) - gva_o);
+                    if (hdr < 0) { return hdr; }
+                    gva_o += (size_t)hdr;
+                    memcpy(service_buf + gva_o, ts_buf, ts_len);
+                    gva_o += ts_len;
+                }
+                service_len = gva_o;
+            }
             break;
 
         case MMS_SERVICE_TYPE_DEFINE_NAMED_VARLIST:
@@ -4444,7 +4671,11 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
 
         case MMS_SERVICE_GET_VARIABLE_ATTRS:
             response->service = MMS_SERVICE_TYPE_GET_VARIABLE_ATTRS;
-            /* GetVariableAccessAttributes-Response: name [0], typeDescription [1] */
+            /* GetVariableAccessAttributes-Response (WP-2w, conformant
+             * per ISO 9506-2): mmsDeletable [0] IMPLICIT BOOLEAN, then
+             * typeDescription — a TypeSpecification CHOICE (scalar
+             * data tags, or a structure of named components for IEC
+             * 61850-8-1 control objects). */
             {
                 size_t gvar_end = offset + field_len;
                 while (offset < gvar_end) {
@@ -4458,22 +4689,61 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                     }
 
                     switch (tag) {
-                        case 0xA0: { /* name [0] IMPLICIT VisibleString */
-                            if (tag_len >= MMS_MAX_VARIABLE_NAME) {
+                        case 0xA0:  /* mmsDeletable [0] IMPLICIT BOOLEAN */
+                            offset += tag_len;
+                            break;
+                        case 0xA2:  /* typeSpecification [2] wrapper */
+                        {
+                            /* TypeDescription CHOICE
+                             * typeSpecification [2] wrapping the
+                             * TypeSpecification CHOICE — the inner
+                             * first TLV carries the type (structure of
+                             * components for 8-1 control objects,
+                             * scalar data tags otherwise). */
+                            size_t inner_end = offset + tag_len;
+                            uint8_t inner_tag;
+                            size_t inner_len;
+                            int inner_hdr;
+
+                            if (!length_fits(offset, tag_len, gvar_end) ||
+                                (tag_len < 2U)) {
                                 return MMS_ERROR_BUFFER_TOO_SMALL;
                             }
-                            memcpy(response->params.getvariableattrs.attributes.name, buffer + offset, tag_len);
-                            response->params.getvariableattrs.attributes.name[tag_len] = '\0';
+                            inner_tag = buffer[offset];
+                            inner_hdr = mms_decode_length(
+                                buffer + offset + 1U, inner_end - offset - 1U,
+                                &inner_len);
+                            if (inner_hdr < 0) { return inner_hdr; }
+                            (void)inner_len;
+                            switch (inner_tag) {
+                                case MMS_DATA_BOOLEAN:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_BOOLEAN;
+                                    break;
+                                case MMS_DATA_UNSIGNED:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_UNSIGNED;
+                                    break;
+                                case MMS_DATA_BIT_STRING:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_BIT_STRING;
+                                    break;
+                                case MMS_DATA_UTC_TIME:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_UTC_TIME;
+                                    break;
+                                case MMS_DATA_OCTET_STRING:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_OCTET_STRING;
+                                    break;
+                                case MMS_DATA_VISIBLE_STRING:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_VISIBLE_STRING;
+                                    break;
+                                case MMS_DATA_STRUCTURE:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_STRUCTURE;
+                                    break;
+                                default:
+                                    response->params.getvariableattrs.attributes.type = MMS_TYPE_INTEGER;
+                                    break;
+                            }
                             offset += tag_len;
                             break;
                         }
-                        case 0x81:  /* typeDescription [1] IMPLICIT INTEGER */
-                            if (tag_len < 1) {
-                                return MMS_ERROR_INVALID_ENCODING;
-                            }
-                            response->params.getvariableattrs.attributes.type = (mms_type_t)buffer[offset];
-                            offset += tag_len;
-                            break;
                         default:
                             offset += tag_len;
                             break;

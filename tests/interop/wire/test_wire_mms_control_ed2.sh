@@ -3,27 +3,27 @@
 # Wire capture test: MMS Ed.2 control (select-before-operate) via tshark.
 #
 # Runs the repo's own mms_control_wire scenario (server with a control
-# manager configured for strict sboClass objects, driven by a client
-# using the repo's control services) on TCP loopback, captures the
-# session on lo and validates the on-wire bytes with the neutral tshark
-# MMS dissector.
+# manager wired through the WP-2w control-object bridge, driven by a
+# client using the IEC 61850-8-1 Ed.2 CO-object helpers) on TCP
+# loopback, captures the session on lo and validates the on-wire bytes
+# with the neutral tshark MMS dissector.
 #
-# Tests: WC-01..WC-14 (ISO stack, Read context, Select/Operate/Cancel
-# requests and responses, Ed.2 operate-without-select rejection as a
-# ConfirmedError PDU; both directions).
+# Tests: WC-01..WC-20 (ISO stack, status/ctlModel reads, the 8-1
+# control flow as ordinary Reads/Writes — Select is a Read of the
+# "$SBO" attribute answered with the selected object reference,
+# Operate/Cancel are Writes of the 8-1 originator structure to the
+# "$Oper"/"$Cancel" objects — the Ed.2 operate-without-select
+# rejection as an in-band Write-Response failure, and the
+# CommandTermination as an unsolicited InformationReport on the
+# "$Oper" object; both directions).
 #
-# NOTE (asserted as-emitted): the repository's control services are
-# house-encoded confirmed services (Select=[7], SelectWithValue=[8],
-# Operate=[9], Cancel=[10] in confirmedServiceRequest). These CHOICE
-# tags do not exist in ISO 9506-2 MMS (they collide with
-# defineNamedVariable/defineScatteredAccess/getScatteredAccessAttributes/
-# deleteVariableAccess), so tshark flags the service bodies as
-# malformed while still decoding the confirmed request/response PDU
-# structure, invokeIDs and the control object names in the payload.
-# The assertions below check that structure and the payload strings.
-# The Ed.2 rejection is a well-formed ConfirmedError PDU. Ed.2
-# CommandTermination is delivered through the in-process termination
-# callback (not as an MMS PDU), asserted as a negative check.
+# WP-2w: the control flow is conformant IEC 61850-8-1 — every PDU is
+# an ordinary MMS Read/Write/InformationReport that tshark dissects
+# with zero BER errors (the pre-WP-2w house-encoded Select/Operate/
+# Cancel confirmed-service PDUs raised "Wrong field in SEQUENCE" and
+# malformed-body flags). The CommandTermination replaces the old
+# negative assertion: exactly one InformationReport is on the wire,
+# and it is the command termination.
 #
 # Requires: tshark. Loopback capture needs root or the wireshark
 # group; without either, falls back to a rootless user-namespace
@@ -218,88 +218,98 @@ check_ge WC-04 "MMS Initiate request (c->s)" "$C2S && mms.initiate_RequestPDU_el
 check_ge WC-05 "MMS Initiate response (s->c)" "$S2C && mms.initiate_ResponsePDU_element" 1
 
 echo ""
-echo "--- status-point read (object context) ---"
+echo "--- status + ctlModel reads (ordinary MMS Reads) ---"
 
-# WC-06: Read of the controllable object's status point (c->s) and
-# its success response (s->c)
+# WC-06/07: Read of the controllable object's status point and the
+# 7-2 CF-spelled ctlModel configuration attribute (both clean Reads)
 check_ge WC-06 "Read XCBR1\$ST\$Pos\$stVal (c->s)" \
     "$C2S && mms.read_element && mms.objectName_domain_specific_itemId == \"XCBR1\$ST\$Pos\$stVal\"" 1
-check_ge WC-07 "Read response success (s->c)" \
-    "$S2C && mms.read_element && mms.success" 1
+check_ge WC-07 "Read XCBR1\$CF\$Pos\$ctlModel (c->s)" \
+    "$C2S && mms.read_element && mms.objectName_domain_specific_itemId == \"XCBR1\$CF\$Pos\$ctlModel\"" 1
+check_ge WC-08 "read responses success (s->c)" \
+    "$S2C && mms.read_element && mms.success" 2
 
 echo ""
-echo "--- Select / Operate / Cancel (house-encoded services) ---"
+echo "--- Select: Read of the \$SBO attribute (8-1 sbo-with-normal-security) ---"
 
-# WC-08: Select (SBO) request on the strict object (c->s); service tag
-# [7], control object name in the payload
-check_eq WC-08 "Select request on XCBR1 (c->s)" \
-    "$C2S && mms.confirmedServiceRequest==7 && tcp.payload contains \"XCBR1\$CO\$Pos\"" 1
+# WC-09: the select is a Read of the "$SBO" data attribute
+check_eq WC-09 "Read XCBR1\$CO\$Pos\$SBO (c->s)" \
+    "$C2S && mms.read_element && mms.objectName_domain_specific_itemId == \"XCBR1\$CO\$Pos\$SBO\"" 1
 
-# WC-09: Select responses (s->c) — one per Select (XCBR1 + CSWI1)
-check_eq WC-09 "Select responses (s->c)" \
-    "$S2C && mms.confirmedServiceResponse==7" 2
+# WC-10: answered with the selected object reference (VisibleString),
+# the wire form conformant clients check
+check_eq WC-10 "SBO answer: reference string LD/XCBR1\$CO\$Pos (s->c)" \
+    "$S2C && mms.data.visible-string == \"LD/XCBR1\$CO\$Pos\"" 1
 
-# WC-10: Operate request with the selection (c->s), service tag [9]
-check_eq WC-10 "Operate request on XCBR1 (c->s)" \
-    "$C2S && mms.confirmedServiceRequest==9 && tcp.payload contains \"XCBR1\$CO\$Pos\"" 1
+echo ""
+echo "--- Operate: Write of the 8-1 Oper structure to \$Oper ---"
 
-# WC-11: Operate response (s->c)
-check_eq WC-11 "Operate response (s->c)" \
-    "$S2C && mms.confirmedServiceResponse==9" 1
+# WC-11: the operate is an ordinary Write on the "$Oper" object
+check_eq WC-11 "Write XCBR1\$CO\$Pos\$Oper (c->s)" \
+    "$C2S && mms.write_element && mms.objectName_domain_specific_itemId == \"XCBR1\$CO\$Pos\$Oper\"" 1
 
-# WC-12: Select then Cancel on the second (rejection-target) object
-check_eq WC-12 "Select request on CSWI1 (c->s)" \
-    "$C2S && mms.confirmedServiceRequest==7 && tcp.payload contains \"CSWI1\$CO\$Pos\"" 1
-check_eq WC-13 "Cancel request on CSWI1 (c->s)" \
-    "$C2S && mms.confirmedServiceRequest==10 && tcp.payload contains \"CSWI1\$CO\$Pos\"" 1
-check_eq WC-14 "Cancel response (s->c)" \
-    "$S2C && mms.confirmedServiceResponse==10" 1
+# WC-12: the Oper structure dissects: ctlVal BOOLEAN, ctlNum UNSIGNED,
+# T UTC-TIME (and the nested origin structure)
+check_eq WC-12 "Oper structure dissected (ctlVal/ctlNum/T)" \
+    "$C2S && mms.write_element && mms.objectName_domain_specific_itemId == \"XCBR1\$CO\$Pos\$Oper\" && mms.boolean == 1 && mms.unsigned == 1 && mms.utc_time" 1
+
+# WC-13: the operate Write-Response (s->c, success)
+check_eq WC-13 "Write response success (s->c)" \
+    "$S2C && mms.confirmedServiceResponse==5 && !mms.failure" 2
+
+echo ""
+echo "--- CommandTermination (unsolicited InformationReport on \$Oper) ---"
+
+# WC-14: exactly one InformationReport — the CommandTermination
+# (replaces the pre-WP-2w "no InformationReport" negative assertion)
+check_eq WC-14 "exactly one InformationReport (the CT)" \
+    "mms.informationReport_element" 1
+
+# WC-15: ... on the operated "$Oper" object, echoing the structure
+check_eq WC-15 "CT on XCBR1\$CO\$Pos\$Oper with echoed structure" \
+    "mms.informationReport_element && mms.objectName_domain_specific_itemId == \"XCBR1\$CO\$Pos\$Oper\" && mms.boolean == 1 && mms.unsigned == 1 && mms.utc_time" 1
+
+echo ""
+echo "--- Select + Cancel on the second (rejection-target) object ---"
+
+# WC-16/17/18: fresh select, then the Cancel write + response
+check_eq WC-16 "Read CSWI1\$CO\$Pos\$SBO (c->s)" \
+    "$C2S && mms.read_element && mms.objectName_domain_specific_itemId == \"CSWI1\$CO\$Pos\$SBO\"" 1
+check_eq WC-17 "Write CSWI1\$CO\$Pos\$Cancel (c->s)" \
+    "$C2S && mms.write_element && mms.objectName_domain_specific_itemId == \"CSWI1\$CO\$Pos\$Cancel\"" 1
 
 echo ""
 echo "--- Ed.2 rejection: operate without select on a strict object ---"
 
-# WC-15: the bare Operate on the (now unselected) strict object (c->s)
-check_eq WC-15 "Operate-without-select on CSWI1 (c->s)" \
-    "$C2S && mms.confirmedServiceRequest==9 && tcp.payload contains \"CSWI1\$CO\$Pos\"" 1
+# WC-18: the bare Operate on the (now unselected) strict object (c->s)
+check_eq WC-18 "Operate-without-select on CSWI1 (c->s)" \
+    "$C2S && mms.write_element && mms.objectName_domain_specific_itemId == \"CSWI1\$CO\$Pos\$Oper\"" 1
 
-# WC-16: ... is answered by a ConfirmedError PDU (s->c), correlated
-# with the rejected operate's invokeID
-check_eq WC-16 "ConfirmedError PDU (s->c)" \
-    "$S2C && mms.confirmed_ErrorPDU_element" 1
-ERR_INVOKE=$(tshark -r "$PCAP_FILE" $DECODE -Y "$S2C && mms.confirmed_ErrorPDU_element" \
-             -T fields -e mms.invokeID 2>/dev/null | head -1)
-REJ_INVOKE=$(tshark -r "$PCAP_FILE" $DECODE \
-             -Y "$C2S && mms.confirmedServiceRequest==9 && tcp.payload contains \"CSWI1\$CO\$Pos\"" \
-             -T fields -e mms.invokeID 2>/dev/null | head -1)
-if [ -n "$ERR_INVOKE" ] && [ "$ERR_INVOKE" = "$REJ_INVOKE" ]; then
-    pass "WC-17: ConfirmedError invokeID matches rejected operate ($ERR_INVOKE)"
-else
-    fail "WC-17: ConfirmedError invokeID ($ERR_INVOKE) != operate invokeID ($REJ_INVOKE)"
-fi
-
-# WC-18: no operate response for the rejected command (only ONE
-# operate response in the capture, for the successful XCBR1 operate)
-check_eq WC-18 "exactly one Operate response" \
-    "$S2C && mms.confirmedServiceResponse==9" 1
+# WC-19: ... answered by an in-band Write-Response failure
+# (DataAccessError 2 — object-access-denied), an ordinary clean PDU
+# (the pre-WP-2w rejection was a ConfirmedError after a malformed
+# house-encoded Operate)
+check_eq WC-19 "Write-Response failure DataAccessError (s->c)" \
+    "$S2C && mms.confirmedServiceResponse==5 && mms.failure==2" 1
 
 echo ""
-echo "--- CommandTermination (as-emitted check) ---"
+echo "--- clean dissection (zero BER errors, like WR-26b) ---"
 
-# WC-19: Ed.2 command termination is delivered through the in-process
-# termination callback in this implementation, NOT as an MMS PDU —
-# no InformationReport may appear in the control capture.
-check_eq WC-19 "no InformationReport on the wire" \
-    "mms.informationReport_element" 0
+# WC-20: every MMS PDU in the capture dissects without BER errors —
+# the pre-WP-2w control flow raised malformed-body flags on the
+# house-encoded Select/Operate/Cancel service PDUs
+check_eq WC-20 "zero malformed MMS PDUs" \
+    "mms && _ws.malformed" 0
 
 echo ""
 echo "--- JSON field validation (validate_pcap.py) ---"
 
-# WC-20: tshark JSON field assertions (any-packet semantics)
+# WC-21: tshark JSON field assertions (any-packet semantics)
 if python3 "$SCRIPT_DIR/validate_pcap.py" "$PCAP_FILE" mms_control_ed2 \
         --decode-as "tcp.port==$PORT,tpkt" >/tmp/val_wp_$$ 2>&1; then
-    pass "WC-20: validate_pcap.py mms_control_ed2 defaults (tpkt/Select/Operate tags)"
+    pass "WC-21: validate_pcap.py mms_control_ed2 defaults (CO-object flow)"
 else
-    fail "WC-20: validate_pcap.py mms_control_ed2 defaults"
+    fail "WC-21: validate_pcap.py mms_control_ed2 defaults"
     cat /tmp/val_wp_$$
 fi
 rm -f /tmp/val_wp_$$

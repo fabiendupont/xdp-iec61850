@@ -162,10 +162,12 @@ def validate(pcap_file, protocol, checks, decode_as):
 
 
 # Default checks per protocol. mms_report / mms_control_ed2 cover the
-# WP-2d Ed.2 wire scenarios: the RCB enrollment exchange and report
-# metadata dissected by the neutral tshark MMS dissector, and the
-# house-encoded control services (Select/Operate/Cancel use the
-# repository's confirmedServiceRequest tags, not ISO 9506-2 services).
+# WP-2d/WP-2z/WP-2w Ed.2 wire scenarios: the RCB enrollment exchange,
+# report metadata and the IEC 61850-8-1 control-object flow (Select is
+# a Read of "$SBO" answered with the reference string, Operate/Cancel
+# are Writes of the 8-1 originator structure, the CommandTermination
+# is an InformationReport on the "$Oper" object) — all dissected by
+# the neutral tshark MMS dissector.
 DEFAULT_CHECKS = {
     "goose": ["eth.type=0x000088b8"],
     "sv": ["eth.type=0x000088ba"],
@@ -183,10 +185,25 @@ DEFAULT_CHECKS = {
         "mms.iec61850.seqnum=1",      # sqNum dissected as an AccessResult
         "mms.failure=2",              # Ed.2 rejection: in-band DataAccessError
     ],
+    # WP-2w: the control flow is conformant IEC 61850-8-1 — ordinary
+    # Reads/Writes on the CO objects (no house-encoded confirmed
+    # service tags), the SBO read answer, the Oper structure fields
+    # and the CommandTermination InformationReport on "$Oper".
+    # (tshark's IEC 61850 knowledge renames the ctlModel read response
+    # integer to mms.iec61850.ctlmodel and renders booleans as 0/1.)
     "mms_control_ed2": [
         "tpkt.version=3",
-        "mms.confirmedServiceRequest=7",   # Select (SBO) request tag
-        "mms.confirmedServiceRequest=9",   # Operate request tag
+        "mms.objectName_domain_specific_itemId=XCBR1$ST$Pos$stVal",  # status Read
+        "mms.objectName_domain_specific_itemId=XCBR1$CF$Pos$ctlModel",  # ctlModel Read
+        "mms.iec61850.ctlmodel=2",     # ctlModel = sbo-with-normal-security
+        "mms.objectName_domain_specific_itemId=XCBR1$CO$Pos$SBO",    # select Read
+        "mms.data.visible-string=LD/XCBR1$CO$Pos",  # SBO answer: reference
+        "mms.objectName_domain_specific_itemId=XCBR1$CO$Pos$Oper",   # operate Write + CT
+        "mms.objectName_domain_specific_itemId=CSWI1$CO$Pos$Cancel", # cancel Write
+        "mms.objectName_domain_specific_itemId=CSWI1$CO$Pos$Oper",   # rejected operate
+        "mms.boolean=1",               # Oper structure: ctlVal
+        "mms.unsigned=1",              # Oper structure: ctlNum
+        "mms.failure=2",               # Ed.2 rejection: in-band DataAccessError
     ],
     # 90-5 routable profiles (WP-4e): the wire scenario publishes
     # plain R-GOOSE on UDP 10201 / plain R-SV on 10202 and the
