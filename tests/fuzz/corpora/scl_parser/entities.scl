@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!DOCTYPE SCL [
+  <!ENTITY a "0123456789012345678901234567890123456789">
+  <!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">
+  <!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">
+  <!ENTITY d "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">
+]>
+<SCL version="2007"><IED name="IED1"><AccessPoint name="AP1"><Server><LDevice inst="LD0"><LN0 lnClass="LLN0">&d;</LN0></LDevice></Server></AccessPoint></IED></SCL>

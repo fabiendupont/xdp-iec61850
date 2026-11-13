@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SCL version="2007">
+  <Header id="broken"/>
+  <Communication>
+    <ConnectedAP iedName="IED1" apName="AP1">
+      <GSE ldInst="LD0" cbName="gcb01">
+        <Address>
+          <P type="APPID">zzzz</P>
+          <P type="VLAN-ID">99999</P>
+          <P type="MAC-Address">not-a-mac</P>
+          <P>missing type attribute</P>
+        </Address>
+        <MinTime>not-a-number</MinTime>
+      </GSE>
+      <SMV/>
+      <GSE ldInst="" cbName="">
+    </ConnectedAP>
+  </Communication>
+  <IED manufacturer="no-name-attribute">
+    <AccessPoint>
+      <Server>
+        <LDevice>
+          <LN0>
+            <DataSet>
+              <FCDA/>
+              <FCDA fc="ST" ldInst="LD0" lnClass="XCBR" lnInst="999999" doName="Pos" daName="stVal"/>
+            </DataSet>
+            <GSEControl name="" datSet="" confRev="0x10" appID=""/>
+            <ReportControl rptID="" datSet="NOPE" buffered="maybe">
+              <TrgOps dchg="yes" qchg="2"/>
+            </ReportControl>
+            <UnknownElement attr="1"><Nested><Deeper/></Nested></UnknownElement>
+          </LN0>
+        </LDevice>
+      </Server>
+    </AccessPoint>
+  </IED>
+  <DataTypeTemplates>
+    <LNodeType lnClass="LLN0"><DO name="a" type=""/><DO/></LNodeType>
+    <DOType cdc="MAGIC"><DA bType="Struct" type="no-such-type"/></DOType>
+    <DAType id=""><BDA bType="Enum" type=""/></DAType>
+    <EnumType><EnumVal ord="-2147483648">min</EnumVal><EnumVal>no-ord</EnumVal></EnumType>
+  </DataTypeTemplates>
+</SCL>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SCL version="2007">
+  <IED name="IEDÿþ1">
+    <AccessPoint name="APÀ€">
+      <Server><LDevice inst="LD€"><LN0 lnClass="LLN0"><GSEControl name="gcbí €" datSet="DS1" confRev="1" appID="G"/></LN0></LDevice></Server>
+    </AccessPoint>
+  </IED>
+  <Communication><SubNetwork name="SN"><ConnectedAP iedName="IED1" apName="AP1"><GSE ldInst="LD" cbName="gcb"><Address><P type="APPID">0001</P></Address></GSE></ConnectedAP></SubNetwork></Communication>
+</SCL>

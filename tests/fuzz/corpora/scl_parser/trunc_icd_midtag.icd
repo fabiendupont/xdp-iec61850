@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: BSD-2-Clause -->
+<!--
+  Minimal ICD for interop testing.
+  Defines one IED with GOOSE, SV, and MMS control blocks.
+-->
+<SCL xmlns="http://www.iec.ch/61850/2003/SCL" version="2007" revision="B">
+  <Header id="InteropTest" version="1.0"/>
+
+  <Communication>
+    <SubNetwork name="SubNet1" type="8-MMS">
+      <ConnectedAP iedName="IED1" apName="AP1">
+        <Address>
+          <P type="IP">127.0.0.1</P>
+          <P type="IP-SUBNET">255.255.255.0</P>
+          <P type="OSI-PSEL">00000001</P>
+          <P type="OSI-SSEL">0001</P>
+          <P type="OSI-TSEL">0001</P>
+        </Address>
+        <GSE ldInst="LD0" cbName="gcb01">
+          <Address>
+            <P type="MAC-Address">01-0C-CD-01-00-01</P>
+            <P type="APPID">0001</P>
+            <P type="VLAN-ID">100</P>
+            <P type="VLAN-PRIORITY">4</P>
+          </Address>
+          <MinTime unit="s" multiplier="m">4</MinTime>
+          <MaxTime unit="s" multiplier="m">1000</MaxTime>
+        </GSE>
+        <SMV ldInst="LD0" cbName="svCB01">
+          <Address>
+            <P type="MAC-Address">01-0C-CD-04-00-01</P>
+            <P type="APPID">4000</P>
+            <P type="VLAN-ID">100</P>
+            <P type="VLAN-PRIORITY">4</P>
+          </Address>
+        </SMV>
+      </ConnectedAP>
+    </SubNetwork>
+  </Communication>
+
+  <IED name="IED1" manufacturer="xdp-iec61850">
+    <Services>
+      <DynAssociation/>
+      <GetDirectory/>
+      <GetDataObjectDefinition/>
+      <GetDataSetValue/>
+      <DataSetDirectory/>
+      <ReadWrite/>
+      <GOOSE max="1"/>
+      <SMVsc max="1"/>
+    </Services>
+    <AccessPoint name="AP1">
+      <Server>
+        <Authentication/>
+        <LDevice inst="LD0">
+          <LN0 lnClass="LLN0" inst="" lnType="LLN0_Type">
+            <DataSet name="dsGOOSE">
+              <FCDA ldInst="LD0" lnClass="GGIO" lnInst="1" doName="SPCSO1" daName="stVal" fc="ST"/>
+              <FCDA ldInst="LD0" lnClass="GGIO" lnInst="1" doName="Ind1" daName="stVal" fc="ST"/>
+              <FCDA ldInst="LD0" lnClass="GGIO" lnInst="1" doName="AnIn1" daName="mag.f" fc="MX"/>
+              <FCDA ldInst="LD0" lnClass="GGIO" lnInst="1" doName="AnIn1" daName="q" fc="MX"/>
+            </DataSet>
+            <DataSet name="dsSV">
+              <FCDA ldInst="LD0" lnClass="MMXU" lnInst="1" doName="PhV" daName="phsA.cVal.mag.f" fc="MX"/>
+              <FCDA ldInst="LD0" lnClass="MMXU" lnInst="1" doName="PhV" daName="phsA.q" fc="MX"/>
+              <FCDA ldInst="LD0" lnClass="MMXU" lnInst="1" doName="PhV" daName="phsB.cVal.mag.f" fc="MX"/>
+              <FCDA ldInst="LD0" lnClass="MMXU" lnInst="1" doName="PhV" daName="phsB.q" fc="MX"/>
+            </DataSet>
+            <GSEControl 

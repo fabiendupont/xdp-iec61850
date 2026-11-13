@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<SCL version="2007">
+  <IED name="IED1" name="IED2">
+    <AccessPoint name="AP1"><Server><LDevice inst="LD0">
+      <LN0 lnClass="LLN0" inst="" lnType="LLN0">
+        <GSEControl name="gcb01" datSet="DS1 confRev="1" appID="GOOSE1"/>
+      </LN0>
+    </LDevice></Server></AccessPoint>
+  </IED>
+</SCL>
