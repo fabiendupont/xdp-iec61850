@@ -516,6 +516,10 @@ static void fill_61850_report(mms_iec61850_report_t* r, uint8_t opt_flds,
     r->time_of_entry_present = (opt_flds & 0x20u) != 0;
     r->conf_rev = 1234;
     r->conf_rev_present = conf_rev_on;
+    /* WP-1f (BUG-R4): bufOvfl / entryID are emitted iff the
+     * corresponding optFlds bit is set. */
+    r->buffer_overflow = true;
+    r->entry_id = 0x1122334455667788ULL;
     r->num_members = 3;
     r->reason_code = 0x2A;
     r->num_values = 3;
@@ -576,10 +580,19 @@ static void verify_61850_decode(const mms_information_report_t* d,
         ASSERT_EQ((int)d->conf_rev, 1234);
     }
 
+    /* WP-1f (BUG-R4): bufOvfl / entryID presence and values follow
+     * the optFlds bits (the encoder emits them iff the bit is set). */
+    ASSERT_TRUE(d->buffer_overflow_present == ((opt_flds & 0x02u) != 0));
+    if (opt_flds & 0x02u) {
+        ASSERT_TRUE(d->buffer_overflow);
+    }
+    ASSERT_TRUE(d->entry_id_present == ((opt_flds & 0x01u) != 0));
+    if (opt_flds & 0x01u) {
+        ASSERT_TRUE(d->entry_id == 0x1122334455667788ULL);
+    }
+
     /* Fields the 7-2 encoder never emits must stay absent */
     ASSERT_TRUE(d->data_references_present == false);
-    ASSERT_TRUE(d->buffer_overflow_present == false);
-    ASSERT_TRUE(d->entry_id_present == false);
     ASSERT_TRUE(d->config_ref_present == false);
 
     /* Inclusion bit string: 3 members, first byte 0xE0 */
@@ -645,8 +658,8 @@ static void test_iec61850_report_roundtrip_each_optfld(void)
         { 0x10u, false, "reason" },
         { 0x08u, false, "datSet" },
         { 0x04u, false, "dataRef (no wire field)" },
-        { 0x02u, false, "bufferOverflow (no wire field)" },
-        { 0x01u, false, "entryID (no wire field)" },
+        { 0x02u, false, "bufferOverflow" },
+        { 0x01u, false, "entryID" },
         { 0x00u, true,  "confRev" },
     };
     uint8_t buf[512];
@@ -805,6 +818,41 @@ static void test_iec61850_report_malformed_fields(void)
         (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x08, 0x00,
                            0x8A, 0x84, 0xFF, 0xFF, 0xFF, 0xFF }, 14);
 
+    /* bufOvfl optFld set but no BOOLEAN [3] field follows (WP-1f) */
+    assert_61850_list_rejected("bufovfl_missing",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x02, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x05, (uint8_t)0xE0 },
+        15);
+
+    /* bufOvfl zero-length */
+    assert_61850_list_rejected("bufovfl_zero_len",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x02, 0x00,
+                           0x8A, 0x01, 'D', 0x83, 0x00 }, 13);
+
+    /* bufOvfl wire length exceeds the list parent */
+    assert_61850_list_rejected("bufovfl_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x02, 0x00,
+                           0x8A, 0x01, 'D', 0x83, 0x84,
+                           0xFF, 0xFF, 0xFF, 0xFF }, 17);
+
+    /* entryID optFld set but no OCTET STRING [9] field follows (WP-1f) */
+    assert_61850_list_rejected("entryid_missing",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x01, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x05, (uint8_t)0xE0 },
+        15);
+
+    /* entryID bad size (9 bytes instead of <= 8) */
+    assert_61850_list_rejected("entryid_bad_size",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x01, 0x00,
+                           0x8A, 0x01, 'D', 0x89, 0x09,
+                           1, 2, 3, 4, 5, 6, 7, 8, 9 }, 21);
+
+    /* entryID wire length exceeds the list parent */
+    assert_61850_list_rejected("entryid_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x01, 0x00,
+                           0x8A, 0x01, 'D', 0x89, 0x84,
+                           0xFF, 0xFF, 0xFF, 0xFF }, 17);
+
     /* confRev optFld set but no confRev field follows */
     assert_61850_list_rejected("confrev_missing",
         (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x00, 0x80,
@@ -945,6 +993,180 @@ static void test_iec61850_report_oversized_lengths(void)
         sizeof(wrong_vas_tag), &report) < 0);
     ASSERT_TRUE(mms_decode_iec61850_report(wrong_list_tag,
         sizeof(wrong_list_tag), &report) < 0);
+    PASS();
+}
+
+/* ========================================================================
+ * WP-1f: in-band service failures (BUG-R2 / BUG-R3) and the oracle's
+ * bufOvfl/entryID report fields (BUG-R4)
+ * ======================================================================== */
+
+/* Read-Response carrying a failure AccessResult (wire-observed on the
+ * reference server for a read of an absent object):
+ *   a1 0a 02 01 01 a4 05 a1 03 80 01 0a
+ * (ConfirmedResponse/invokeID 1/read/listOfAccessResult/
+ *  failure DataAccessError=10). Valid MMS: must decode. */
+static void test_read_response_inband_failure(void)
+{
+    TEST("read_response_inband_failure");
+    static const uint8_t wire[] = {
+        0xA1, 0x0A, 0x02, 0x01, 0x01, 0xA4, 0x05, 0xA1, 0x03,
+        0x80, 0x01, 0x0A
+    };
+    mms_confirmed_response_t resp;
+
+    memset(&resp, 0, sizeof(resp));
+    int ret = mms_decode_confirmed_response(wire, sizeof(wire), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(wire));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ);
+    ASSERT_TRUE(resp.params.read.failure);
+    ASSERT_EQ((int)resp.params.read.access_error, 10);
+    PASS();
+}
+
+/* Write-Response result CHOICE: failure [0] DataAccessError vs
+ * success [1] NULL. Wire-observed on the reference server for a
+ * rejected Resv write: a1 08 02 01 01 a5 03 80 01 02. */
+static void test_write_response_failure_choice(void)
+{
+    TEST("write_response_failure_choice");
+    static const uint8_t failure_wire[] = {
+        0xA1, 0x08, 0x02, 0x01, 0x01, 0xA5, 0x03, 0x80, 0x01, 0x02
+    };
+    static const uint8_t success_wire[] = {
+        0xA1, 0x07, 0x02, 0x01, 0x01, 0xA5, 0x02, 0x81, 0x00
+    };
+    mms_confirmed_response_t resp;
+    mms_confirmed_response_t roundtrip;
+    uint8_t buf[256];
+
+    memset(&resp, 0, sizeof(resp));
+    int ret = mms_decode_confirmed_response(failure_wire,
+                                            sizeof(failure_wire), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(failure_wire));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_WRITE);
+    ASSERT_TRUE(resp.params.write.failure);
+    ASSERT_EQ((int)resp.params.write.access_error, 2);
+
+    memset(&resp, 0, sizeof(resp));
+    ret = mms_decode_confirmed_response(success_wire,
+                                        sizeof(success_wire), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(success_wire));
+    ASSERT_TRUE(!resp.params.write.failure);
+
+    /* Encode/decode roundtrip of the failure CHOICE. */
+    memset(&resp, 0, sizeof(resp));
+    resp.invoke_id = 1;
+    resp.service = MMS_SERVICE_TYPE_WRITE;
+    resp.params.write.failure = true;
+    resp.params.write.access_error = 2;
+    int len = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+    ASSERT_TRUE(len > 0);
+    memset(&roundtrip, 0, sizeof(roundtrip));
+    ret = mms_decode_confirmed_response(buf, (size_t)len, &roundtrip);
+    ASSERT_TRUE(ret == len);
+    ASSERT_TRUE(roundtrip.params.write.failure);
+    ASSERT_EQ((int)roundtrip.params.write.access_error, 2);
+    PASS();
+}
+
+/* ReadNamedVariableList response with one member answered as a
+ * failure AccessResult: valid MMS, decoded with the failure flagged
+ * and the successful members preserved. */
+static void test_readnamedvarlist_member_failure(void)
+{
+    TEST("readnamedvarlist_member_failure");
+    static const uint8_t wire[] = {
+        0xA1, 0x13, 0x02, 0x01, 0x01, 0xA4, 0x0E, 0xA1, 0x0C,
+        0x83, 0x01, 0xFF,             /* member 1: boolean TRUE */
+        0x80, 0x01, 0x03,             /* member 2: failure, code 3 */
+        0x86, 0x01, 0x2A,             /* member 3: unsigned 42 */
+        0x85, 0x01, 0x07              /* member 4: integer 7 */
+    };
+    mms_confirmed_response_t resp;
+
+    memset(&resp, 0, sizeof(resp));
+    int ret = mms_decode_confirmed_response(wire, sizeof(wire), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(wire));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.num_values, 3);
+    ASSERT_TRUE(resp.params.readnamedvarlist.values[0].value.boolean);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.values[1].value.unsigned_val, 42);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.values[2].value.integer, 7);
+    ASSERT_TRUE(resp.params.readnamedvarlist.failure);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.access_error, 3);
+    PASS();
+}
+
+/* BRCB report in the reference server's default-options shape
+ * (optFlds 0x7a/0x7b): the bufOvfl BOOLEAN [3] sits between datSet
+ * and confRev (wire evidence, WP-1d MR-04b); the 0x7b variant adds
+ * the entryID octet string. Both must decode. */
+static void test_iec61850_report_oracle_default_optflds(void)
+{
+    TEST("iec61850_report_oracle_default_optflds");
+    static const uint8_t list_7a[] = {
+        0x8A, 0x07, 'E', 'v', 'e', 'n', 't', 's', '2',   /* rptID */
+        0x84, 0x03, 0x06, 0x7A, 0x80,                    /* optFlds */
+        0x86, 0x01, 0x00,                                /* seqNum */
+        0x8C, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,  /* timeOfEntry */
+        0x8A, 0x08, 'L', 'L', 'N', '0', '$', 'D', 'S', '1', /* datSet */
+        0x83, 0x01, 0x01,                                /* bufOvfl TRUE */
+        0x86, 0x01, 0x01,                                /* confRev */
+        0x84, 0x02, 0x06, 0xC0,                          /* inclBitStr */
+        0x83, 0x01, 0xFF,                                /* value: bool */
+        0x86, 0x01, 0x2A,                                /* value: uint */
+        0x84, 0x02, 0x02, 0x01,                          /* reason */
+        0x84, 0x02, 0x02, 0x02                           /* reason */
+    };
+    static const uint8_t list_7b[] = {
+        0x8A, 0x07, 'E', 'v', 'e', 'n', 't', 's', '2',
+        0x84, 0x03, 0x06, 0x7B, 0x80,
+        0x86, 0x01, 0x00,
+        0x8C, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x8A, 0x08, 'L', 'L', 'N', '0', '$', 'D', 'S', '1',
+        0x83, 0x01, 0x01,                                /* bufOvfl TRUE */
+        0x89, 0x08, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, /* entryID */
+        0x86, 0x01, 0x01,                                /* confRev */
+        0x84, 0x02, 0x06, 0xC0,                          /* inclBitStr */
+        0x83, 0x01, 0xFF,
+        0x86, 0x01, 0x2A,
+        0x84, 0x02, 0x02, 0x01,
+        0x84, 0x02, 0x02, 0x02
+    };
+    uint8_t wire[256];
+    size_t wire_len;
+    mms_information_report_t report;
+
+    wire_len = wrap_61850_list(wire, sizeof(wire), list_7a, sizeof(list_7a));
+    ASSERT_TRUE(wire_len > 0);
+    memset(&report, 0, sizeof(report));
+    int ret = mms_decode_iec61850_report(wire, wire_len, &report);
+    ASSERT_TRUE(ret == (int)wire_len);
+    ASSERT_TRUE(strcmp(report.rpt_id, "Events2") == 0);
+    ASSERT_TRUE(strcmp(report.dat_set, "LLN0$DS1") == 0);
+    ASSERT_TRUE(report.sq_num_present);
+    ASSERT_TRUE(report.report_timestamp_present);
+    ASSERT_TRUE(report.conf_rev_present);
+    ASSERT_EQ((int)report.conf_rev, 1);
+    ASSERT_TRUE(report.buffer_overflow_present);   /* BUG-R4 */
+    ASSERT_TRUE(report.buffer_overflow);
+    ASSERT_TRUE(!report.entry_id_present);
+    ASSERT_EQ((int)report.num_values, 2);
+    ASSERT_TRUE(report.values[0].value.boolean);
+    ASSERT_EQ((int)report.values[1].value.unsigned_val, 42);
+    ASSERT_TRUE(report.reasons_present);
+
+    wire_len = wrap_61850_list(wire, sizeof(wire), list_7b, sizeof(list_7b));
+    ASSERT_TRUE(wire_len > 0);
+    memset(&report, 0, sizeof(report));
+    ret = mms_decode_iec61850_report(wire, wire_len, &report);
+    ASSERT_TRUE(ret == (int)wire_len);
+    ASSERT_TRUE(report.buffer_overflow_present);
+    ASSERT_TRUE(report.buffer_overflow);
+    ASSERT_TRUE(report.entry_id_present);          /* BUG-R4 */
+    ASSERT_TRUE(report.entry_id == 0x1122334455667788ULL);
+    ASSERT_EQ((int)report.num_values, 2);
     PASS();
 }
 
@@ -1857,6 +2079,12 @@ int main(void)
     test_iec61850_report_malformed_fields();
     test_iec61850_report_oversized_lengths();
     test_iec61850_report_truncated();
+
+    printf("\n--- WP-1f: in-band failures + bufOvfl/entryID ---\n");
+    test_read_response_inband_failure();
+    test_write_response_failure_choice();
+    test_readnamedvarlist_member_failure();
+    test_iec61850_report_oracle_default_optflds();
 
     printf("\n--- Error Handling ---\n");
     test_null_parameters();

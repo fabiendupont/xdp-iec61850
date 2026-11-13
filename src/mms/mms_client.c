@@ -228,6 +228,14 @@ int iec61850_mms_client_read(iec61850_mms_client_t *client,
     if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_READ) {
+        if (resp.params.read.failure) {
+            /* Valid MMS Read-Response carrying a failure AccessResult
+             * (WP-1f, BUG-R2): the read was rejected in-band. The
+             * DataAccessError code is available in
+             * resp.params.read.access_error for callers that transact
+             * through the async core directly. */
+            return IEC61850_MMS_CLIENT_ERR_MMS;
+        }
         *value = resp.params.read.value;
         return IEC61850_MMS_CLIENT_OK;
     }
@@ -235,13 +243,41 @@ int iec61850_mms_client_read(iec61850_mms_client_t *client,
     return IEC61850_MMS_CLIENT_ERR_MMS;
 }
 
+/*
+ * WP-1f private extension (shared with mms_client_rcb.c only; the
+ * public header mms_client.h is frozen for this WP): write variant
+ * that also reports the DataAccessError code when the server rejects
+ * the write in-band (Write-Response failure [0]). *access_error is
+ * set to -1 when the response carried no in-band failure (success,
+ * or a ConfirmedError PDU, which surfaces as ERR_MMS without a
+ * code). To be hoisted into mms_client.h (with a read counterpart)
+ * by a follow-up WP.
+ */
+int iec61850_mms_client_write_detail(iec61850_mms_client_t *client,
+                                      const char *domain, const char *item_id,
+                                      const mms_value_t *value,
+                                      int32_t *access_error);
+
 int iec61850_mms_client_write(iec61850_mms_client_t *client,
                                 const char *domain, const char *item_id,
                                 const mms_value_t *value)
 {
+    return iec61850_mms_client_write_detail(client, domain, item_id,
+                                             value, NULL);
+}
+
+int iec61850_mms_client_write_detail(iec61850_mms_client_t *client,
+                                      const char *domain, const char *item_id,
+                                      const mms_value_t *value,
+                                      int32_t *access_error)
+{
     mms_confirmed_request_t req;
     mms_confirmed_response_t resp;
     int ret;
+
+    if (access_error != NULL) {
+        *access_error = -1;
+    }
 
     if ((client == NULL) || (!client->connected) || (item_id == NULL) ||
         (value == NULL)) {
@@ -264,6 +300,15 @@ int iec61850_mms_client_write(iec61850_mms_client_t *client,
     if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_WRITE) {
+        if (resp.params.write.failure) {
+            /* Write-Response failure CHOICE (WP-1f, BUG-R3): the
+             * server rejected the write in-band; surface the
+             * DataAccessError code to detail callers. */
+            if (access_error != NULL) {
+                *access_error = resp.params.write.access_error;
+            }
+            return IEC61850_MMS_CLIENT_ERR_MMS;
+        }
         return IEC61850_MMS_CLIENT_OK;
     }
 
@@ -476,6 +521,11 @@ int iec61850_mms_client_read_named_varlist(
     if (ret != (int)IEC61850_MMS_CLIENT_OK) { return ret; }
 
     if (resp.service == MMS_SERVICE_TYPE_READ_NAMED_VARLIST) {
+        if (resp.params.readnamedvarlist.failure) {
+            /* A dataset member was answered with a failure
+             * AccessResult in-band (WP-1f, BUG-R2). */
+            return IEC61850_MMS_CLIENT_ERR_MMS;
+        }
         uint32_t n = resp.params.readnamedvarlist.num_values;
         if (n > max_values) { n = max_values; }
         for (uint32_t i = 0; i < n; i++) {

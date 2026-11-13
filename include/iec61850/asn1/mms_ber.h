@@ -374,9 +374,15 @@ typedef struct {
 
 /**
  * @brief MMS Read Response
+ *
+ * A Read-Response may carry a failure AccessResult in-band
+ * (failure [0] IMPLICIT DataAccessError) instead of a value — valid
+ * MMS per ISO 9506-2. WP-1f: failure/access_error represent it.
  */
 typedef struct {
     mms_value_t value;
+    bool failure;          /**< WP-1f: in-band failure AccessResult */
+    int32_t access_error;  /**< WP-1f: DataAccessError code when failure */
 } mms_read_response_t;
 
 /**
@@ -389,9 +395,16 @@ typedef struct {
 
 /**
  * @brief MMS Write Response (empty - success indication)
+ *
+ * Write-Response ::= SEQUENCE OF WriteResult, WriteResult ::= CHOICE
+ * { failure [0] IMPLICIT DataAccessError, success [1] IMPLICIT NULL }.
+ * WP-1f: failure/access_error represent a rejected write (first
+ * failure result when several are present).
  */
 typedef struct {
     uint8_t reserved;  /* Empty structure, placeholder */
+    bool failure;          /**< WP-1f: write rejected in-band */
+    int32_t access_error;  /**< WP-1f: DataAccessError code when failure */
 } mms_write_response_t;
 
 /**
@@ -409,10 +422,14 @@ typedef struct {
  * @brief MMS ReadNamedVariableList Response
  *
  * Returns array of values corresponding to variables in the list.
+ * WP-1f: an individual member may be answered with a failure
+ * AccessResult; failure/access_error record the first one.
  */
 typedef struct {
     mms_value_t values[MMS_MAX_NAMED_VARIABLES];
     uint32_t num_values;
+    bool failure;          /**< WP-1f: a member failed in-band */
+    int32_t access_error;  /**< WP-1f: DataAccessError code when failure */
 } mms_readnamedvarlist_response_t;
 
 /**
@@ -595,6 +612,11 @@ typedef struct {
     uint32_t num_members;                 /* number of dataset members included */
     /* reason code for each member: 8 bits, 2 bits padding, IEC 61850-7-2 §8.1.3 */
     uint8_t reason_code;                  /* same reason applied to all members */
+    /* WP-1f (BUG-R4): bufOvfl / entryID report optional fields,
+     * emitted iff the corresponding optFlds bit in opt_flds_byte is
+     * set (bit 6 buffer-overflow = 0x02, bit 7 entryID = 0x01). */
+    bool buffer_overflow;                 /* bufOvfl [3] BOOLEAN */
+    uint64_t entry_id;                    /* entryID, 8 bytes big-endian */
     /* data values — one per included member */
     mms_value_t values[MMS_MAX_NAMED_VARIABLES];
     uint32_t num_values;
