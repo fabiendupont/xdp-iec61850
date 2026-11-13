@@ -965,6 +965,12 @@ sv_wire_pub = executable('sv_wire_pub',
     link_with: [iec61850_lib] + mms_lib,
     dependencies: [thread_dep],
 )
+rgoose_wire_pub = executable('rgoose_wire_pub',
+    'interop/wire/rgoose_wire_pub.c',
+    include_directories: [inc_dirs],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
 if get_option('enable_mms')
     mms_report_wire = executable('mms_report_wire',
         'interop/wire/mms_report_wire.c',
