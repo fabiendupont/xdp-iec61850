@@ -7,11 +7,12 @@
  * SPDU: src/asn1/rgoose_ber.c (WP-4a derivation).
  *
  * Secure-mode signature patch offset derivation: the 0x85 signature
- * TLV is the FINAL element of the SPDU and its length is fixed
- * (HMAC-SHA256 = IEC61850_RGOOSE_SEC_HMAC_LEN), so given the encoded
- * SPDU length the signature VALUE starts at
+ * TLV is the FINAL element of the SPDU and its length is fixed per
+ * algorithm (HMAC-SHA256 = IEC61850_RGOOSE_SEC_HMAC_LEN, AES-GMAC =
+ * IEC61850_RGOOSE_SEC_GMAC_LEN), so given the encoded SPDU length
+ * the signature VALUE starts at
  *
- *     sig_value_off = spdu_len - IEC61850_RGOOSE_SEC_HMAC_LEN
+ *     sig_value_off = spdu_len - sig_len
  *
  * (TLV header at sig_value_off - 2, defensively asserted to carry
  * tag 0x85).  The offset is computed arithmetically — the frame is
@@ -318,12 +319,17 @@ int iec61850_rgoose_publisher_enable_security(
         (cfg->key_len > (size_t)IEC61850_RGOOSE_SEC_KEY_MAX)) {
         return -EINVAL;
     }
-    if (cfg->algo != (uint16_t)IEC61850_RGOOSE_PUB_SEC_ALGO_HMAC_SHA256) {
-        /* No AES-GMAC signing primitive exists in src/security. */
-        return -ENOTSUP;
+    if ((cfg->algo != (uint16_t)IEC61850_RGOOSE_PUB_SEC_ALGO_HMAC_SHA256) &&
+        (cfg->algo != (uint16_t)IEC61850_RGOOSE_PUB_SEC_ALGO_AES_GMAC)) {
+        return -EINVAL;
     }
 
 #ifdef IEC61850_SECURITY_ENABLED
+    if ((cfg->algo == (uint16_t)IEC61850_RGOOSE_PUB_SEC_ALGO_AES_GMAC) &&
+        (cfg->key_len != 16U) && (cfg->key_len != 32U)) {
+        /* AES-GMAC supports 128/256-bit keys only (aes_gmac_sign). */
+        return -EINVAL;
+    }
     pub->sec = *cfg;
     pub->security_enabled = true;
     return 0;
@@ -414,9 +420,15 @@ static void rgoose_build_eth_header(uint8_t *eth,
  *      header checksum computed);
  *   3. zero the UDP checksum field ("not used", RFC 768 — see the
  *      header comment for the circularity argument);
- *   4. HMAC-SHA256 over the complete IP+UDP+SPDU span (signature
- *      bytes still zeroed);
+ *   4. sign the complete IP+UDP+SPDU span (signature bytes still
+ *      zeroed) with HMAC-SHA256 or AES-GMAC per the config;
  *   5. patch the signature value in (arithmetically derived offset).
+ *
+ * AES-GMAC mirrors the subscriber's verify path byte-for-byte
+ * (src/goose/rgoose_subscriber.c, rgoose_verify_secure): 12-byte IV
+ * derived per packet from the session fields —
+ * spdu_number(4) | appid(2) | key_id(4) | reserved(2), big-endian
+ * concatenation — with AAD = the signed span and a 16-byte tag.
  */
 static int rgoose_build_secure_frame(iec61850_rgoose_publisher_t *pub,
                                      uint8_t *frame_buf, size_t frame_size,
@@ -426,15 +438,23 @@ static int rgoose_build_secure_frame(iec61850_rgoose_publisher_t *pub,
     uint8_t sig[IEC61850_RGOOSE_SEC_HMAC_LEN];
     iec61850_r_security_t sec;
     goose_apdu_t apdu;
+    size_t sig_len;
     size_t spdu_len;
     size_t sig_value_off;
     size_t span_len;
     uint8_t *ip;
+    bool gmac;
     int ret;
 
     if (frame_size < (size_t)IEC61850_RGOOSE_MAX_FRAME_LEN) {
         return -ENOSPC;
     }
+
+    /* Fixed signature length per algorithm (max capacity: HMAC 32). */
+    gmac = (pub->sec.algo ==
+            (uint16_t)IEC61850_RGOOSE_PUB_SEC_ALGO_AES_GMAC);
+    sig_len = gmac ? (size_t)IEC61850_RGOOSE_SEC_GMAC_LEN
+                   : (size_t)IEC61850_RGOOSE_SEC_HMAC_LEN;
 
     rgoose_fill_apdu(pub, &apdu);
 
@@ -444,7 +464,7 @@ static int rgoose_build_secure_frame(iec61850_rgoose_publisher_t *pub,
     sec.time_of_current_key = rgoose_now_epoch_s();
     sec.time_to_next_key = pub->sec.time_to_next_key;
     sec.security_algos = pub->sec.algo;
-    sec.signature_len = (size_t)IEC61850_RGOOSE_SEC_HMAC_LEN;
+    sec.signature_len = sig_len;
     /* sec.signature stays zeroed: the placeholder. */
 
     ret = iec61850_rgoose_encode(&apdu, pub->config.appid,
@@ -456,7 +476,7 @@ static int rgoose_build_secure_frame(iec61850_rgoose_publisher_t *pub,
     spdu_len = (size_t)ret;
 
     /* Deterministic signature-value offset (see file header). */
-    sig_value_off = spdu_len - (size_t)IEC61850_RGOOSE_SEC_HMAC_LEN;
+    sig_value_off = spdu_len - sig_len;
     if ((sig_value_off < 2U) ||
         (spdu[sig_value_off - 2U] != (uint8_t)RGOOSE_SIG_TAG)) {
         /* Defensive: the codec's layout contract drifted. */
@@ -481,15 +501,39 @@ static int rgoose_build_secure_frame(iec61850_rgoose_publisher_t *pub,
 
     /* Sign IP header + UDP header + SPDU (signature zeroed). */
     span_len = (size_t)IEC61850_IP_UDP_HEADER_LEN + spdu_len;
-    ret = hmac_sha256_sign(pub->sec.key, pub->sec.key_len, ip, span_len,
-                           sig, sizeof(sig));
+    if (gmac) {
+        /* AES-GMAC: per-packet IV from the session fields encoded in
+         * THIS SPDU (spdu_number not yet consumed) — mirrors the
+         * subscriber's derivation. */
+        uint8_t iv[12];
+
+        iv[0] = (uint8_t)(pub->spdu_number >> 24);
+        iv[1] = (uint8_t)(pub->spdu_number >> 16);
+        iv[2] = (uint8_t)(pub->spdu_number >> 8);
+        iv[3] = (uint8_t)pub->spdu_number;
+        iv[4] = (uint8_t)(pub->config.appid >> 8);
+        iv[5] = (uint8_t)pub->config.appid;
+        iv[6] = (uint8_t)(pub->sec.key_id >> 24);
+        iv[7] = (uint8_t)(pub->sec.key_id >> 16);
+        iv[8] = (uint8_t)(pub->sec.key_id >> 8);
+        iv[9] = (uint8_t)pub->sec.key_id;
+        iv[10] = 0U;
+        iv[11] = 0U;
+
+        ret = aes_gmac_sign(pub->sec.key, pub->sec.key_len, iv, sizeof(iv),
+                            ip, span_len, sig, sig_len);
+    } else {
+        /* HMAC-SHA256 (default). */
+        ret = hmac_sha256_sign(pub->sec.key, pub->sec.key_len, ip, span_len,
+                               sig, sig_len);
+    }
     if (ret != 0) {
         return -EIO;
     }
 
     /* Patch the signature value in (length fields already final). */
     (void)memcpy(&ip[IEC61850_IP_UDP_HEADER_LEN + sig_value_off], sig,
-                 sizeof(sig));
+                 sig_len);
 
     *frame_len = (size_t)RGOOSE_ETH_HDR_LEN + span_len;
 

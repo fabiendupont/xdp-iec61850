@@ -22,9 +22,13 @@
  *   non-zero checksum over the signature bytes would be circular
  *   with the signature covering the UDP header); the IPv4 header
  *   checksum is always computed.  The signature is HMAC-SHA256 (32
- *   octets) over IP header .. end of SPDU with the signature value
- *   bytes zeroed; the signature TLV offset is derived
- *   arithmetically from the encoded length, never scanned for.
+ *   octets, default) or AES-GMAC (16-octet tag) over IP header ..
+ *   end of SPDU with the signature value bytes zeroed; the
+ *   signature TLV offset is derived arithmetically from the encoded
+ *   length, never scanned for.  The AES-GMAC IV is derived per
+ *   packet from the session fields — spdu_number(4) | appid(2) |
+ *   key_id(4) | reserved(2), big-endian — mirroring the
+ *   subscriber's verification path.
  *
  * Retransmission is OFF by default for R-SV (sampled values are not
  * retransmitted); enable_retransmit() opts in.
@@ -63,11 +67,12 @@ extern "C" {
 /* Security configuration capacities. */
 #define IEC61850_RSV_SEC_KEY_MAX   64U
 #define IEC61850_RSV_SEC_HMAC_LEN  32U  /* HMAC-SHA256 output */
+#define IEC61850_RSV_SEC_GMAC_LEN  16U  /* AES-GMAC tag */
 
 /* security_algos wire bits (emitted verbatim; publication supports
- * HMAC-SHA256 only). */
+ * HMAC-SHA256 (default) and AES-GMAC (128/256-bit keys)). */
 #define IEC61850_RSV_PUB_SEC_ALGO_HMAC_SHA256 0x0100U
-#define IEC61850_RSV_PUB_SEC_ALGO_AES_GMAC    0x0200U /* verify-only */
+#define IEC61850_RSV_PUB_SEC_ALGO_AES_GMAC    0x0200U
 
 typedef struct {
     uint16_t appid;        /* payload + session APPID */
@@ -149,8 +154,9 @@ void iec61850_rsv_publisher_set_io(iec61850_rsv_publisher_t *pub,
 /**
  * Enable secure (signed) publication.
  *
- * @return 0 on success, -EINVAL on bad arguments, -ENOTSUP when
- *         built without -Denable_security=true
+ * @return 0 on success, -EINVAL on bad arguments (NULL, missing key,
+ *         unsupported algorithm, AES-GMAC key not 128/256 bits),
+ *         -ENOTSUP when built without -Denable_security=true
  */
 int iec61850_rsv_publisher_enable_security(
     iec61850_rsv_publisher_t *pub,
