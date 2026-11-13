@@ -98,6 +98,44 @@ int iec61850_mms_client_write(iec61850_mms_client_t *client,
                                 const mms_value_t *value);
 
 /**
+ * Read a variable, reporting the in-band failure code.
+ *
+ * Same as iec61850_mms_client_read(), but when the server returns a
+ * valid MMS Read-Response whose AccessResult is a failure CHOICE
+ * (DataAccessError), *access_error receives that code; it is set to
+ * -1 when the response carried no in-band failure (success, or a
+ * ConfirmedError PDU, which surfaces as ERR_MMS without a code).
+ *
+ * @return IEC61850_MMS_CLIENT_OK on success, negative
+ *         IEC61850_MMS_CLIENT_ERR_* on failure.
+ */
+int iec61850_mms_client_read_detail(iec61850_mms_client_t *client,
+                                     const char *domain,
+                                     const char *item_id,
+                                     mms_value_t *value,
+                                     int32_t *access_error);
+
+/**
+ * Write a variable, reporting the in-band failure code.
+ *
+ * Same as iec61850_mms_client_write(), but when the server rejects
+ * the write in-band (Write-Response failure CHOICE [0],
+ * DataAccessError — the IEC 61850-8-1 mapping for rejected RCB
+ * component writes, e.g. a Resv write on a URCB held by another
+ * client), *access_error receives that code; it is set to -1 when
+ * the response carried no in-band failure (success, or a
+ * ConfirmedError PDU, which surfaces as ERR_MMS without a code).
+ *
+ * @return IEC61850_MMS_CLIENT_OK on success, negative
+ *         IEC61850_MMS_CLIENT_ERR_* on failure.
+ */
+int iec61850_mms_client_write_detail(iec61850_mms_client_t *client,
+                                      const char *domain,
+                                      const char *item_id,
+                                      const mms_value_t *value,
+                                      int32_t *access_error);
+
+/**
  * Get name list (domain names or variable names).
  */
 int iec61850_mms_client_get_name_list(iec61850_mms_client_t *client,
