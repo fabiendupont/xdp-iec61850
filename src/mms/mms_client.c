@@ -100,6 +100,21 @@ static int core_err_to_client(int err)
     }
 }
 
+int iec61850_mms_client_poll(iec61850_mms_client_t *client, int timeout_ms)
+{
+    int ret;
+
+    if ((client == NULL) || (!client->connected) || (timeout_ms < 0)) {
+        return IEC61850_MMS_CLIENT_ERR_ARGS;
+    }
+
+    ret = iec61850_mms_client_core_poll(&client->core, timeout_ms);
+    if (ret < 0) {
+        return core_err_to_client(ret);
+    }
+    return ret;
+}
+
 /* Context handed to the core delivery callback from transact(). */
 typedef struct {
     mms_confirmed_response_t *resp;
