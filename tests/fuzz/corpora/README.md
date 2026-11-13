@@ -15,5 +15,4 @@ Seeding sources (per target):
   attribute values, nested elements).
 
 - `r_profile/` — R-GOOSE/R-SV SPDUs (WP-4a): roundtrip vectors (secure
-  and plain) once the wire format is implemented; a placeholder empty
-  seed keeps the directory tracked until then.
+  and plain, 8 seeds committed).
