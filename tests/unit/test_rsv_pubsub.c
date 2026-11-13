@@ -7,8 +7,11 @@
  * L2-style sample state machine (duplicate + gap detection), per-APPID
  * SPDU-number replay rejection, 90-5 time-window validation,
  * frame-level security roundtrip (build → sign → verify, plus a
- * tamper matrix over every signed region), plain-mode socket loopback
- * over 127.0.0.1 (UDP backend, unprivileged), and a secure-mode raw
+ * tamper matrix over every signed region) for both HMAC-SHA256 and
+ * AES-GMAC (WP-3h: GMAC sign→verify roundtrip, GMAC tamper matrix,
+ * key-id mismatch and mixed HMAC/GMAC rejection), plain-mode socket
+ * loopback over 127.0.0.1 (UDP backend, unprivileged), and a
+ * secure-mode raw
  * socket loopback that runs only when AF_PACKET is permitted (root).
  *
  * Security-gated tests compile only with -Denable_security=true; the
@@ -609,10 +612,23 @@ static void test_enable_security_args(void)
                   -EINVAL);
     }
     {
+        iec61850_rsv_pub_security_t bad = ps;
+        bad.algo = 0x8181U;
+        ASSERT_EQ(iec61850_rsv_publisher_enable_security(&pub, &bad),
+                  -EINVAL);
+    }
+    /* AES-GMAC publish: supported since WP-3h (128/256-bit keys). */
+    {
         iec61850_rsv_pub_security_t gmac = ps;
+
         gmac.algo = (uint16_t)IEC61850_RSV_PUB_SEC_ALGO_AES_GMAC;
+        ASSERT_EQ(iec61850_rsv_publisher_enable_security(&pub, &gmac), 0);
+        gmac.key_len = 15U; /* not 128/256 bits */
         ASSERT_EQ(iec61850_rsv_publisher_enable_security(&pub, &gmac),
-                  -ENOTSUP);
+                  -EINVAL);
+        gmac.key_len = 24U;
+        ASSERT_EQ(iec61850_rsv_publisher_enable_security(&pub, &gmac),
+                  -EINVAL);
     }
     {
         iec61850_rsv_sub_security_t bad = ss;
@@ -633,6 +649,21 @@ static int build_test_secure_frame(iec61850_rsv_publisher_t *pub,
     iec61850_rsv_pub_security_t ps;
 
     make_pub_sec(&ps);
+    if (iec61850_rsv_publisher_enable_security(pub, &ps) != 0) {
+        return -1;
+    }
+    return iec61850_rsv_publisher_build_frame(pub, frame, cap, frame_len);
+}
+
+/* Same, with an explicit publish algorithm (HMAC-SHA256 / AES-GMAC). */
+static int build_test_secure_frame_algo(iec61850_rsv_publisher_t *pub,
+                                        uint16_t algo, uint8_t *frame,
+                                        size_t cap, size_t *frame_len)
+{
+    iec61850_rsv_pub_security_t ps;
+
+    make_pub_sec(&ps);
+    ps.algo = algo;
     if (iec61850_rsv_publisher_enable_security(pub, &ps) != 0) {
         return -1;
     }
@@ -830,6 +861,230 @@ static void test_secure_key_id_and_bypass(void)
         ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub2, frame,
                                                         frame_len, 5U), 0);
     }
+    PASS();
+}
+
+/* ------------------------------------------------------------------ */
+/* AES-GMAC (WP-3h): frame-level roundtrip, tamper matrix, key-id and  */
+/* mixed-algorithm rejection                                           */
+/* ------------------------------------------------------------------ */
+
+static void test_gmac_frame_roundtrip(void)
+{
+    iec61850_rsv_publisher_t pub;
+    iec61850_rsv_subscriber_t sub;
+    iec61850_rsv_sub_security_t ss;
+    static uint8_t frame[IEC61850_RSV_MAX_FRAME_LEN];
+    static uint8_t hmac_frame[IEC61850_RSV_MAX_FRAME_LEN];
+    size_t frame_len = 0U;
+    size_t hmac_len = 0U;
+    int ret;
+
+    TEST("rsv_gmac_frame_roundtrip");
+    iec61850_rsv_publisher_init(&pub, NULL);
+    ASSERT_EQ(iec61850_rsv_publisher_set_sample(&pub, 0, 32510), 0);
+    ASSERT_EQ(iec61850_rsv_publisher_set_sample(&pub, 1, -812), 0);
+
+    ret = build_test_secure_frame_algo(
+        &pub, (uint16_t)IEC61850_RSV_PUB_SEC_ALGO_AES_GMAC,
+        frame, sizeof(frame), &frame_len);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(frame_len > (14U + 28U + 38U + 16U));
+
+    /* The 16-byte GMAC tag TLV is exactly 16 octets shorter than the
+     * 32-byte HMAC signature TLV (identical SPDU otherwise: compare
+     * against an HMAC frame built from an identical fresh publisher). */
+    {
+        iec61850_rsv_publisher_t pub2;
+
+        iec61850_rsv_publisher_init(&pub2, NULL);
+        ASSERT_EQ(iec61850_rsv_publisher_set_sample(&pub2, 0, 32510), 0);
+        ASSERT_EQ(iec61850_rsv_publisher_set_sample(&pub2, 1, -812), 0);
+        ret = build_test_secure_frame(&pub2, hmac_frame,
+                                      sizeof(hmac_frame), &hmac_len);
+        ASSERT_EQ(ret, 0);
+        ASSERT_EQ(frame_len + 16U, hmac_len);
+    }
+
+    /* Frame layout: [Eth][IPv4][UDP][SPDU + 0x85 TLV (16)]. */
+    ASSERT_EQ(frame[14] >> 4, 4);                    /* IPv4 */
+    ASSERT_EQ(frame[14 + 9], 17);                    /* UDP */
+    ASSERT_EQ(frame[frame_len - 18U], 0x85U);        /* sig TLV tag */
+    ASSERT_EQ(frame[frame_len - 17U], 16U);          /* sig TLV length */
+    {
+        int tag_nonzero = 0;
+
+        for (size_t i = frame_len - 16U; i < frame_len; i++) {
+            if (frame[i] != 0U) {
+                tag_nonzero = 1;
+            }
+        }
+        ASSERT_TRUE(tag_nonzero == 1); /* not the zeroed placeholder */
+    }
+
+    /* Verify via a fresh GMAC subscriber. */
+    make_sub_sec(&ss);
+    ss.algo = (uint16_t)IEC61850_RSV_SUB_SEC_ALGO_AES_GMAC;
+    iec61850_rsv_subscriber_init(&sub, NULL);
+    iec61850_rsv_subscriber_set_callback(&sub, rsv_test_cb, NULL);
+    ASSERT_EQ(iec61850_rsv_subscriber_enable_security(&sub, &ss), 0);
+    cb_reset();
+
+    ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub, frame,
+                                                    frame_len,
+                                                    test_now_ns()), 1);
+    ASSERT_EQ(cb_count, 1);
+    ASSERT_TRUE(cb_last_msg.is_new_sample);
+    ASSERT_TRUE(cb_last_msg.header.security.present);
+    ASSERT_EQ(cb_last_msg.header.security.key_id, SEC_KEY_ID);
+    ASSERT_EQ(cb_last_msg.header.security.signature_len, 16U);
+    ASSERT_EQ((uint32_t)cb_last_msg.apdu.asdu[0].num_samples, 4U);
+    ASSERT_EQ((int)cb_last_msg.apdu.asdu[0].samples[0].value, 32510);
+
+    /* Second publish (new spdu_number + smpCnt → new IV) verifies. */
+    ret = iec61850_rsv_publisher_build_frame(&pub, frame,
+                                             sizeof(frame), &frame_len);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub, frame,
+                                                    frame_len,
+                                                    test_now_ns()), 1);
+    ASSERT_EQ(cb_count, 2);
+    ASSERT_EQ(sub.total_security_failures, 0U);
+    PASS();
+}
+
+/* GMAC tamper matrix: every signed region must break verification. */
+static void test_gmac_tamper_matrix(void)
+{
+    iec61850_rsv_publisher_t pub;
+    iec61850_rsv_subscriber_t sub;
+    iec61850_rsv_sub_security_t ss;
+    static uint8_t frame[IEC61850_RSV_MAX_FRAME_LEN];
+    static uint8_t bad[IEC61850_RSV_MAX_FRAME_LEN];
+    size_t frame_len = 0U;
+    size_t bad_len;
+    int ret;
+
+    TEST("rsv_gmac_tamper_matrix");
+    iec61850_rsv_publisher_init(&pub, NULL);
+    ASSERT_EQ(iec61850_rsv_publisher_set_sample(&pub, 0, 1000), 0);
+    ret = build_test_secure_frame_algo(
+        &pub, (uint16_t)IEC61850_RSV_PUB_SEC_ALGO_AES_GMAC,
+        frame, sizeof(frame), &frame_len);
+    ASSERT_EQ(ret, 0);
+
+    make_sub_sec(&ss);
+    ss.algo = (uint16_t)IEC61850_RSV_SUB_SEC_ALGO_AES_GMAC;
+    iec61850_rsv_subscriber_init(&sub, NULL);
+    iec61850_rsv_subscriber_set_callback(&sub, rsv_test_cb, NULL);
+    ASSERT_EQ(iec61850_rsv_subscriber_enable_security(&sub, &ss), 0);
+    cb_reset();
+
+    /* Sanity: the untampered frame is accepted. */
+    ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub, frame,
+                                                    frame_len, 1U), 1);
+    ASSERT_EQ(cb_count, 1);
+
+    /* Offsets: Eth(14) IP(20) UDP(8) SPDU, signature TLV = final
+     * 2 + 16 octets. */
+    {
+        struct {
+            const char *region;
+            size_t offset;
+        } cases[] = {
+            { "IP header (TTL)",             14U + 8U },
+            { "IP header (dst addr)",        14U + 16U },
+            { "UDP header (src port)",       14U + 20U },
+            { "UDP header (dst port)",       14U + 22U },
+            { "UDP header (length)",         14U + 24U },
+            { "UDP header (checksum)",       14U + 26U },
+            { "SPDU header (SPDU number)",   14U + 28U + 8U },
+            { "SPDU security (key id)",      14U + 28U + 22U },
+            { "APDU payload (last byte)",    frame_len - 19U },
+            { "Signature TLV (tag)",         frame_len - 18U },
+            { "Signature TLV (length)",      frame_len - 17U },
+            { "Signature value (last byte)", frame_len - 1U },
+        };
+        const size_t n = sizeof(cases) / sizeof(cases[0]);
+
+        for (size_t i = 0U; i < n; i++) {
+            uint64_t fails_before = sub.total_security_failures;
+
+            (void)memcpy(bad, frame, frame_len);
+            bad[cases[i].offset] ^= 0x01U;
+            bad_len = frame_len;
+
+            ASSERT_EQ(iec61850_rsv_subscriber_process_frame(
+                          &sub, bad, bad_len, (uint64_t)(i + 2U)), 0);
+            if (sub.total_security_failures == fails_before) {
+                printf("region not rejected: %s\n", cases[i].region);
+                FAIL("tampered frame accepted");
+            }
+        }
+        ASSERT_EQ(cb_count, 1); /* no additional deliveries */
+    }
+
+    /* Truncated frame. */
+    ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub, frame,
+                                                    frame_len - 1U, 99U),
+              0);
+    PASS();
+}
+
+/* GMAC key-id mismatch and mixed HMAC/GMAC algorithm rejection. */
+static void test_gmac_key_id_and_mixed(void)
+{
+    iec61850_rsv_publisher_t pub;
+    iec61850_rsv_subscriber_t sub;
+    iec61850_rsv_sub_security_t ss;
+    static uint8_t gmac_frame[IEC61850_RSV_MAX_FRAME_LEN];
+    static uint8_t hmac_frame[IEC61850_RSV_MAX_FRAME_LEN];
+    size_t gmac_len = 0U;
+    size_t hmac_len = 0U;
+    int ret;
+
+    TEST("rsv_gmac_key_id_and_mixed");
+
+    iec61850_rsv_publisher_init(&pub, NULL);
+    ret = build_test_secure_frame_algo(
+        &pub, (uint16_t)IEC61850_RSV_PUB_SEC_ALGO_AES_GMAC,
+        gmac_frame, sizeof(gmac_frame), &gmac_len);
+    ASSERT_EQ(ret, 0);
+    ret = build_test_secure_frame_algo(
+        &pub, (uint16_t)IEC61850_RSV_PUB_SEC_ALGO_HMAC_SHA256,
+        hmac_frame, sizeof(hmac_frame), &hmac_len);
+    ASSERT_EQ(ret, 0);
+
+    /* Key-id mismatch on a GMAC frame: rejected. */
+    make_sub_sec(&ss);
+    ss.algo = (uint16_t)IEC61850_RSV_SUB_SEC_ALGO_AES_GMAC;
+    ss.expected_key_id = SEC_KEY_ID + 1U;
+    iec61850_rsv_subscriber_init(&sub, NULL);
+    ASSERT_EQ(iec61850_rsv_subscriber_enable_security(&sub, &ss), 0);
+    ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub, gmac_frame,
+                                                    gmac_len, 1U), 0);
+    ASSERT_EQ(sub.total_security_failures, 1U);
+
+    /* HMAC-signed frame against a GMAC-configured subscriber: the
+     * 32-octet HMAC signature cannot be a 16-octet GMAC tag —
+     * rejected. */
+    make_sub_sec(&ss);
+    ss.algo = (uint16_t)IEC61850_RSV_SUB_SEC_ALGO_AES_GMAC;
+    iec61850_rsv_subscriber_init(&sub, NULL);
+    ASSERT_EQ(iec61850_rsv_subscriber_enable_security(&sub, &ss), 0);
+    ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub, hmac_frame,
+                                                    hmac_len, 2U), 0);
+    ASSERT_EQ(sub.total_security_failures, 1U);
+
+    /* GMAC-signed frame against an HMAC-configured subscriber: the
+     * signature length (16) is not the HMAC length (32) — rejected. */
+    make_sub_sec(&ss);
+    ss.algo = (uint16_t)IEC61850_RSV_SUB_SEC_ALGO_HMAC_SHA256;
+    iec61850_rsv_subscriber_init(&sub, NULL);
+    ASSERT_EQ(iec61850_rsv_subscriber_enable_security(&sub, &ss), 0);
+    ASSERT_EQ(iec61850_rsv_subscriber_process_frame(&sub, gmac_frame,
+                                                    gmac_len, 3U), 0);
+    ASSERT_EQ(sub.total_security_failures, 1U);
     PASS();
 }
 
@@ -1173,6 +1428,9 @@ int main(void)
     test_secure_frame_roundtrip();
     test_secure_tamper_matrix();
     test_secure_key_id_and_bypass();
+    test_gmac_frame_roundtrip();
+    test_gmac_tamper_matrix();
+    test_gmac_key_id_and_mixed();
     test_secure_time_window();
     test_secure_frame_build_errors();
     test_retransmit_scheduling();

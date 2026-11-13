@@ -29,12 +29,15 @@
  *   circular dependency.  The HMAC provides the integrity guarantee.
  *   The IPv4 header checksum is always computed and carried.
  *
- *   The signature is HMAC-SHA256 (32 octets) over the complete
- *   datagram from the IP header through the end of the SPDU, with
- *   the signature value bytes zeroed during the computation.  The
- *   signature TLV offset inside the SPDU is derived arithmetically
- *   from the encoded length (the signature is the final SPDU
- *   element) — never scanned for.
+ *   The signature is HMAC-SHA256 (32 octets, default) or AES-GMAC
+ *   (16-octet tag) over the complete datagram from the IP header
+ *   through the end of the SPDU, with the signature value bytes
+ *   zeroed during the computation.  The signature TLV offset inside
+ *   the SPDU is derived arithmetically from the encoded length (the
+ *   signature is the final SPDU element) — never scanned for.  The
+ *   AES-GMAC IV is derived per packet from the session fields —
+ *   spdu_number(4) | appid(2) | key_id(4) | reserved(2),
+ *   big-endian — mirroring the subscriber's verification path.
  *
  * Secure mode requires -Denable_security=true; without it
  * enable_security() returns -ENOTSUP.
@@ -75,12 +78,13 @@ extern "C" {
 /* Security configuration capacities. */
 #define IEC61850_RGOOSE_SEC_KEY_MAX   64U
 #define IEC61850_RGOOSE_SEC_HMAC_LEN  32U  /* HMAC-SHA256 output */
+#define IEC61850_RGOOSE_SEC_GMAC_LEN  16U  /* AES-GMAC tag */
 
 /* security_algos wire bits (emitted verbatim into the session
  * header; the codec assigns no semantics).  Publication supports
- * HMAC-SHA256 only. */
+ * HMAC-SHA256 (default) and AES-GMAC (128/256-bit keys). */
 #define IEC61850_RGOOSE_PUB_SEC_ALGO_HMAC_SHA256 0x0100U
-#define IEC61850_RGOOSE_PUB_SEC_ALGO_AES_GMAC    0x0200U /* verify-only */
+#define IEC61850_RGOOSE_PUB_SEC_ALGO_AES_GMAC    0x0200U
 
 typedef struct {
     uint8_t data[IEC61850_RGOOSE_MAX_BYTE_ENTRY_LEN];
@@ -202,10 +206,12 @@ void iec61850_rgoose_publisher_set_io(iec61850_rgoose_publisher_t *pub,
  * Enable secure (signed) publication.
  *
  * @param pub  Publisher
- * @param cfg  Key material, key_id and rotation fields (copied)
+ * @param cfg  Key material, key_id and rotation fields (copied).
+ *             algo selects HMAC-SHA256 (default) or AES-GMAC;
+ *             AES-GMAC requires a 128- or 256-bit key.
  * @return 0 on success, -EINVAL on bad arguments (NULL, missing key,
- *         unsupported algorithm), -ENOTSUP when built without
- *         -Denable_security=true
+ *         unsupported algorithm, AES-GMAC key not 128/256 bits),
+ *         -ENOTSUP when built without -Denable_security=true
  */
 int iec61850_rgoose_publisher_enable_security(
     iec61850_rgoose_publisher_t *pub,
