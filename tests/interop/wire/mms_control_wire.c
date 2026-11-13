@@ -2,19 +2,26 @@
 /*
  * MMS Ed.2 control wire scenario — used by wire capture tests.
  *
- * Runs the repository's own MMS server (control manager wired in,
- * strict sboClass objects) and a repository MMS client driving the
- * ISO 9506-2 control services (Select / Operate / Cancel) over real
- * TCP loopback, so the Ed.2 SBO exchange lands on the wire and can
- * be captured (tshark/tcpdump on lo) and dissected:
+ * Runs the repository's own MMS server (control manager wired through
+ * the WP-2w control-object bridge) and a repository MMS client driving
+ * the control over the IEC 61850-8-1 Ed.2 CO-object mapping on real
+ * TCP loopback, so the exchange lands on the wire as ordinary MMS
+ * Reads/Writes the neutral tshark dissector decodes cleanly:
  *
- *   - Select (SBO) request/response on a strict control object
- *   - Operate with the selection ID -> command execution +
- *     in-process command-termination callback (Ed.2)
- *   - Cancel of an outstanding selection
+ *   - status Read (object context)
+ *   - ctlModel Read (the 7-2 "$CF$" configuration-attribute spelling)
+ *   - Select: Read of "<LN>$CO$<DO>$SBO" (sbo-with-normal-security),
+ *     answered with the selected object reference string
+ *   - Operate: Write of the 8-1 Oper structure { ctlVal, origin,
+ *     ctlNum, T, Test, Check } to "<LN>$CO$<DO>$Oper" -> command
+ *     executes and the CommandTermination arrives as an unsolicited
+ *     InformationReport on the "$Oper" object (received by the client)
+ *   - Cancel: Write of the Cancel structure to "<LN>$CO$<DO>$Cancel"
+ *     after a fresh select
  *   - Ed.2 rejection: Operate without a prior select on a strict
- *     (sboClass=STRICT) object -> ConfirmedError PDU from the
- *     server; AddCause OBJECT_NOT_SELECTED recorded server-side
+ *     (sboClass=STRICT) object -> in-band Write-Response failure
+ *     (DataAccessError); AddCause OBJECT_NOT_SELECTED recorded
+ *     server-side
  *
  * Usage: mms_control_wire [port]   (default 10611)
  *
@@ -56,211 +63,28 @@ static iec61850_mms_server_t g_srv;
 static bool g_srv_up;
 
 static int g_action_count;
-static int g_termination_count;
-static char g_term_item[MMS_MAX_VARIABLE_NAME];
-static uint32_t g_term_selection_id;
-static bool g_term_success;
+static int g_ct_count;
+static iec61850_mms_client_command_termination_t g_last_ct;
 
 static int on_action(const char *domain, const char *item_id,
                      const mms_value_t *value, void *user_data)
 {
     (void)domain;
+    (void)item_id;
     (void)value;
     (void)user_data;
     g_action_count++;
-    (void)snprintf(g_term_item, sizeof(g_term_item), "%s", item_id);
     return 0;
 }
 
-static void on_termination(const char *domain, const char *item_id,
-                           uint32_t selection_id, bool success,
-                           iec61850_control_addcause_t addcause,
-                           uint64_t timestamp_ms, void *user_data)
+static void on_command_termination(
+    const iec61850_mms_client_command_termination_t *termination,
+    void *user_data)
 {
-    (void)domain;
-    (void)addcause;
-    (void)timestamp_ms;
     (void)user_data;
-    g_termination_count++;
-    g_term_selection_id = selection_id;
-    g_term_success = success;
-    (void)snprintf(g_term_item, sizeof(g_term_item), "%s", item_id);
+    g_ct_count++;
+    g_last_ct = *termination;
 }
-
-/* ========================================================================
- * Client-side control transact: encode a confirmed request, submit it
- * to the async core and block for the response (the blocking client
- * wrapper mms_client.c has no control wrappers, so this mirrors its
- * internal transact() on public core API).
- * ======================================================================== */
-
-typedef struct {
-    mms_confirmed_response_t *resp_place;
-    bool got_response;
-    bool got_error;
-} cw_transact_ctx_t;
-
-static void cw_transact_cb(int status,
-                           const mms_confirmed_response_t *response,
-                           const mms_confirmed_error_t *error,
-                           void *user_data)
-{
-    cw_transact_ctx_t *ctx = (cw_transact_ctx_t *)user_data;
-
-    if (status != 0) {
-        return;
-    }
-    if (response != NULL) {
-        *ctx->resp_place = *response;
-        ctx->got_response = true;
-    } else if (error != NULL) {
-        ctx->got_error = true;
-    }
-}
-
-static int cw_transact(iec61850_mms_client_t *client,
-                       const mms_confirmed_request_t *req,
-                       mms_confirmed_response_t *resp, bool *got_error)
-{
-    uint8_t req_buf[4096];
-    cw_transact_ctx_t ctx;
-    int ret;
-
-    *got_error = false;
-    ret = mms_encode_confirmed_request(req, req_buf, sizeof(req_buf));
-    if (ret <= 0) {
-        return IEC61850_MMS_CLIENT_ERR_ENCODE;
-    }
-
-    (void)memset(&ctx, 0, sizeof(ctx));
-    ctx.resp_place = resp;
-
-    ret = iec61850_mms_client_core_submit(&client->core, req_buf,
-                                          (size_t)ret, req->invoke_id,
-                                          cw_transact_cb, &ctx);
-    if (ret != 0) {
-        return IEC61850_MMS_CLIENT_ERR_TRANSPORT;
-    }
-
-    ret = iec61850_mms_client_core_wait(&client->core, req->invoke_id,
-                                        client->request_timeout_ms);
-    if (ret != 0) {
-        /* Drop the still-pending entry so its callback never fires
-         * into dead stack memory. */
-        for (uint32_t i = 0U;
-             i < (uint32_t)IEC61850_CLIENT_CORE_MAX_PENDING; i++) {
-            iec61850_mms_core_pending_t *entry = &client->core.pending[i];
-
-            if ((entry->in_use) && (!entry->delivered) &&
-                (entry->invoke_id == req->invoke_id)) {
-                entry->in_use = false;
-                entry->cb = NULL;
-            }
-        }
-        return IEC61850_MMS_CLIENT_ERR_TIMEOUT;
-    }
-
-    if (ctx.got_error) {
-        *got_error = true;   /* ConfirmedError PDU from the server */
-        return IEC61850_MMS_CLIENT_ERR_MMS;
-    }
-    if (!ctx.got_response) {
-        return IEC61850_MMS_CLIENT_ERR_MMS;
-    }
-    return IEC61850_MMS_CLIENT_OK;
-}
-
-static int cw_select(iec61850_mms_client_t *client, const char *item,
-                     uint32_t *selection_id)
-{
-    mms_confirmed_request_t req;
-    mms_confirmed_response_t resp;
-    bool got_error = false;
-    int ret;
-
-    (void)memset(&req, 0, sizeof(req));
-    client->invoke_id++;
-    req.invoke_id = client->invoke_id;
-    req.service = MMS_SERVICE_TYPE_SELECT;
-    (void)strncpy(req.params.select.control_object.domain, CW_LD,
-                  (size_t)MMS_MAX_DOMAIN_NAME - 1U);
-    (void)strncpy(req.params.select.control_object.item_id, item,
-                  (size_t)MMS_MAX_VARIABLE_NAME - 1U);
-    req.params.select.check_value = 0U;
-    req.params.select.select_timeout_ms = 0U;
-
-    ret = cw_transact(client, &req, &resp, &got_error);
-    if (ret != (int)IEC61850_MMS_CLIENT_OK) {
-        return ret;
-    }
-    if (resp.service != MMS_SERVICE_TYPE_SELECT) {
-        return IEC61850_MMS_CLIENT_ERR_DECODE;
-    }
-    *selection_id = resp.params.select.selection_id;
-    return (resp.params.select.state == MMS_CONTROL_STATE_SELECTED) ?
-           IEC61850_MMS_CLIENT_OK : IEC61850_MMS_CLIENT_ERR_MMS;
-}
-
-static int cw_operate(iec61850_mms_client_t *client, const char *item,
-                      uint32_t selection_id, bool value)
-{
-    mms_confirmed_request_t req;
-    mms_confirmed_response_t resp;
-    bool got_error = false;
-    int ret;
-
-    (void)memset(&req, 0, sizeof(req));
-    client->invoke_id++;
-    req.invoke_id = client->invoke_id;
-    req.service = MMS_SERVICE_TYPE_OPERATE;
-    (void)strncpy(req.params.operate.control_object.domain, CW_LD,
-                  (size_t)MMS_MAX_DOMAIN_NAME - 1U);
-    (void)strncpy(req.params.operate.control_object.item_id, item,
-                  (size_t)MMS_MAX_VARIABLE_NAME - 1U);
-    req.params.operate.selection_id = selection_id;
-    req.params.operate.control_value.type = MMS_TYPE_BOOLEAN;
-    req.params.operate.control_value.value.boolean = value;
-    req.params.operate.has_control_value = true;
-    req.params.operate.operation_time = 0ULL;   /* immediate */
-
-    ret = cw_transact(client, &req, &resp, &got_error);
-    if (ret != (int)IEC61850_MMS_CLIENT_OK) {
-        return ret;
-    }
-    if (resp.service != MMS_SERVICE_TYPE_OPERATE) {
-        return IEC61850_MMS_CLIENT_ERR_DECODE;
-    }
-    return resp.params.operate.success ? IEC61850_MMS_CLIENT_OK
-                                       : IEC61850_MMS_CLIENT_ERR_MMS;
-}
-
-static int cw_cancel(iec61850_mms_client_t *client, const char *item,
-                     uint32_t selection_id)
-{
-    mms_confirmed_request_t req;
-    mms_confirmed_response_t resp;
-    bool got_error = false;
-    int ret;
-
-    (void)memset(&req, 0, sizeof(req));
-    client->invoke_id++;
-    req.invoke_id = client->invoke_id;
-    req.service = MMS_SERVICE_TYPE_CANCEL;
-    (void)strncpy(req.params.cancel.control_object.domain, CW_LD,
-                  (size_t)MMS_MAX_DOMAIN_NAME - 1U);
-    (void)strncpy(req.params.cancel.control_object.item_id, item,
-                  (size_t)MMS_MAX_VARIABLE_NAME - 1U);
-    req.params.cancel.selection_id = selection_id;
-
-    ret = cw_transact(client, &req, &resp, &got_error);
-    if (ret != (int)IEC61850_MMS_CLIENT_OK) {
-        return ret;
-    }
-    return (resp.service == MMS_SERVICE_TYPE_CANCEL) ?
-           IEC61850_MMS_CLIENT_OK : IEC61850_MMS_CLIENT_ERR_DECODE;
-}
-
-/* ======================================================================== */
 
 static void setup(uint16_t port)
 {
@@ -287,17 +111,17 @@ static void setup(uint16_t port)
     CHECK(iec61850_control_configure(&g_ctrl, CW_LD, CW_POS2, &strict) == 0);
 
     CHECK(iec61850_control_set_action_callback(&g_ctrl, CW_LD, CW_POS,
-                                               on_action, NULL) == 0);
-    CHECK(iec61850_control_set_termination_callback(&g_ctrl, CW_LD, CW_POS,
-                                                    on_termination, NULL) == 0);
+                                                on_action, NULL) == 0);
+    CHECK(iec61850_control_set_action_callback(&g_ctrl, CW_LD, CW_POS2,
+                                                on_action, NULL) == 0);
 
     iec61850_mms_server_config_init(&cfg);
     cfg.port = port;
     iec61850_mms_server_init(&g_srv, &cfg, &g_ds);
-    /* No setter exists for the control manager (unlike the RCB
-     * manager): the public server struct field is the wiring point —
-     * accept_thread copies it into every session. */
-    g_srv.control_manager = &g_ctrl;
+    /* WP-2w: wire the control manager through the control-object
+     * bridge (CO variables + Read/Write dispatch + unsolicited
+     * CommandTermination on the owning association). */
+    CHECK(iec61850_mms_server_set_control_manager(&g_srv, &g_ctrl) == 0);
     if (iec61850_mms_server_start(&g_srv) != 0) {
         BAD("server start failed");
         return;
@@ -329,48 +153,76 @@ static void step_read_status(iec61850_mms_client_t *client)
     OK();
 }
 
+static void step_read_ctl_model(iec61850_mms_client_t *client)
+{
+    int32_t ctl_model = -1;
+
+    STEP("read ctlModel (7-2 CF spelling)");
+    CHECK(iec61850_mms_client_read_ctl_model(client, CW_LD, CW_POS,
+                                              &ctl_model) ==
+          IEC61850_MMS_CLIENT_OK);
+    CHECK(ctl_model == 2);   /* strict = sbo-with-normal-security */
+    OK();
+}
+
 static void step_select_operate(iec61850_mms_client_t *client)
 {
-    uint32_t sel_id = 0U;
+    iec61850_mms_client_operate_params_t params;
 
-    STEP("select (SBO) on strict object");
-    CHECK(cw_select(client, CW_POS, &sel_id) == IEC61850_MMS_CLIENT_OK);
-    CHECK(sel_id != 0U);
-    printf("(selection_id=%u) ", (unsigned)sel_id);
+    STEP("select (SBO read) on strict object");
+    CHECK(iec61850_mms_client_select(client, CW_LD, CW_POS) ==
+          IEC61850_MMS_CLIENT_OK);
     OK();
 
-    STEP("operate with selection: command executes, terminates");
-    CHECK(cw_operate(client, CW_POS, sel_id, true) ==
+    STEP("operate with the Oper structure: command executes");
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    params.origin_cat = 1;      /* bay-level */
+    params.origin_ident = "wire-client";
+    params.ctl_num = 1U;
+    CHECK(iec61850_mms_client_operate(client, CW_LD, CW_POS, &params) ==
           IEC61850_MMS_CLIENT_OK);
     CHECK(g_action_count == 1);
-    CHECK(g_termination_count == 1);
-    CHECK(g_term_success);
-    CHECK(g_term_selection_id == sel_id);
-    CHECK(strcmp(g_term_item, CW_POS) == 0);
+    OK();
+
+    STEP("CommandTermination received (unsolicited InformationReport)");
+    for (int i = 0; (i < 40) && (g_ct_count == 0); i++) {
+        (void)iec61850_mms_client_poll(client, 200);
+    }
+    CHECK(g_ct_count == 1);
+    CHECK(strcmp(g_last_ct.domain, CW_LD) == 0);
+    CHECK(strcmp(g_last_ct.item_id, "XCBR1$CO$Pos$Oper") == 0);
+    CHECK(g_last_ct.ctl_val);
+    CHECK((int)g_last_ct.origin_cat == 1);
+    CHECK(g_last_ct.ctl_num == 1U);
+    CHECK(g_last_ct.timestamp_ms > 0ULL);
     OK();
 }
 
 static void step_select_cancel(iec61850_mms_client_t *client)
 {
-    uint32_t sel_id = 0U;
-
     STEP("select then cancel an outstanding selection");
-    CHECK(cw_select(client, CW_POS2, &sel_id) == IEC61850_MMS_CLIENT_OK);
-    CHECK(sel_id != 0U);
-    CHECK(cw_cancel(client, CW_POS2, sel_id) == IEC61850_MMS_CLIENT_OK);
+    CHECK(iec61850_mms_client_select(client, CW_LD, CW_POS2) ==
+          IEC61850_MMS_CLIENT_OK);
+    CHECK(iec61850_mms_client_cancel(client, CW_LD, CW_POS2) ==
+          IEC61850_MMS_CLIENT_OK);
     OK();
 }
 
 static void step_ed2_reject_operate_without_select(iec61850_mms_client_t *client)
 {
+    iec61850_mms_client_operate_params_t params;
     iec61850_control_addcause_t addcause = IEC61850_ADDCAUSE_UNKNOWN;
 
     STEP("Ed.2 rejection: operate without select on strict object");
     /* The cancel above released the selection; a strict object must
-     * refuse the bare operate. On the wire this is a ConfirmedError
-     * PDU from the server (the scenario asserts the in-process Ed.2
+     * refuse the bare operate. On the wire this is a Write-Response
+     * failure CHOICE (DataAccessError) — an ordinary, cleanly
+     * dissected MMS PDU (the scenario asserts the in-process Ed.2
      * AddCause separately). */
-    CHECK(cw_operate(client, CW_POS2, 0U, true) ==
+    (void)memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    CHECK(iec61850_mms_client_operate(client, CW_LD, CW_POS2, &params) ==
           IEC61850_MMS_CLIENT_ERR_MMS);
     CHECK(iec61850_control_get_last_addcause(&g_ctrl, CW_LD, CW_POS2,
                                              &addcause) == 0);
@@ -393,7 +245,10 @@ int main(int argc, char **argv)
                                         5000) != IEC61850_MMS_CLIENT_OK) {
             BAD("client connect failed");
         } else {
+            iec61850_mms_client_set_command_termination_handler(
+                &client, on_command_termination, NULL);
             step_read_status(&client);
+            step_read_ctl_model(&client);
             step_select_operate(&client);
             step_select_cancel(&client);
             step_ed2_reject_operate_without_select(&client);

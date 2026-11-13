@@ -13,6 +13,7 @@
 #include "../interop_helpers.h"
 #include "mms/mms_server.h"
 #include "mms/mms_client.h"
+#include "mms/mms_control.h"
 #include "mms/mms_data_store.h"
 #include "asn1/mms_ber.h"
 
@@ -637,6 +638,273 @@ static void test_ms13_conclude(void)
     INTEROP_PASS();
 }
 
+/*
+ * MS-14 (WP-2w): drive one control of the oracle's server_example_
+ * control through the IEC 61850-8-1 CO-object mapping with our client
+ * helpers (ctlModel read, direct operate, SBO read-select + operate)
+ * and receive the oracle's CommandTermination as an unsolicited
+ * InformationReport. Skips when the oracle binary or its
+ * simpleIOGenericIO model is unavailable.
+ */
+static int ms14_ct_count;
+static iec61850_mms_client_command_termination_t ms14_last_ct;
+
+static void ms14_on_command_termination(
+    const iec61850_mms_client_command_termination_t *termination,
+    void *user_data)
+{
+    (void)user_data;
+    ms14_ct_count++;
+    ms14_last_ct = *termination;
+}
+
+static void test_ms14_control_via_oracle_server(void)
+{
+    INTEROP_TEST("MS-14: our client controls the oracle server (CO objects)");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    char server_path[600];
+    if (!interop_example_path(server_path, sizeof(server_path),
+                              "server_example_control",
+                              "server_example_control"))
+        INTEROP_SKIP("server_example_control not found");
+
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%u", g_port);
+    char *sargs[] = { server_path, port_str, NULL };
+    pid_t srv = interop_start_bg(server_path, sargs, NULL);
+    if (srv < 0) { g_port++; INTEROP_FAIL("server start"); }
+    if (!interop_wait_for_port(g_port, 3000)) {
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("server port not ready");
+    }
+
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    int ret = iec61850_mms_client_connect(&client, "127.0.0.1", g_port, 5000);
+    if (ret != IEC61850_MMS_CLIENT_OK) {
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("connect failed");
+    }
+
+    /* Discover the oracle's controllable model (skip gracefully when
+     * its simpleIOGenericIO LD is not exposed). */
+    char domains[16][MMS_MAX_VARIABLE_NAME];
+    uint32_t count = 0;
+    bool have_ld = false;
+
+    ret = iec61850_mms_client_get_name_list(&client,
+                                             MMS_OBJECT_CLASS_DOMAIN, NULL,
+                                             domains, &count, 16);
+    if (ret == (int)IEC61850_MMS_CLIENT_OK) {
+        for (uint32_t i = 0; i < count; i++) {
+            if (strcmp(domains[i], "simpleIOGenericIO") == 0) {
+                have_ld = true;
+            }
+        }
+    }
+    if (!have_ld) {
+        iec61850_mms_client_disconnect(&client);
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_SKIP("oracle model has no simpleIOGenericIO LD");
+    }
+
+    /* CommandTermination reception (the oracle's unsolicited
+     * InformationReport on the operated "$Oper" object). */
+    ms14_ct_count = 0;
+    iec61850_mms_client_set_command_termination_handler(
+        &client, ms14_on_command_termination, NULL);
+
+    /* ctlModel of the direct-with-normal-security object */
+    int32_t ctl_model = -1;
+    ret = iec61850_mms_client_read_ctl_model(&client, "simpleIOGenericIO",
+                                              "GGIO1$CO$SPCSO1",
+                                              &ctl_model);
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_ASSERT_EQ(ctl_model, 1);   /* direct-with-normal-security */
+
+    /* Direct operate (Write of the 8-1 Oper structure) */
+    iec61850_mms_client_operate_params_t params;
+    memset(&params, 0, sizeof(params));
+    params.ctl_val = true;
+    params.origin_cat = 1;
+    params.origin_ident = "xdp-interop";
+    params.ctl_num = 1U;
+    ret = iec61850_mms_client_operate(&client, "simpleIOGenericIO",
+                                       "GGIO1$CO$SPCSO1", &params);
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+
+    /* Status feedback */
+    mms_value_t v;
+    memset(&v, 0, sizeof(v));
+    ret = iec61850_mms_client_read(&client, "simpleIOGenericIO",
+                                    "GGIO1$ST$SPCSO1$stVal", &v);
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_ASSERT(v.type == MMS_TYPE_BOOLEAN);
+    INTEROP_ASSERT(v.value.boolean);
+
+    /* sbo-with-normal-security: the 8-1 SBO read-select, then operate */
+    ret = iec61850_mms_client_select(&client, "simpleIOGenericIO",
+                                      "GGIO1$CO$SPCSO2");
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    params.ctl_num = 2U;
+    ret = iec61850_mms_client_operate(&client, "simpleIOGenericIO",
+                                       "GGIO1$CO$SPCSO2", &params);
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+
+    /* direct-with-enhanced-security: operate + CommandTermination */
+    params.ctl_num = 3U;
+    ret = iec61850_mms_client_operate(&client, "simpleIOGenericIO",
+                                       "GGIO1$CO$SPCSO3", &params);
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    for (int i = 0; (i < 40) && (ms14_ct_count == 0); i++) {
+        (void)iec61850_mms_client_poll(&client, 200);
+    }
+    INTEROP_ASSERT_EQ(ms14_ct_count, 1);
+    INTEROP_ASSERT(strcmp(ms14_last_ct.domain, "simpleIOGenericIO") == 0);
+    INTEROP_ASSERT(strcmp(ms14_last_ct.item_id, "GGIO1$CO$SPCSO3$Oper") == 0);
+    INTEROP_ASSERT(ms14_last_ct.ctl_val);
+    INTEROP_ASSERT(ms14_last_ct.ctl_num == 3U);
+
+    iec61850_mms_client_disconnect(&client);
+    interop_stop_helper(srv);
+    g_port++;
+
+    INTEROP_PASS();
+}
+
+/*
+ * MS-15 (WP-2w): the oracle's client_example_control drives controls
+ * on OUR server through the WP-2w control-object bridge. Our server
+ * exposes the oracle client's model (simpleIOGenericIO / GGIO1
+ * SPCSO1, 2, 3, 4, 9 with the sbo classes matching their ctlModels)
+ * and must answer the ctlModel reads, the CO-object directory, the
+ * SBO read-select / SBOw write-select, the Oper writes and the
+ * CommandTermination. Skips when the oracle client binary is
+ * unavailable.
+ */
+static iec61850_mms_data_store_t ms15_ds;
+static iec61850_control_manager_t ms15_mgr;
+static iec61850_mms_server_t ms15_srv;
+
+static int ms15_on_action(const char *domain, const char *item_id,
+                           const mms_value_t *value, void *user_data)
+{
+    char st[MMS_MAX_VARIABLE_NAME];
+    const char *co = strstr(item_id, "$CO$");
+
+    (void)domain; (void)value; (void)user_data;
+    if (co != NULL) {
+        mms_value_t v;
+
+        (void)snprintf(st, sizeof(st), "%.*s$ST$%s$stVal",
+                       (int)(co - item_id), item_id, co + 4);
+        (void)memset(&v, 0, sizeof(v));
+        v.type = MMS_TYPE_BOOLEAN;
+        v.value.boolean = true;
+        (void)iec61850_mms_ds_write_variable(&ms15_ds, "simpleIOGenericIO",
+                                              st, &v);
+    }
+    return 0;
+}
+
+static void test_ms15_oracle_client_controls_our_server(void)
+{
+    static const char *objects[] = {
+        "GGIO1$CO$SPCSO1", "GGIO1$CO$SPCSO2", "GGIO1$CO$SPCSO3",
+        "GGIO1$CO$SPCSO4", "GGIO1$CO$SPCSO9", NULL
+    };
+
+    INTEROP_TEST("MS-15: oracle client controls our server (CO objects)");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    char client_path[600];
+    if (!interop_example_path(client_path, sizeof(client_path),
+                              "iec61850_client_example_control",
+                              "client_example_control"))
+        INTEROP_SKIP("client_example_control not found");
+
+    /* Our server, exposing the oracle client's model: SPCSO1/3/9 are
+     * direct (dynamic sboClass), SPCSO2/4 are sbo (strict). */
+    iec61850_mms_ds_init(&ms15_ds);
+    (void)iec61850_mms_ds_create_domain(&ms15_ds, "simpleIOGenericIO");
+    iec61850_control_manager_init(&ms15_mgr);
+    for (int i = 0; objects[i] != NULL; i++) {
+        char st[MMS_MAX_VARIABLE_NAME];
+        const char *co = strstr(objects[i], "$CO$");
+        mms_value_t v;
+        iec61850_control_config_t cc;
+
+        (void)memset(&v, 0, sizeof(v));
+        v.type = MMS_TYPE_BOOLEAN;
+        v.value.boolean = false;
+        (void)snprintf(st, sizeof(st), "%.*s$ST$%s$stVal",
+                       (int)(co - objects[i]), objects[i], co + 4);
+        (void)iec61850_mms_ds_create_variable(&ms15_ds, "simpleIOGenericIO",
+                                               st, MMS_TYPE_BOOLEAN, &v);
+
+        (void)iec61850_control_register(&ms15_mgr, "simpleIOGenericIO",
+                                         objects[i]);
+        (void)memset(&cc, 0, sizeof(cc));
+        cc.sbo_class = (i == 1 || i == 3)
+                           ? IEC61850_CONTROL_SBO_CLASS_STRICT
+                           : IEC61850_CONTROL_SBO_CLASS_DYNAMIC;
+        (void)iec61850_control_configure(&ms15_mgr, "simpleIOGenericIO",
+                                          objects[i], &cc);
+        (void)iec61850_control_set_action_callback(&ms15_mgr,
+                                                    "simpleIOGenericIO",
+                                                    objects[i],
+                                                    ms15_on_action, NULL);
+    }
+
+    iec61850_mms_server_config_t cfg;
+    iec61850_mms_server_config_init(&cfg);
+    cfg.port = g_port;
+    iec61850_mms_server_init(&ms15_srv, &cfg, &ms15_ds);
+    if (iec61850_mms_server_set_control_manager(&ms15_srv, &ms15_mgr) != 0) {
+        iec61850_control_manager_destroy(&ms15_mgr);
+        iec61850_mms_ds_destroy(&ms15_ds);
+        g_port++;
+        INTEROP_FAIL("set_control_manager failed");
+    }
+    if (iec61850_mms_server_start(&ms15_srv) != IEC61850_MMS_SERVER_OK) {
+        iec61850_control_manager_destroy(&ms15_mgr);
+        iec61850_mms_ds_destroy(&ms15_ds);
+        g_port++;
+        INTEROP_FAIL("server start");
+    }
+    usleep(300000);
+
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%u", g_port);
+    char *cargs[] = { client_path, (char *)"127.0.0.1", port_str, NULL };
+    char output[4096];
+    int rc = interop_run_program(client_path, cargs, output, sizeof(output),
+                                 20000);
+
+    (void)iec61850_mms_server_stop(&ms15_srv);
+    iec61850_control_manager_destroy(&ms15_mgr);
+    iec61850_mms_ds_destroy(&ms15_ds);
+    g_port++;
+
+    INTEROP_ASSERT_EQ(rc, 0);
+    /* Every control of the oracle's cycle operated through the
+     * CO-object mapping... */
+    INTEROP_ASSERT(strstr(output, "SPCSO1 operated successfully") != NULL);
+    INTEROP_ASSERT(strstr(output, "SPCSO2 operated successfully") != NULL);
+    INTEROP_ASSERT(strstr(output, "SPCSO3 operated successfully") != NULL);
+    INTEROP_ASSERT(strstr(output, "SPCSO4 operated successfully") != NULL);
+    INTEROP_ASSERT(strstr(output, "SPCSO9 operated successfully") != NULL);
+    /* ...and at least one CommandTermination was received from our
+     * bridge by the conformant client. */
+    INTEROP_ASSERT(strstr(output, "Received CommandTermination+.") != NULL);
+
+    INTEROP_PASS();
+}
+
 int main(void)
 {
     printf("\n=== MMS Interop Tests: libiec61850 client → xdp server ===\n");
@@ -655,6 +923,8 @@ int main(void)
     test_ms12_self_identify();
     test_mc12_identify_external();
     test_ms13_conclude();
+    test_ms14_control_via_oracle_server();
+    test_ms15_oracle_client_controls_our_server();
 
     INTEROP_SUMMARY();
     return interop_tests_failed > 0 ? 1 : 0;
