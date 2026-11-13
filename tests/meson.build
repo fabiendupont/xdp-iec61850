@@ -699,6 +699,40 @@ fuzz_goose_encoder = executable('fuzz_goose_encoder',
     build_by_default: false,
 )
 
+# Fuzz targets for the MMS/ISO/SCL surface (gated on enable_mms;
+# scaffolding from WP-S0 — harnesses filled in by WP-0a/0b/0c)
+if get_option('enable_mms')
+    fuzz_mms_decoder = executable('fuzz_mms_decoder',
+        'fuzz/fuzz_mms_decoder.c',
+        include_directories: [inc_dirs],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+        c_args: ['-Wno-missing-prototypes', '-Wno-conversion',
+                 '-Wno-sign-conversion'],
+        build_by_default: false,
+    )
+
+    fuzz_iso_stack = executable('fuzz_iso_stack',
+        'fuzz/fuzz_iso_stack.c',
+        include_directories: [inc_dirs],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+        c_args: ['-Wno-missing-prototypes', '-Wno-conversion',
+                 '-Wno-sign-conversion'],
+        build_by_default: false,
+    )
+
+    fuzz_scl_parser = executable('fuzz_scl_parser',
+        'fuzz/fuzz_scl_parser.c',
+        include_directories: [inc_dirs],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+        c_args: ['-Wno-missing-prototypes', '-Wno-conversion',
+                 '-Wno-sign-conversion'],
+        build_by_default: false,
+    )
+endif
+
 # Benchmark — BER codec throughput
 bench_ber_codec = executable('bench_ber_codec',
     'bench/bench_ber_codec.c',
