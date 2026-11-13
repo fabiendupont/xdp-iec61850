@@ -38,6 +38,7 @@ while providing identical isolation for protocol-level testing.
 | `test_rgoose_vm_e2e.sh` | R-GOOSE (IEC TR 61850-90-5) E2E across network namespaces: plain UDP pub/sub with replay rejection, secure signed pub/sub with tamper + replay rejection (WP-4e) |
 | `test_rsv_vm_e2e.sh` | R-SV (IEC TR 61850-90-5) E2E across network namespaces: plain UDP pub/sub with smpCnt continuity + replay rejection, secure signed pub/sub with tamper + replay rejection (WP-4e) |
 | `test_r_xdp.sh` | 90-5 XDP datapath: attach the IEC 61850 graph (dispatch → UDP dport filter → R-GOOSE/R-SV parse) to a veth end, verify dport-based AF_XDP redirection, drops of unregistered dports and BPF SPDU-number dedup (WP-4e) |
+| `test_ratelimit.sh` | WP-5a storm protection: attach the IEC 61850 graph (dispatch → GOOSE/SV/UDP filters) to a veth end and flood it — a key with a tight per-key token bucket is dropped beyond its burst (GOOSE, SV and 90-5 dport paths) while a second key with a generous bucket passes the whole flood untouched; also covers lazy bucket creation from a retuned family default |
 
 ## Running
 
@@ -54,6 +55,7 @@ sudo tests/vm/test_rsv_vm_e2e.sh       #   the secure-mode tests
 sudo tests/vm/test_r_xdp.sh            # needs libbpf/xgl at meson setup +
                                        #   CAP_BPF (BPF objects from the
                                        #   build tree)
+sudo tests/vm/test_ratelimit.sh        # same requirements as test_r_xdp.sh
 
 # Run all VM E2E tests
 sudo tests/vm/test_goose_vm_e2e.sh && \
@@ -104,3 +106,8 @@ vm-e2e:
 7. **90-5 XDP datapath** -- dport-registered traffic redirected to
    AF_XDP, unregistered dports dropped at XDP, duplicate SPDU
    numbers dropped by the BPF dedup (WP-4e)
+8. **Per-key rate limiting** -- a flooded GOOSE/SV APPID or 90-5
+   dport with a tight token bucket is dropped beyond its burst
+   while a second key with a generous bucket passes the whole
+   flood; an APPID without an explicit bucket inherits the (retuned)
+   family default via lazy bucket creation (WP-5a)
