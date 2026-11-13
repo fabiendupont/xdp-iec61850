@@ -12,6 +12,7 @@
  *   - mms_decode_conclude_request / conclude_response
  *   - mms_decode_confirmed_request / confirmed_response / confirmed_error
  *   - mms_decode_information_report
+ *   - mms_decode_iec61850_report (IEC 61850-7-2 URCB reports)
  *   - control services: select, select-with-value, operate, cancel
  *     (request + response) and command termination
  *
@@ -102,6 +103,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     memset(&info_report, 0, sizeof(info_report));
     (void)mms_decode_information_report(data, size, &info_report);
 
+    /* Full IEC 61850-7-2 URCB report format (WP-1b) */
+    memset(&info_report, 0, sizeof(info_report));
+    (void)mms_decode_iec61850_report(data, size, &info_report);
+
     /* Control services */
     memset(&select_req, 0, sizeof(select_req));
     (void)mms_decode_select_request(data, size, &select_req);
@@ -146,6 +151,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
         memset(&info_report, 0, sizeof(info_report));
         (void)mms_decode_information_report(half, half_len, &info_report);
+
+        memset(&info_report, 0, sizeof(info_report));
+        (void)mms_decode_iec61850_report(half, half_len, &info_report);
     }
 
     return 0;

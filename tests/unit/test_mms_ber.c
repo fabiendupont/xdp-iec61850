@@ -405,6 +405,468 @@ static void test_information_report_roundtrip(void)
 }
 
 /* ========================================================================
+ * IEC 61850-7-2 URCB Report Decode (WP-1b)
+ *
+ * Roundtrip and malformed-input coverage for
+ * mms_decode_iec61850_report(), the decoder counterpart of
+ * mms_encode_iec61850_report().
+ * ======================================================================== */
+
+/* Build a standard 3-member test report. opt_flds carries optFlds
+ * bits 0-7 (b1 seqNum=0x40, b2 timeOfEntry=0x20, b3 reason=0x10,
+ * b4 datSet=0x08, b5 dataRef=0x04, b6 bufOvfl=0x02, b7 entryID=0x01);
+ * the confRev bit (b8) is carried by conf_rev_present. */
+static void fill_61850_report(mms_iec61850_report_t* r, uint8_t opt_flds,
+                              bool conf_rev_on)
+{
+    memset(r, 0, sizeof(*r));
+    strncpy(r->rpt_id, "ied1ld0/rp1", MMS_MAX_STRING_LENGTH - 1);
+    strncpy(r->dat_set, "ied1ld0/DS1", MMS_MAX_STRING_LENGTH - 1);
+    r->opt_flds_byte = opt_flds;
+    r->sq_num = 4711;
+    r->sq_num_present = (opt_flds & 0x40u) != 0;
+    r->time_of_entry[0] = 0x11;
+    r->time_of_entry[1] = 0x22;
+    r->time_of_entry[2] = 0x33;
+    r->time_of_entry[3] = 0x44;
+    r->time_of_entry[4] = 0x55;
+    r->time_of_entry[5] = 0x66;
+    r->time_of_entry_present = (opt_flds & 0x20u) != 0;
+    r->conf_rev = 1234;
+    r->conf_rev_present = conf_rev_on;
+    r->num_members = 3;
+    r->reason_code = 0x2A;
+    r->num_values = 3;
+    r->values[0].type = MMS_TYPE_BOOLEAN;
+    r->values[0].value.boolean = true;
+    r->values[1].type = MMS_TYPE_INTEGER;
+    r->values[1].value.integer = -1234;
+    r->values[2].type = MMS_TYPE_UNSIGNED;
+    r->values[2].value.unsigned_val = 98765;
+}
+
+static bool value_equals_61850(const mms_value_t* a, const mms_value_t* b)
+{
+    if (a->type != b->type) {
+        return false;
+    }
+    switch (a->type) {
+        case MMS_TYPE_BOOLEAN:
+            return a->value.boolean == b->value.boolean;
+        case MMS_TYPE_INTEGER:
+            return a->value.integer == b->value.integer;
+        case MMS_TYPE_UNSIGNED:
+            return a->value.unsigned_val == b->value.unsigned_val;
+        default:
+            return false;
+    }
+}
+
+/* Verify a decoded report against the encoded input and the optFlds
+ * combination used. */
+static void verify_61850_decode(const mms_information_report_t* d,
+                                const mms_iec61850_report_t* in,
+                                uint8_t opt_flds, bool conf_rev_on)
+{
+    ASSERT_TRUE(strcmp(d->rpt_id, in->rpt_id) == 0);
+    /* datSet: always emitted by the encoder (bit set or consumed by
+     * the decoder's datSet leniency), so it must always roundtrip */
+    ASSERT_TRUE(strcmp(d->dat_set, in->dat_set) == 0);
+    ASSERT_TRUE(strcmp(d->variable_list_name, "RPT") == 0);
+
+    /* optFlds-driven presence */
+    ASSERT_TRUE(d->sq_num_present == ((opt_flds & 0x40u) != 0));
+    if (opt_flds & 0x40u) {
+        ASSERT_EQ((int)d->sq_num, 4711);
+    }
+    ASSERT_TRUE(d->report_timestamp_present == ((opt_flds & 0x20u) != 0));
+    if (opt_flds & 0x20u) {
+        ASSERT_TRUE(d->report_timestamp == 0x112233445566ULL);
+    }
+    ASSERT_TRUE(d->reasons_present == ((opt_flds & 0x10u) != 0));
+    if (opt_flds & 0x10u) {
+        for (int i = 0; i < 3; i++) {
+            ASSERT_EQ((int)d->reasons[i], 0x2A);
+        }
+    }
+    ASSERT_TRUE(d->conf_rev_present == conf_rev_on);
+    if (conf_rev_on) {
+        ASSERT_EQ((int)d->conf_rev, 1234);
+    }
+
+    /* Fields the 7-2 encoder never emits must stay absent */
+    ASSERT_TRUE(d->data_references_present == false);
+    ASSERT_TRUE(d->buffer_overflow_present == false);
+    ASSERT_TRUE(d->entry_id_present == false);
+    ASSERT_TRUE(d->config_ref_present == false);
+
+    /* Inclusion bit string: 3 members, first byte 0xE0 */
+    ASSERT_EQ((int)d->incl_bit_str_len, 1);
+    ASSERT_EQ((int)d->incl_bit_str[0], 0xE0);
+
+    /* Values: one per included member */
+    ASSERT_EQ((int)d->num_values, 3);
+    ASSERT_TRUE(value_equals_61850(&d->values[0], &in->values[0]));
+    ASSERT_TRUE(value_equals_61850(&d->values[1], &in->values[1]));
+    ASSERT_TRUE(value_equals_61850(&d->values[2], &in->values[2]));
+}
+
+static void test_iec61850_report_roundtrip_all_off(void)
+{
+    TEST("iec61850_report_roundtrip_all_off");
+    uint8_t buf[512];
+    mms_iec61850_report_t in;
+    fill_61850_report(&in, 0x00, false);
+
+    int enc_len = mms_encode_iec61850_report(&in, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+
+    mms_information_report_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int ret = mms_decode_iec61850_report(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(ret > 0);
+    ASSERT_EQ(ret, enc_len);
+    verify_61850_decode(&decoded, &in, 0x00, false);
+    PASS();
+}
+
+static void test_iec61850_report_roundtrip_all_on(void)
+{
+    TEST("iec61850_report_roundtrip_all_on");
+    uint8_t buf[512];
+    mms_iec61850_report_t in;
+    /* b1..b7 set (reserved b0 clear), confRev on */
+    fill_61850_report(&in, 0x7Eu, true);
+
+    int enc_len = mms_encode_iec61850_report(&in, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+
+    mms_information_report_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int ret = mms_decode_iec61850_report(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(ret > 0);
+    ASSERT_EQ(ret, enc_len);
+    verify_61850_decode(&decoded, &in, 0x7Eu, true);
+    PASS();
+}
+
+static void test_iec61850_report_roundtrip_each_optfld(void)
+{
+    TEST("iec61850_report_roundtrip_each_optfld");
+    static const struct {
+        uint8_t opt_flds;
+        bool conf_rev_on;
+        const char* name;
+    } cases[] = {
+        { 0x40u, false, "seqNum" },
+        { 0x20u, false, "timeOfEntry" },
+        { 0x10u, false, "reason" },
+        { 0x08u, false, "datSet" },
+        { 0x04u, false, "dataRef (no wire field)" },
+        { 0x02u, false, "bufferOverflow (no wire field)" },
+        { 0x01u, false, "entryID (no wire field)" },
+        { 0x00u, true,  "confRev" },
+    };
+    uint8_t buf[512];
+
+    for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+        mms_iec61850_report_t in;
+        fill_61850_report(&in, cases[c].opt_flds, cases[c].conf_rev_on);
+
+        int enc_len = mms_encode_iec61850_report(&in, buf, sizeof(buf));
+        if (enc_len <= 0) {
+            printf("FAIL: encode %s (ret=%d)\n", cases[c].name, enc_len);
+            tests_failed++;
+            return;
+        }
+
+        mms_information_report_t decoded;
+        memset(&decoded, 0, sizeof(decoded));
+        int ret = mms_decode_iec61850_report(buf, (size_t)enc_len, &decoded);
+        if (ret != enc_len) {
+            printf("FAIL: decode %s (ret=%d enc=%d)\n",
+                   cases[c].name, ret, enc_len);
+            tests_failed++;
+            return;
+        }
+        verify_61850_decode(&decoded, &in,
+                            cases[c].opt_flds, cases[c].conf_rev_on);
+    }
+    PASS();
+}
+
+static void test_iec61850_report_null_params(void)
+{
+    TEST("iec61850_report_null_params");
+    uint8_t buf[64];
+    mms_information_report_t report;
+    memset(&report, 0, sizeof(report));
+
+    ASSERT_TRUE(mms_decode_iec61850_report(NULL, sizeof(buf), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(buf, sizeof(buf), NULL) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(buf, 0, &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(buf, 1, &report) < 0);
+    PASS();
+}
+
+/* Wrap a listOfAccessResult content blob into a full 7-2 report PDU:
+ * A3 len ( A0 len ( A1 05 80 03 "RPT" ) ( A0 len list ) ).
+ * Returns the encoded length, or 0 if it does not fit / is too long
+ * for short-form lengths. */
+static size_t wrap_61850_list(uint8_t* out, size_t out_sz,
+                              const uint8_t* list, size_t list_len)
+{
+    if (list_len > 127) {
+        return 0;
+    }
+    size_t ir_len = 7 + 2 + list_len;
+    if (out_sz < 4 + ir_len) {
+        return 0;
+    }
+
+    size_t pos = 0;
+    out[pos++] = 0xA3;
+    out[pos++] = (uint8_t)(2 + ir_len);
+    out[pos++] = 0xA0;
+    out[pos++] = (uint8_t)ir_len;
+    out[pos++] = 0xA1;
+    out[pos++] = 0x05;
+    out[pos++] = 0x80;
+    out[pos++] = 0x03;
+    out[pos++] = 0x52;  /* 'R' */
+    out[pos++] = 0x50;  /* 'P' */
+    out[pos++] = 0x54;  /* 'T' */
+    out[pos++] = 0xA0;
+    out[pos++] = (uint8_t)list_len;
+    memcpy(out + pos, list, list_len);
+    return pos + list_len;
+}
+
+/* Assert that a hand-built listOfAccessResult is rejected. */
+static void assert_61850_list_rejected(const char* name,
+                                       const uint8_t* list, size_t list_len)
+{
+    uint8_t wire[256];
+    size_t wire_len = wrap_61850_list(wire, sizeof(wire), list, list_len);
+    if (wire_len == 0) {
+        printf("FAIL: %s wrap failed\n", name);
+        tests_failed++;
+        return;
+    }
+
+    mms_information_report_t report;
+    memset(&report, 0, sizeof(report));
+    int ret = mms_decode_iec61850_report(wire, wire_len, &report);
+    if (ret >= 0) {
+        printf("FAIL: %s accepted malformed list (ret=%d)\n", name, ret);
+        tests_failed++;
+        return;
+    }
+}
+
+static void test_iec61850_report_malformed_fields(void)
+{
+    TEST("iec61850_report_malformed_fields");
+    /* rptID missing (wrong first tag) */
+    assert_61850_list_rejected("no_rptid",
+        (const uint8_t[]){ 0x86, 0x01, 0x01 }, 3);
+
+    /* rptID wire length exceeds the list parent */
+    assert_61850_list_rejected("rptid_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x84, 0xFF, 0xFF, 0xFF, 0xFF }, 6);
+
+    /* optFlds zero-length */
+    assert_61850_list_rejected("optflds_zero_len",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x00 }, 5);
+
+    /* optFlds wire length exceeds the list parent */
+    assert_61850_list_rejected("optflds_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x84,
+                           0xFF, 0xFF, 0xFF, 0xFF }, 9);
+
+    /* optFlds unused-bit count 8 (invalid BER, > 7) */
+    assert_61850_list_rejected("optflds_unused_8",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x02, 0x08, 0x00 }, 7);
+
+    /* optFlds empty bit string with non-zero unused count */
+    assert_61850_list_rejected("optflds_empty_nonzero_unused",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x01, 0x01 }, 6);
+
+    /* seqNum optFld set but no seqNum field follows */
+    assert_61850_list_rejected("seqnum_missing",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x40, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x05, (uint8_t)0xE0 },
+        15);
+
+    /* seqNum zero-length */
+    assert_61850_list_rejected("seqnum_zero_len",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x40, 0x00,
+                           0x86, 0x00 }, 10);
+
+    /* seqNum wire length exceeds the list parent */
+    assert_61850_list_rejected("seqnum_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x40, 0x00,
+                           0x86, 0x84, 0xFF, 0xFF, 0xFF, 0xFF }, 14);
+
+    /* timeOfEntry wrong size (5 bytes instead of 6) */
+    assert_61850_list_rejected("timeofentry_bad_size",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x20, 0x00,
+                           0x8C, 0x05, 1, 2, 3, 4, 5 }, 15);
+
+    /* timeOfEntry wire length exceeds the list parent */
+    assert_61850_list_rejected("timeofentry_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x20, 0x00,
+                           0x8C, 0x84, 0xFF, 0xFF, 0xFF, 0xFF }, 14);
+
+    /* datSet wire length exceeds the list parent */
+    assert_61850_list_rejected("datset_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x08, 0x00,
+                           0x8A, 0x84, 0xFF, 0xFF, 0xFF, 0xFF }, 14);
+
+    /* confRev optFld set but no confRev field follows */
+    assert_61850_list_rejected("confrev_missing",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x00, 0x80,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x05, (uint8_t)0xE0 },
+        15);
+
+    /* confRev zero-length */
+    assert_61850_list_rejected("confrev_zero_len",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x00, 0x80,
+                           0x8A, 0x01, 'D', 0x86, 0x00 }, 13);
+
+    /* inclusion-bitstring missing entirely */
+    assert_61850_list_rejected("inclbitstr_missing",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x00, 0x00 }, 8);
+
+    /* inclusion-bitstring zero-length */
+    assert_61850_list_rejected("inclbitstr_zero_len",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x00, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x00 }, 13);
+
+    /* inclusion-bitstring wire length exceeds the list parent */
+    assert_61850_list_rejected("inclbitstr_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x00, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x84,
+                           0xFF, 0xFF, 0xFF, 0xFF }, 17);
+
+    /* inclusion-bitstring with 33 value bytes (exceeds the 32-byte
+     * incl_bit_str field) */
+    {
+        uint8_t list[64];
+        size_t n = 0;
+        list[n++] = 0x8A; list[n++] = 0x01; list[n++] = 'R';
+        list[n++] = 0x84; list[n++] = 0x03; list[n++] = 0x06;
+        list[n++] = 0x00; list[n++] = 0x00;
+        list[n++] = 0x8A; list[n++] = 0x01; list[n++] = 'D';
+        list[n++] = 0x84; list[n++] = 0x22; list[n++] = 0x00;
+        for (int i = 0; i < 33; i++) {
+            list[n++] = 0xFF;
+        }
+        assert_61850_list_rejected("inclbitstr_oversized", list, n);
+    }
+
+    /* inclusion-bitstring announces 2 members but no values follow */
+    assert_61850_list_rejected("values_missing",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x00, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x06, (uint8_t)0xC0 },
+        15);
+
+    /* reason optFld set, 2 members, values present but no reasons */
+    assert_61850_list_rejected("reasons_missing",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x10, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x06, (uint8_t)0xC0,
+                           0x83, 0x01, 0xFF, 0x86, 0x01, 0x2A }, 21);
+
+    /* reason code zero-length */
+    assert_61850_list_rejected("reason_zero_len",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x10, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x06, (uint8_t)0xC0,
+                           0x83, 0x01, 0xFF, 0x86, 0x01, 0x2A,
+                           0x84, 0x00 }, 23);
+
+    /* reason code with invalid unused-bit count 8 */
+    assert_61850_list_rejected("reason_unused_8",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x10, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x06, (uint8_t)0xC0,
+                           0x83, 0x01, 0xFF, 0x86, 0x01, 0x2A,
+                           0x84, 0x02, 0x08, 0x2A }, 25);
+
+    /* reason code wire length exceeds the list parent */
+    assert_61850_list_rejected("reason_len_overflow",
+        (const uint8_t[]){ 0x8A, 0x01, 'R', 0x84, 0x03, 0x06, 0x10, 0x00,
+                           0x8A, 0x01, 'D', 0x84, 0x02, 0x06, (uint8_t)0xC0,
+                           0x83, 0x01, 0xFF, 0x86, 0x01, 0x2A,
+                           0x84, 0x84, 0xFF, 0xFF, 0xFF, 0xFF }, 27);
+
+    PASS();
+}
+
+static void test_iec61850_report_oversized_lengths(void)
+{
+    TEST("iec61850_report_oversized_lengths");
+
+    /* unconfirmedPDU outer length exceeds the buffer */
+    static const uint8_t outer_overflow[] = {
+        0xA3, 0x84, 0xFF, 0xFF, 0xFF, 0xFF, 0xA0, 0x05, 0x01
+    };
+    /* informationReport [0] length exceeds the unconfirmedPDU parent */
+    static const uint8_t ir_overflow[] = {
+        0xA3, 0x08, 0xA0, 0x84, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xA1, 0x05, 0x80, 0x03, 0x52, 0x50, 0x54
+    };
+    /* variableAccessSpecification length exceeds its parent */
+    static const uint8_t vas_overflow[] = {
+        0xA3, 0x0A, 0xA0, 0x08, 0xA1, 0x84, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x80, 0x03, 0x52
+    };
+    /* listOfAccessResult length exceeds the informationReport parent */
+    static const uint8_t list_overflow[] = {
+        0xA3, 0x0D, 0xA0, 0x0B, 0xA1, 0x05, 0x80, 0x03, 0x52, 0x50, 0x54,
+        0xA0, 0x84, 0xFF, 0xFF, 0xFF, 0xFF
+    };
+    /* wrong outer tag (confirmed response, not unconfirmedPDU) */
+    static const uint8_t wrong_tag[] = {
+        0xA1, 0x0A, 0xA0, 0x08, 0xA1, 0x05, 0x80, 0x03, 0x52, 0x50, 0x54,
+        0xA0, 0x00
+    };
+    /* wrong informationReport tag */
+    static const uint8_t wrong_ir_tag[] = {
+        0xA3, 0x0A, 0xA1, 0x08, 0xA1, 0x05, 0x80, 0x03, 0x52, 0x50, 0x54,
+        0xA0, 0x00
+    };
+    /* wrong variableAccessSpecification tag (flat [0] form) */
+    static const uint8_t wrong_vas_tag[] = {
+        0xA3, 0x0A, 0xA0, 0x08, 0xA0, 0x05, 0x80, 0x03, 0x52, 0x50, 0x54,
+        0xA0, 0x00
+    };
+    /* wrong listOfAccessResult tag */
+    static const uint8_t wrong_list_tag[] = {
+        0xA3, 0x0A, 0xA0, 0x08, 0xA1, 0x05, 0x80, 0x03, 0x52, 0x50, 0x54,
+        0xA1, 0x00
+    };
+
+    mms_information_report_t report;
+    memset(&report, 0, sizeof(report));
+    ASSERT_TRUE(mms_decode_iec61850_report(outer_overflow,
+        sizeof(outer_overflow), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(ir_overflow,
+        sizeof(ir_overflow), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(vas_overflow,
+        sizeof(vas_overflow), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(list_overflow,
+        sizeof(list_overflow), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(wrong_tag,
+        sizeof(wrong_tag), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(wrong_ir_tag,
+        sizeof(wrong_ir_tag), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(wrong_vas_tag,
+        sizeof(wrong_vas_tag), &report) < 0);
+    ASSERT_TRUE(mms_decode_iec61850_report(wrong_list_tag,
+        sizeof(wrong_list_tag), &report) < 0);
+    PASS();
+}
+
+/* ========================================================================
  * Error Handling
  * ======================================================================== */
 
@@ -896,6 +1358,9 @@ static int trunc_dec_cancel_resp(const uint8_t *b, size_t l, void *o)
 static int trunc_dec_cmd_term(const uint8_t *b, size_t l, void *o)
 { return mms_decode_command_termination(b, l, (mms_command_termination_t *)o); }
 
+static int trunc_dec_iec61850_report(const uint8_t *b, size_t l, void *o)
+{ return mms_decode_iec61850_report(b, l, (mms_information_report_t *)o); }
+
 /* Assert that every truncation of a valid encoded PDU is rejected
  * with a negative return value (no crash, no OOB access). */
 static void assert_truncations_rejected(const char *name,
@@ -912,6 +1377,36 @@ static void assert_truncations_rejected(const char *name,
             return;
         }
     }
+}
+
+static void test_iec61850_report_truncated(void)
+{
+    TEST("iec61850_report_truncated");
+
+    static uint8_t wire[512];
+    int enc_len;
+
+    /* All optional fields off (minimal report) */
+    {
+        mms_iec61850_report_t in;
+        fill_61850_report(&in, 0x00, false);
+        enc_len = mms_encode_iec61850_report(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("iec61850_report(all_off)",
+                                    trunc_dec_iec61850_report,
+                                    wire, (size_t)enc_len);
+    }
+    /* All optional fields on */
+    {
+        mms_iec61850_report_t in;
+        fill_61850_report(&in, 0x7Eu, true);
+        enc_len = mms_encode_iec61850_report(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("iec61850_report(all_on)",
+                                    trunc_dec_iec61850_report,
+                                    wire, (size_t)enc_len);
+    }
+    PASS();
 }
 
 static void test_decode_truncated_pdus(void)
@@ -1269,6 +1764,15 @@ int main(void)
 
     printf("\n--- InformationReport ---\n");
     test_information_report_roundtrip();
+
+    printf("\n--- IEC 61850-7-2 Report Decode (WP-1b) ---\n");
+    test_iec61850_report_roundtrip_all_off();
+    test_iec61850_report_roundtrip_all_on();
+    test_iec61850_report_roundtrip_each_optfld();
+    test_iec61850_report_null_params();
+    test_iec61850_report_malformed_fields();
+    test_iec61850_report_oversized_lengths();
+    test_iec61850_report_truncated();
 
     printf("\n--- Error Handling ---\n");
     test_null_parameters();
