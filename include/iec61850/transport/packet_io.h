@@ -21,6 +21,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,6 +78,26 @@ struct packet_io *packet_io_create_xsk_inherited(int control_sock_fd);
  * Returns NULL on allocation failure.
  */
 struct packet_io *packet_io_create_raw(void);
+
+/**
+ * Create a packet_io UDP sender (IEC TR 61850-90-5 publisher side):
+ * sends datagrams to remote_addr:remote_port (unicast address or
+ * multicast group). open(ifname, queue_id) selects the outgoing
+ * interface for multicast (ifname NULL/"" = default; queue_id
+ * unused). Returns NULL on failure.
+ */
+struct packet_io *packet_io_create_udp_sender(const char *remote_addr,
+                                               uint16_t remote_port,
+                                               bool multicast);
+
+/**
+ * Create a packet_io UDP receiver (IEC TR 61850-90-5 subscriber
+ * side): binds local_port on INADDR_ANY. mcast_group NULL receives
+ * unicast; otherwise open(ifname, ...) joins the group on ifname.
+ * Returns NULL on failure.
+ */
+struct packet_io *packet_io_create_udp_receiver(uint16_t local_port,
+                                                  const char *mcast_group);
 
 /**
  * Destroy a packet_io instance (close if still open, then free).

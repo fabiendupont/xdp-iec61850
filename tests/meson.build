@@ -606,6 +606,24 @@ test_hsr_prp = executable('test_hsr_prp',
 )
 test('hsr_prp', test_hsr_prp, suite: 'unit')
 
+# Unit tests — 90-5 routable profiles (WP-S4 scaffolds, extended by
+# WP-4a / WP-4b)
+test_rgoose_ber = executable('test_rgoose_ber',
+    'unit/test_rgoose_ber.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+test('rgoose_ber', test_rgoose_ber, suite: 'unit')
+
+test_packet_io_udp = executable('test_packet_io_udp',
+    'unit/test_packet_io_udp.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+test('packet_io_udp', test_packet_io_udp, suite: 'unit')
+
 # Integration: Loopback tests (require root, build_by_default: false)
 goose_loopback = executable('goose_loopback',
     'integration/goose_loopback.c',
@@ -718,6 +736,22 @@ fuzz_goose_encoder = executable('fuzz_goose_encoder',
     c_args: ['-Wno-missing-prototypes'],
     build_by_default: false,
 )
+
+# Fuzz target: 90-5 routable-profile decoders (WP-S4 scaffold; harness
+# filled in by WP-4a)
+fuzz_r_profile = executable('fuzz_r_profile',
+    'fuzz/fuzz_r_profile.c',
+    include_directories: [inc_dirs],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+    c_args: ['-Wno-missing-prototypes', '-Wno-conversion',
+             '-Wno-sign-conversion'],
+    build_by_default: false,
+)
+
+test('fuzz_replay_r_profile', fuzz_r_profile,
+     suite: 'fuzz',
+     args: [meson.project_source_root() / 'tests/fuzz/corpora/r_profile'])
 
 # Fuzz targets for the MMS/ISO/SCL surface (gated on enable_mms;
 # scaffolding from WP-S0 — harnesses filled in by WP-0a/0b/0c)

@@ -48,7 +48,10 @@ struct {
 #define IEC61850_ROLE_GOOSE_PARSE    1
 #define IEC61850_ROLE_SV_FILTER      2
 #define IEC61850_ROLE_SV_PARSE       3
-#define IEC61850_ROLE_COUNT          4
+#define IEC61850_ROLE_UDP_FILTER     4  /* WP-S4: 90-5 IPv4/UDP dispatch */
+#define IEC61850_ROLE_RGOOSE_PARSE   5  /* WP-S4: 90-5 R-GOOSE parse */
+#define IEC61850_ROLE_RSV_PARSE      6  /* WP-S4: 90-5 R-SV parse */
+#define IEC61850_ROLE_COUNT          7
 
 /* Config map: role → PROG_ARRAY index (populated by userspace) */
 struct {

@@ -65,6 +65,9 @@ core_sources = files(
     'src/asn1/goose_ber.c',
     'src/asn1/goose_ber_decode.c',
     'src/asn1/sv_ber.c',
+    # IEC TR 61850-90-5 routable profiles (WP-S4 scaffolding)
+    'src/asn1/rgoose_ber.c',
+    'src/asn1/rsv_ber.c',
     # Phase 3: GOOSE protocol
     'src/goose/goose_publisher.c',
     'src/goose/goose_subscriber.c',
@@ -86,6 +89,7 @@ core_deps = [thread_dep]
 # Transport: XSK requires xdp-graph-lib, raw sockets always available
 transport_sources = files(
     'src/transport/packet_io_raw.c',
+    'src/transport/packet_io_udp.c',
     'src/transport/eth_frame.c',
     'src/transport/ptp_clock.c',
 )
@@ -188,7 +192,9 @@ if clang.found() and libbpf_dep.found() and xgl_dep.found()
     bpf_cflags += bpf_inc
 
     bpf_nodes = ['node_goose_filter', 'node_goose_parse',
-                 'node_sv_filter', 'node_sv_parse']
+                 'node_sv_filter', 'node_sv_parse',
+                 'node_udp_filter', 'node_rgoose_parse',
+                 'node_rsv_parse']
     foreach node : bpf_nodes
         bpf_target = custom_target(node + '.bpf.o',
             input: 'src/bpf/' + node + '.bpf.c',

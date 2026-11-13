@@ -13,3 +13,7 @@ Seeding sources (per target):
 - `scl_parser/` — valid and truncated SCL documents: `tests/data/test.scd`,
   `tests/interop/scl/interop_test.icd`, plus mutations (truncations, bad
   attribute values, nested elements).
+
+- `r_profile/` — R-GOOSE/R-SV SPDUs (WP-4a): roundtrip vectors (secure
+  and plain) once the wire format is implemented; a placeholder empty
+  seed keeps the directory tracked until then.
