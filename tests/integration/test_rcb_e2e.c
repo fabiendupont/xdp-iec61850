@@ -9,15 +9,22 @@
  * 4. General interrogation with data store snapshot
  * 5. Enable/disable lifecycle -- no report after disable
  *
- * No MMS server needed -- tests RCB directly with data store.
+ * WP-2a: Ed.2 RCB <-> data-store bridge (unit level, no server).
+ * WP-2x: client <-> server closed loop over the WIRED server
+ * (mms_server.c RCB-manager registration: pre-commit Ed.2 write
+ * validation, post-request reconcile, periodic sync, session-teardown
+ * association release), plus the SCL auto-config composition.
  */
 
 #include "mms/mms_report.h"
 #include "mms/mms_data_store.h"
 #include "mms/mms_server.h"
 #include "mms/mms_client_rcb.h"
+#include "scl/scl_parser.h"
+#include "scl/scl_ied_builder.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -746,20 +753,6 @@ static void loop_report_cb(const mms_information_report_t *report,
     g_loop_report_count++;
 }
 
-/*
- * Server after_response hook — this stands in for the (frozen)
- * mms_server.c wiring a later WP will add: every client request is
- * reconciled through the bridge with the requesting session.
- */
-static void loop_after_response(iec61850_mms_session_t *session,
-                                 const char *req_domain,
-                                 const char *req_item,
-                                 void *user_data)
-{
-    (void)user_data;
-    iec61850_rcb_bridge_on_write(&g_loop_mgr, req_domain, req_item, session);
-}
-
 static void loop_setup(void)
 {
     iec61850_mms_server_config_t cfg;
@@ -794,14 +787,31 @@ static void loop_setup(void)
     (void)iec61850_rcb_manager_add_rcb(&g_loop_mgr, "b1",
                                         IEC61850_RCB_BUFFERED,
                                         IEC61850_RCB_MAX_BUFFER);
-    ASSERT_EQ(iec61850_rcb_manager_expose(&g_loop_mgr, &g_loop_ds, LOOP_LD), 0);
 
+    /* WP-2x wired path: register the manager with the server — no
+     * manual store exposure and no application after_response hook.
+     * The server exposes the component objects at start(), dispatches
+     * component writes pre-commit (Ed.2 validation, real MMS Write
+     * failures), reconciles every request with the requesting session,
+     * syncs the bridge on the session loop's recv-timeout tick and
+     * releases the association at session teardown. */
     iec61850_mms_server_config_init(&cfg);
     cfg.port = LOOP_PORT;
-    cfg.after_response = loop_after_response;
     iec61850_mms_server_init(&g_loop_srv, &cfg, &g_loop_ds);
+    ASSERT_EQ(iec61850_mms_server_set_rcb_manager(&g_loop_srv, &g_loop_mgr),
+              0);
+    ASSERT_EQ(iec61850_mms_server_set_rcb_manager(&g_loop_srv, &g_loop_mgr),
+              -EEXIST);
     ASSERT_EQ(iec61850_mms_server_start(&g_loop_srv), 0);
+    ASSERT_EQ(iec61850_mms_server_set_rcb_manager(&g_loop_srv, &g_loop_mgr),
+              -EBUSY);   /* registration closed while running */
     g_loop_srv_up = true;
+
+    /* start() exposed the RCB component objects (WP-2x). */
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(
+        &g_loop_ds, LOOP_LD, LOOP_URCB_REF "$RptEna"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(
+        &g_loop_ds, LOOP_LD, LOOP_BRCB_REF "$EntryID"));
 
     g_loop_report_count = 0;
     usleep(200000);
@@ -817,15 +827,39 @@ static void loop_teardown(void)
     iec61850_mms_ds_destroy(&g_loop_ds);
 }
 
-static void loop_connect(iec61850_mms_client_t *client)
+static void loop_connect_port(iec61850_mms_client_t *client, uint16_t port)
 {
     iec61850_mms_client_init(client);
     ASSERT_EQ(iec61850_mms_client_connect(client, "127.0.0.1",
-                                           LOOP_PORT, 5000),
+                                           port, 5000),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_EQ(iec61850_mms_client_set_report_handler(client,
                                                       loop_report_cb, NULL),
               IEC61850_MMS_CLIENT_OK);
+}
+
+static void loop_connect(iec61850_mms_client_t *client)
+{
+    loop_connect_port(client, LOOP_PORT);
+}
+
+/*
+ * Disconnect and wait for the server's session-teardown wiring
+ * (WP-2x) to release the bridge association: the session thread
+ * drops the association when it exits, so the next client starts
+ * from a known detached state (no stale live owner can refuse
+ * adoption or swallow reports).
+ */
+static void loop_disconnect(iec61850_mms_client_t *client)
+{
+    int waited = 0;
+
+    (void)iec61850_mms_client_disconnect(client);
+    while ((g_loop_mgr.bridge.association != NULL) && (waited < 5000)) {
+        usleep(10 * 1000);
+        waited += 10;
+    }
+    ASSERT_TRUE(g_loop_mgr.bridge.association == NULL);
 }
 
 static int loop_pump(iec61850_mms_client_t *client, int timeout_ms,
@@ -872,7 +906,7 @@ static void test_loop_rcb_list(void)
               IEC61850_MMS_CLIENT_OK);
     ASSERT_EQ((int)count, 0);
 
-    (void)iec61850_mms_client_disconnect(&client);
+    loop_disconnect(&client);
     PASS();
 }
 
@@ -982,7 +1016,7 @@ static void test_loop_urcb_enroll_report(void)
     ASSERT_EQ(loop_pump(&client, 300, 1), -1);
     ASSERT_EQ(g_loop_report_count, 0);
 
-    (void)iec61850_mms_client_disconnect(&client);
+    loop_disconnect(&client);
     PASS();
 }
 
@@ -1040,11 +1074,12 @@ static void test_loop_brcb_buffered_resume(void)
     ASSERT_EQ(g_loop_report_count, 2);
     ASSERT_TRUE(g_loop_last.entry_id == 2U);
 
-    (void)iec61850_mms_client_disconnect(&client);
-
-    /* Client loss (the wiring WP will call this from the server's
-     * session teardown): the BRCB stays enabled and buffers on. */
-    iec61850_rcb_bridge_clear_association(&g_loop_mgr);
+    /* Client loss — the server's session-teardown wiring (WP-2x)
+     * releases the bridge association: the BRCB stays enabled and
+     * buffers on (Ed.2 resume semantics, now delivered by the server
+     * instead of the test calling clear_association manually). */
+    loop_disconnect(&client);
+    ASSERT_TRUE(g_loop_mgr.bridge.association == NULL);
     ASSERT_TRUE(g_loop_mgr.rcbs[1].attrs.rpt_ena);
     ASSERT_EQ((int)buf->count, 2);
 
@@ -1064,14 +1099,17 @@ static void test_loop_brcb_buffered_resume(void)
     ASSERT_TRUE(g_loop_mgr.rcbs[1].attrs.entry_id == 2U);  /* frozen */
     ASSERT_EQ((int)g_loop_mgr.rcbs[1].attrs.sq_num, 2);
 
-    /* Re-associate and resume after EntryID 2. */
+    /* Re-associate and resume after EntryID 2. The counter is reset
+     * before the enable: the wired pre-commit path flushes the resume
+     * reports inside the RptEna Write transaction itself (the bridge
+     * pushes them before the Write response), so they can already be
+     * dispatched when rcb_enable() returns. */
     loop_connect(&client);
     ASSERT_EQ(iec61850_mms_client_rcb_set_entry_id(&client, LOOP_LD, LOOP_BRCB_REF, 2U),
               IEC61850_MMS_CLIENT_OK);
+    g_loop_report_count = 0;
     ASSERT_EQ(iec61850_mms_client_rcb_enable(&client, LOOP_LD, LOOP_BRCB_REF),
               IEC61850_MMS_CLIENT_OK);
-
-    g_loop_report_count = 0;
     ASSERT_EQ(loop_pump(&client, 5000, 2), 0);
     ASSERT_EQ(g_loop_report_count, 2);
 
@@ -1093,8 +1131,7 @@ static void test_loop_brcb_buffered_resume(void)
     ASSERT_EQ(g_loop_report_count, 1);
     ASSERT_TRUE(g_loop_last.entry_id == 5U);
 
-    (void)iec61850_mms_client_disconnect(&client);
-    iec61850_rcb_bridge_clear_association(&g_loop_mgr);
+    loop_disconnect(&client);
     PASS();
 }
 
@@ -1133,8 +1170,7 @@ static void test_loop_brcb_purge(void)
     ASSERT_TRUE(g_loop_last.entry_id_present);
     ASSERT_TRUE(g_loop_last.entry_id > 5U);   /* monotonic across purge */
 
-    (void)iec61850_mms_client_disconnect(&client);
-    iec61850_rcb_bridge_clear_association(&g_loop_mgr);
+    loop_disconnect(&client);
     PASS();
 }
 
@@ -1202,8 +1238,7 @@ static void test_loop_buftm_aggregation(void)
               IEC61850_MMS_CLIENT_OK);
     ASSERT_EQ((int)values.attrs.sq_num, 7);   /* 5 (resume) + 1 (purge) + 1 */
 
-    (void)iec61850_mms_client_disconnect(&client);
-    iec61850_rcb_bridge_clear_association(&g_loop_mgr);
+    loop_disconnect(&client);
     PASS();
 }
 
@@ -1247,30 +1282,54 @@ static void test_loop_ownership_conflict(void)
     (void)strncpy(owner_a, readback.owner, (size_t)IEC61850_RCB_MAX_NAME - 1U);
     owner_a[IEC61850_RCB_MAX_NAME - 1U] = '\0';
 
-    /* Client B cannot take the reservation or the enable (state-level
-     * check: with the post-commit after_response wiring the Write
-     * succeeds at the MMS level and the bridge reverts it). */
+    /* Client B cannot take the reservation or the enable. WP-2x wired
+     * path: the server dispatches the component write pre-commit, the
+     * bridge rejects it with an Ed.2 ownership error and the Write
+     * comes back as a REAL MMS failure — the interim post-commit
+     * wiring could only revert it after a false success. */
     loop_connect(&client_b);
     (void)memset(&values, 0, sizeof(values));
     values.resv = true;
     ret = iec61850_mms_client_rcb_set_values(&client_b, LOOP_LD, LOOP_URCB_REF,
                                               &values,
                                               (uint32_t)IEC61850_RCB_FIELD_RESV);
-    ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);   /* accepted by the store */
+    /* Ownership signal 1: the in-band DataAccessError code the
+     * reference server uses for a Resv write on a held URCB. */
+    ASSERT_EQ(ret, IEC61850_MMS_CLIENT_ERR_RCB_OWNER);
 
     (void)memset(&readback, 0, sizeof(readback));
     ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_b, LOOP_LD, LOOP_URCB_REF,
                                                   &readback),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_STR(readback.owner, owner_a);      /* still A's */
+    ASSERT_TRUE(readback.resv);               /* A's reservation intact */
 
+    /* Direct evidence of the pre-commit rejection code: the plain
+     * detail write surfaces the in-band failure (code 2), and the
+     * store value never changed. */
+    {
+        mms_value_t w;
+        int32_t access_error = 0;
+
+        w = br_bool(true);
+        ASSERT_EQ(iec61850_mms_client_write_detail(&client_b, LOOP_LD,
+                                                   LOOP_URCB_REF "$Resv",
+                                                   &w, &access_error),
+                  IEC61850_MMS_CLIENT_ERR_MMS);
+        ASSERT_EQ((int)access_error, 2);
+        w = bridge_read_comp(&g_loop_mgr, LOOP_URCB_REF "$Resv");
+        ASSERT_TRUE(w.value.boolean);         /* A's TRUE, not reverted */
+    }
+
+    /* Enable is likewise rejected as a real MMS Write failure. */
     ASSERT_EQ(iec61850_mms_client_rcb_enable(&client_b, LOOP_LD, LOOP_URCB_REF),
-              IEC61850_MMS_CLIENT_OK);
+              IEC61850_MMS_CLIENT_ERR_MMS);
     (void)memset(&readback, 0, sizeof(readback));
     ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_b, LOOP_LD, LOOP_URCB_REF,
                                                   &readback),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_STR(readback.owner, owner_a);      /* B could not take over */
+    ASSERT_TRUE(readback.attrs.rpt_ena);      /* A's enable intact */
 
     /* A report triggered by B is still routed to the owner A. */
     g_loop_report_count = 0;
@@ -1286,8 +1345,11 @@ static void test_loop_ownership_conflict(void)
     ASSERT_EQ(iec61850_mms_client_rcb_disable(&client_a, LOOP_LD, LOOP_URCB_REF),
               IEC61850_MMS_CLIENT_OK);
 
-    (void)iec61850_mms_client_disconnect(&client_b);
-    (void)iec61850_mms_client_disconnect(&client_a);
+    /* Disconnect the owner first: the server's teardown releases the
+     * bridge association when the OWNING session exits (B never
+     * adopted it — its writes were rejected pre-commit). */
+    loop_disconnect(&client_a);
+    loop_disconnect(&client_b);
     PASS();
 }
 
@@ -1349,7 +1411,234 @@ static void test_loop_gi_report(void)
     ASSERT_EQ((int)g_loop_last.reasons[1], (int)IEC61850_REASON_GI);
 
     (void)iec61850_mms_client_rcb_disable(&client, LOOP_LD, LOOP_URCB_REF);
+    loop_disconnect(&client);
+    PASS();
+}
+
+/*
+ * WP-2x: session teardown releases association and ownership. Client A
+ * enrolls the URCB and the BRCB, then disconnects WITHOUT disabling:
+ * the server's session teardown must disable the URCB and release its
+ * reservation/Owner (Ed.2), while the BRCB stays enabled and buffers
+ * for resume — and client B can take both over.
+ */
+static void test_loop_teardown_takeover(void)
+{
+    iec61850_mms_client_t client_a;
+    iec61850_mms_client_t client_b;
+    iec61850_mms_client_rcb_values_t values;
+    iec61850_report_buffer_t *buf =
+        iec61850_rcb_manager_get_buffer(&g_loop_mgr, 1);
+    mms_value_t v;
+    uint32_t mask;
+    int ret;
+
+    TEST("loop_teardown_takeover");
+    ASSERT_TRUE(buf != NULL);
+
+    /* Client A enrolls the URCB (resv + enable). */
+    loop_connect(&client_a);
+    (void)memset(&values, 0, sizeof(values));
+    values.resv = true;
+    (void)strncpy(values.attrs.rpt_id, "TA",
+                  (size_t)IEC61850_RCB_MAX_NAME - 1U);
+    (void)strncpy(values.attrs.dat_set, LOOP_LDD "/ds1",
+                  (size_t)IEC61850_RCB_MAX_NAME - 1U);
+    values.attrs.trg_ops.data_change = true;
+    values.attrs.rpt_ena = true;
+    mask = (uint32_t)IEC61850_RCB_FIELD_RPT_ID |
+           (uint32_t)IEC61850_RCB_FIELD_RESV |
+           (uint32_t)IEC61850_RCB_FIELD_DAT_SET |
+           (uint32_t)IEC61850_RCB_FIELD_TRG_OPS |
+           (uint32_t)IEC61850_RCB_FIELD_RPT_ENA;
+    ret = iec61850_mms_client_rcb_set_values(&client_a, LOOP_LD, LOOP_URCB_REF,
+                                              &values, mask);
+    ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    ASSERT_TRUE(g_loop_mgr.rcbs[0].attrs.rpt_ena);
+    ASSERT_TRUE(g_loop_mgr.rcbs[0].resv);
+
+    /* ... and re-arms the BRCB from a clean slate (it is still enabled
+     * with leftovers from the earlier closed-loop tests: disable and
+     * purge are fixture hygiene, then the enable adopts the
+     * association). */
+    ASSERT_EQ(iec61850_mms_client_rcb_disable(&client_a, LOOP_LD, LOOP_BRCB_REF),
+              IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(iec61850_mms_client_rcb_purge_buffer(&client_a, LOOP_LD,
+                                                    LOOP_BRCB_REF),
+              IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ((int)buf->count, 0);
+    (void)memset(&values, 0, sizeof(values));
+    (void)strncpy(values.attrs.rpt_id, "TB",
+                  (size_t)IEC61850_RCB_MAX_NAME - 1U);
+    (void)strncpy(values.attrs.dat_set, LOOP_LDD "/ds1",
+                  (size_t)IEC61850_RCB_MAX_NAME - 1U);
+    values.attrs.trg_ops.data_change = true;
+    values.attrs.rpt_ena = true;
+    mask = (uint32_t)IEC61850_RCB_FIELD_RPT_ID |
+           (uint32_t)IEC61850_RCB_FIELD_DAT_SET |
+           (uint32_t)IEC61850_RCB_FIELD_TRG_OPS |
+           (uint32_t)IEC61850_RCB_FIELD_RPT_ENA;
+    ret = iec61850_mms_client_rcb_set_values(&client_a, LOOP_LD, LOOP_BRCB_REF,
+                                              &values, mask);
+    ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    ASSERT_TRUE(g_loop_mgr.rcbs[1].attrs.rpt_ena);
+    ASSERT_TRUE(g_loop_mgr.rcbs[1].owner[0] != '\0');
+
+    /* A disconnects without disabling anything. */
+    loop_disconnect(&client_a);
+
+    /* Server teardown: URCB disabled, reservation and Owner released. */
+    ASSERT_TRUE(!g_loop_mgr.rcbs[0].attrs.rpt_ena);
+    ASSERT_TRUE(!g_loop_mgr.rcbs[0].resv);
+    ASSERT_TRUE(g_loop_mgr.rcbs[0].owner[0] == '\0');
+    /* BRCB stays enabled and keeps its Owner (Ed.2 resume). */
+    ASSERT_TRUE(g_loop_mgr.rcbs[1].attrs.rpt_ena);
+    ASSERT_TRUE(g_loop_mgr.rcbs[1].owner[0] != '\0');
+
+    /* Host-side data change while detached: buffered, not delivered. */
+    {
+        uint32_t before = buf->count;
+
+        v = br_bool(true);
+        ASSERT_EQ(iec61850_mms_ds_write_variable(&g_loop_ds, LOOP_LDD,
+                                                  LOOP_STVAL, &v),
+                  (int)IEC61850_MMS_DS_OK);
+        iec61850_rcb_bridge_on_write(&g_loop_mgr, LOOP_LDD, LOOP_STVAL, NULL);
+        ASSERT_TRUE(buf->count == (before + 1U));
+        ASSERT_TRUE(g_loop_mgr.rcbs[1].attrs.entry_id == 0U);  /* frozen */
+    }
+
+    /* Client B takes over: the URCB is free to reserve again... */
+    loop_connect(&client_b);
+    (void)memset(&values, 0, sizeof(values));
+    values.resv = true;
+    ret = iec61850_mms_client_rcb_set_values(&client_b, LOOP_LD, LOOP_URCB_REF,
+                                              &values,
+                                              (uint32_t)IEC61850_RCB_FIELD_RESV);
+    ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    ASSERT_TRUE(g_loop_mgr.rcbs[0].resv);
+
+    /* ... and the BRCB resume (enable while EntryID marker is behind
+     * the buffered entries) flushes the pending report to B. */
+    g_loop_report_count = 0;
+    ASSERT_EQ(iec61850_mms_client_rcb_enable(&client_b, LOOP_LD, LOOP_BRCB_REF),
+              IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ(loop_pump(&client_b, 5000, 1), 0);
+    ASSERT_EQ(g_loop_report_count, 1);
+    ASSERT_STR(g_loop_last.variable_list_name, "TB");
+    ASSERT_TRUE(g_loop_last.entry_id_present);
+    ASSERT_TRUE(g_loop_last.entry_id > 0U);
+
+    /* The BRCB Owner moved to B. */
+    {
+        iec61850_rcb_t *brcb = &g_loop_mgr.rcbs[1];
+
+        ASSERT_TRUE(brcb->owner[0] != '\0');
+        ASSERT_STR(brcb->owner, g_loop_mgr.bridge.owner_id);
+    }
+
+    (void)iec61850_mms_client_rcb_disable(&client_b, LOOP_LD, LOOP_URCB_REF);
+    loop_disconnect(&client_b);
+    PASS();
+}
+
+/* ========================================================================
+ * WP-2x: server-with-manager startup composed with the SCL auto-config
+ * path — set_rcb_manager + iec61850_scl_auto_configure_rcbs expose the
+ * RCB component objects with no manual store provisioning.
+ * ======================================================================== */
+
+#define SCL_PORT   (LOOP_PORT + 1)
+
+static void test_scl_server_auto_config(void)
+{
+    iec61850_scl_doc_t doc;
+    iec61850_mms_data_store_t ds;
+    iec61850_rcb_manager_t mgr;
+    iec61850_mms_server_t srv;
+    iec61850_mms_server_config_t cfg;
+    iec61850_mms_client_t client;
+    iec61850_mms_client_rcb_values_t values;
+    char path[512];
+    char names[8][IEC61850_RCB_MAX_NAME];
+    uint32_t count = 0U;
+    bool found_urcb = false;
+    bool found_brcb = false;
+    const char *root;
+
+    TEST("scl_server_auto_config");
+
+    /* tests/data/test.scd: IED1 with URCB01 + BRCB01 (ReportControl).
+     * This test has no registered meson workdir, so resolve the file
+     * from the source root when run under `meson test` (cwd = build
+     * dir) and relative to the cwd for direct invocation. */
+    root = getenv("MESON_SOURCE_ROOT");
+    if (root != NULL) {
+        (void)snprintf(path, sizeof(path), "%s/tests/data/test.scd", root);
+    } else {
+        (void)snprintf(path, sizeof(path), "tests/data/test.scd");
+        if (access(path, R_OK) != 0) {
+            (void)snprintf(path, sizeof(path), "../tests/data/test.scd");
+        }
+        if (access(path, R_OK) != 0) {
+            (void)snprintf(path, sizeof(path), "../../tests/data/test.scd");
+        }
+    }
+    iec61850_scl_doc_init(&doc);
+    ASSERT_EQ(iec61850_scl_parse_file(path, "IED1", &doc), 0);
+    ASSERT_TRUE(doc.rcb_count >= 2U);
+
+    iec61850_mms_ds_init(&ds);
+    iec61850_rcb_manager_init(&mgr, "LD0");
+    ASSERT_TRUE(iec61850_scl_auto_configure_rcbs(&doc, &mgr) >= 2);
+
+    /* Nothing exposed yet — start() does the provisioning. */
+    ASSERT_TRUE(!iec61850_mms_ds_variable_exists(
+        &ds, "LD0", "LLN0$RP$URCB01$RptEna"));
+
+    iec61850_mms_server_config_init(&cfg);
+    cfg.port = SCL_PORT;
+    iec61850_mms_server_init(&srv, &cfg, &ds);
+
+    /* Explicit-domain variant (per-LD registration). */
+    ASSERT_EQ(iec61850_mms_server_set_rcb_manager_domain(&srv, &mgr, "LD0"),
+              0);
+    ASSERT_EQ(iec61850_mms_server_start(&srv), 0);
+    usleep(200000);
+
+    /* Component objects provisioned by the wired startup. */
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(
+        &ds, "LD0", "LLN0$RP$URCB01$RptEna"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(
+        &ds, "LD0", "LLN0$BR$BRCB01$EntryID"));
+
+    loop_connect_port(&client, SCL_PORT);
+    ASSERT_EQ(iec61850_mms_client_rcb_list(&client, "LD0", names,
+                                            &count, 8U),
+              IEC61850_MMS_CLIENT_OK);
+    ASSERT_EQ((int)count, 2);
+    for (uint32_t i = 0U; i < count; i++) {
+        if (strcmp(names[i], "LLN0$RP$URCB01") == 0) { found_urcb = true; }
+        if (strcmp(names[i], "LLN0$BR$BRCB01") == 0) { found_brcb = true; }
+    }
+    ASSERT_TRUE(found_urcb);
+    ASSERT_TRUE(found_brcb);
+
+    /* SCL-configured attributes are visible through the components. */
+    (void)memset(&values, 0, sizeof(values));
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, "LD0",
+                                                  "LLN0$RP$URCB01", &values),
+              IEC61850_MMS_CLIENT_OK);
+    ASSERT_TRUE(!values.buffered);
+    ASSERT_TRUE(!values.attrs.rpt_ena);
+    ASSERT_STR(values.attrs.dat_set, "DS1");
+    ASSERT_TRUE(values.attrs.trg_ops.data_change);       /* from SCL */
+    ASSERT_TRUE(values.attrs.opt_flds.sequence_number);  /* from SCL */
+
     (void)iec61850_mms_client_disconnect(&client);
+    (void)iec61850_mms_server_stop(&srv);
+    iec61850_rcb_manager_destroy(&mgr);
+    iec61850_mms_ds_destroy(&ds);
     PASS();
 }
 
@@ -1372,7 +1661,7 @@ int main(void)
     test_bridge_clear_association_urcb();
     test_bridge_write_prevalidation();
 
-    printf("\n--- WP-2a: client <-> server closed loop ---\n");
+    printf("\n--- WP-2a: client <-> server closed loop (WP-2x wired) ---\n");
     loop_setup();
     test_loop_rcb_list();
     test_loop_urcb_enroll_report();
@@ -1381,7 +1670,11 @@ int main(void)
     test_loop_buftm_aggregation();
     test_loop_ownership_conflict();
     test_loop_gi_report();
+    test_loop_teardown_takeover();
     loop_teardown();
+
+    printf("\n--- WP-2x: SCL auto-config + server wiring ---\n");
+    test_scl_server_auto_config();
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);
