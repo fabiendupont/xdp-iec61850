@@ -237,6 +237,18 @@ if get_option('enable_examples')
         )
     endforeach
 
+    # MMS-dependent examples
+    if get_option('enable_mms')
+        executable('example_mms_client_report',
+            'examples/mms_client_report.c',
+            include_directories: inc_dirs,
+            link_with: [iec61850_lib] + mms_lib,
+            dependencies: core_deps,
+            c_args: ['-Wno-missing-prototypes'],
+            build_by_default: false,
+        )
+    endif
+
     executable('goose_latency',
         'examples/latency/goose_latency.c',
         include_directories: inc_dirs,

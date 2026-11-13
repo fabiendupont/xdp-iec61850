@@ -888,6 +888,16 @@ if get_option('enable_mms')
     )
     test('mms_interop_server', test_mms_interop_server,
          suite: 'interop', is_parallel: false)
+
+    # MMS reporting interop: xdp client → libiec61850 server (WP-1d)
+    test_mms_interop_reporting = executable('test_mms_interop_reporting',
+        'interop/mms/test_mms_interop_reporting.c',
+        include_directories: [inc_dirs, test_inc, interop_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('mms_interop_reporting', test_mms_interop_reporting,
+         suite: 'interop', is_parallel: false)
 endif
 
 # Wire publisher programs (used by wire capture tests)
