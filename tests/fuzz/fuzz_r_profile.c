@@ -105,22 +105,38 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
     /* Encode-roundtrip driven by the input: build an APDU and a
      * security extension from the fuzz bytes, encode, decode back,
-     * and sweep every truncation of the encoded SPDU. */
-    if (size >= 16U) {
+     * and sweep every truncation of the encoded SPDU. The guard
+     * covers every input byte the parameter derivation reads
+     * (data[0..19]). */
+    if (size >= 20U) {
         uint8_t out[2048];
         iec61850_r_security_t sec;
         size_t i;
 
         (void)memset(&sec, 0, sizeof(sec));
         sec.present = (data[0] & 1U) != 0U;
-        sec.key_id = (uint16_t)(((uint16_t)data[2] << 8) | data[3]);
-        sec.time_of_day = ((uint32_t)data[4] << 24) |
-                          ((uint32_t)data[5] << 16) |
-                          ((uint32_t)data[6] << 8) | data[7];
-        sec.signature_len = (size_t)data[8];
+        sec.key_id = ((uint32_t)data[1] << 24) | ((uint32_t)data[2] << 16) |
+                     ((uint32_t)data[3] << 8) | data[4];
+        sec.time_of_current_key = ((uint32_t)data[5] << 24) |
+                                  ((uint32_t)data[6] << 16) |
+                                  ((uint32_t)data[7] << 8) | data[8];
+        sec.time_to_next_key = (uint16_t)(((uint16_t)data[9] << 8) |
+                                          data[10]);
+        sec.security_algos = (uint16_t)(((uint16_t)data[11] << 8) |
+                                        data[12]);
+        sec.signature_len = (size_t)data[13];
         for (i = 0U; i < sec.signature_len; i++) {
-            sec.signature[i] = data[(9U + i) % size];
+            sec.signature[i] = data[(14U + i) % size];
         }
+
+        /* Explicit session parameters derived from the input */
+        {
+            uint16_t fuzz_appid = (uint16_t)(((uint16_t)data[14] << 8) |
+                                             data[15]);
+            uint32_t fuzz_spdu_number = ((uint32_t)data[16] << 24) |
+                                        ((uint32_t)data[17] << 16) |
+                                        ((uint32_t)data[18] << 8) |
+                                        data[19];
 
         /* R-GOOSE */
         {
@@ -137,7 +153,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             (void)goose_add_int32(&goose, (int32_t)data[15]);
             goose.numDatSetEntries = 1U;
 
-            ret = iec61850_rgoose_encode(&goose, sec.present ? &sec : NULL,
+            ret = iec61850_rgoose_encode(&goose, fuzz_appid,
+                                         fuzz_spdu_number,
+                                         sec.present ? &sec : NULL,
                                          out, sizeof(out));
             if (ret > 0) {
                 goose_apdu_init(&back);
@@ -168,7 +186,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
                 (void)sv_add_sample(&sv.asdu[0], (int32_t)data[13], q);
             }
 
-            ret = iec61850_rsv_encode(&sv, sec.present ? &sec : NULL,
+            ret = iec61850_rsv_encode(&sv, fuzz_appid, fuzz_spdu_number,
+                                      sec.present ? &sec : NULL,
                                       out, sizeof(out));
             if (ret > 0) {
                 sv_apdu_init(&back);
@@ -178,6 +197,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
                     (void)iec61850_rsv_decode(out, i, &back, NULL);
                 }
             }
+        }
         }
     }
     return 0;
