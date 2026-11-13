@@ -4,6 +4,12 @@
  *
  * Thread-per-connection server with ISO stack transport.
  * Handles GetNameList, Read, Write, GetVariableAccessAttributes.
+ *
+ * WP-2x: optional RCB-manager wiring (iec61850_mms_server_set_rcb_
+ * manager) — pre-commit Ed.2 validation of RCB component writes,
+ * per-request bridge reconcile, periodic bridge sync on the session
+ * loop's recv-timeout tick and association release at session
+ * teardown. Inert unless a manager is registered.
  */
 
 
@@ -12,6 +18,14 @@
 #include "mms/mms_journal.h"
 #include <string.h>
 #include <errno.h>
+
+/* ISO 9506-2 DataAccessError codes carried in the Write-Response
+ * failure CHOICE — the IEC 61850-8-1 mapping this repo's WP-1c/1f
+ * client decodes for rejected RCB component writes. Code 2 is what
+ * the reference server was wire-observed to return for a Resv write
+ * on a URCB held by another client (WP-1f, BUG-R3). */
+#define MMS_DATAACCESS_TEMPORARILY_UNAVAILABLE 2
+#define MMS_DATAACCESS_TYPE_INCONSISTENT       7
 
 void iec61850_mms_server_config_init(iec61850_mms_server_config_t *cfg)
 {
@@ -65,6 +79,53 @@ static void map_ds_error(int ds_ret, mms_service_error_t *err)
             err->error_class = MMS_ERROR_CLASS_SERVICE;
             err->error_code = MMS_SERVICE_ERROR_OTHER;
             break;
+    }
+}
+
+/*
+ * WP-2x: route one Write to the RCB manager registered for the target
+ * domain (pre-commit; the session pointer is the bridge's owner
+ * identity). Returns the iec61850_rcb_bridge_write() result of the
+ * matching registration, or -ENOENT when no registration matches the
+ * domain (ordinary variable: the caller writes the store normally).
+ */
+static int session_rcb_write(iec61850_mms_session_t *session,
+                              const char *domain, const char *item,
+                              const mms_value_t *value)
+{
+    uint32_t i;
+
+    for (i = 0U; i < session->rcb_reg_count; i++) {
+        iec61850_mms_server_rcb_reg_t *reg = &session->rcb_regs[i];
+
+        if (strcmp(reg->domain, domain) != 0) {
+            continue;
+        }
+        return iec61850_rcb_bridge_write(reg->manager, domain, item,
+                                         value, (void *)session);
+    }
+    return -ENOENT;
+}
+
+/*
+ * WP-2x: server-owned post-response reconcile. Every serviced request
+ * is pushed through the bridge with the requesting session — the same
+ * point the interim (application-level) after_response hook used — so
+ * monitored data-point writes dispatch dchg/qchg, RCB components stay
+ * reconciled and closed BufTm windows flush, with no hook installed.
+ */
+static void session_rcb_reconcile(iec61850_mms_session_t *session,
+                                   const char *domain, const char *item)
+{
+    uint32_t i;
+
+    if ((session->rcb_reg_count == 0U) || (domain == NULL) ||
+        (item == NULL) || (domain[0] == '\0')) {
+        return;
+    }
+    for (i = 0U; i < session->rcb_reg_count; i++) {
+        iec61850_rcb_bridge_on_write(session->rcb_regs[i].manager,
+                                     domain, item, (void *)session);
     }
 }
 
@@ -152,6 +213,32 @@ static int process_request(iec61850_mms_session_t *session,
         }
 
         case MMS_SERVICE_TYPE_WRITE: {
+            /* WP-2x: pre-commit RCB bridge dispatch. The bridge
+             * validates and applies Ed.2 RCB component writes itself;
+             * on success it committed the variable (the store write is
+             * skipped), on -ENOENT the item is an ordinary variable,
+             * and any other negative is an Ed.2 rejection surfaced as
+             * a real MMS Write failure (in-band DataAccessError, the
+             * code the WP-1c/1f client maps to ERR_MMS/ERR_RCB_OWNER). */
+            if (session->rcb_reg_count > 0U) {
+                int rcb_ret = session_rcb_write(
+                    session,
+                    req->params.write.variable_spec.domain,
+                    req->params.write.variable_spec.item_id,
+                    &req->params.write.value);
+                if (rcb_ret == 0) {
+                    return 0;   /* bridge committed the component */
+                }
+                if (rcb_ret != -ENOENT) {
+                    resp->params.write.failure = true;
+                    resp->params.write.access_error =
+                        (rcb_ret == -EINVAL) ?
+                            (int32_t)MMS_DATAACCESS_TYPE_INCONSISTENT :
+                            (int32_t)MMS_DATAACCESS_TEMPORARILY_UNAVAILABLE;
+                    return 0;   /* Write-Response failure */
+                }
+            }
+
             ds_ret = iec61850_mms_ds_write_variable(session->data_store,
                                                        req->params.write.variable_spec.domain,
                                                        req->params.write.variable_spec.item_id,
@@ -619,6 +706,14 @@ static void *session_thread(void *arg)
         ret = iec61850_iso_recv(&session->iso, recv_buf, sizeof(recv_buf),
                                   &recv_len, 5000);
         if (ret == IEC61850_TRANSPORT_ERR_TIMEOUT) {
+            /* WP-2x: periodic RCB bridge processing. The loop blocks
+             * in recv with a 5 s timeout, so the timeout tick is the
+             * natural (thread-free) place for the full two-way sweep:
+             * closed BufTm windows flush and buffered reports deliver
+             * with no incoming client request. */
+            for (uint32_t ri = 0U; ri < session->rcb_reg_count; ri++) {
+                iec61850_rcb_bridge_sync(session->rcb_regs[ri].manager);
+            }
             continue;
         }
         if (ret != 0) {
@@ -654,12 +749,13 @@ static void *session_thread(void *arg)
             if (ret <= 0) { break; }
             ret = iec61850_iso_send(&session->iso, resp_buf, (size_t)ret);
             if (ret < 0) { break; }
-            /* Invoke post-response callback while session is still active.
-             * This allows the application to send unsolicited PDUs (e.g.
-             * InformationReport) immediately after a specific request, without
-             * sleeping or polling. */
-            if (session->after_response != NULL) {
-                /* Pass the correct domain/item for the service type */
+            /* Post-response processing while the session is still
+             * active. The domain/item of the just-served request feed
+             * both the server-owned RCB bridge reconcile (WP-2x: no
+             * application hook needed) and the application-level
+             * after_response callback, which may send unsolicited PDUs
+             * (e.g. InformationReport) without sleeping or polling. */
+            {
                 const char *cb_domain = "";
                 const char *cb_item   = "";
                 switch (req.service) {
@@ -675,8 +771,11 @@ static void *session_thread(void *arg)
                     default:
                         break;
                 }
-                session->after_response(session, cb_domain, cb_item,
-                                        session->after_response_user_data);
+                session_rcb_reconcile(session, cb_domain, cb_item);
+                if (session->after_response != NULL) {
+                    session->after_response(session, cb_domain, cb_item,
+                                            session->after_response_user_data);
+                }
             }
         } else if (proc_ret == 1) {
             /* Error — send confirmed error */
@@ -692,6 +791,20 @@ static void *session_thread(void *arg)
     }
 
 done:
+    /* WP-2x: session teardown releases the RCB bridge association when
+     * this session owns it. The check-then-clear cannot race with
+     * another session adopting ownership: while this session is still
+     * marked active, the bridge sees a live association and refuses
+     * every foreign adoption (bridge_adopt_association / Ed.2 owner
+     * checks). URCBs are disabled and their reservation/Owner
+     * released; BRCBs stay enabled and keep buffering for resume. */
+    for (uint32_t ri = 0U; ri < session->rcb_reg_count; ri++) {
+        iec61850_rcb_manager_t *mgr = session->rcb_regs[ri].manager;
+
+        if (mgr->bridge.association == (void *)session) {
+            iec61850_rcb_bridge_clear_association(mgr);
+        }
+    }
     iec61850_iso_disconnect(&session->iso);
     atomic_store(&session->active, false);
     return NULL;
@@ -729,6 +842,8 @@ static void *accept_thread(void *arg)
                 sess->control_manager = server->control_manager;
                 sess->file_service = server->file_service;
                 sess->journal = server->journal;
+                sess->rcb_regs = server->rcb_regs;   /* WP-2x (fixed before start) */
+                sess->rcb_reg_count = server->rcb_reg_count;
                 sess->max_pdu_size = server->config.max_pdu_size;
                 sess->invoke_id = 0;
                 sess->session_id = server->next_session_id; server->next_session_id++;
@@ -759,9 +874,60 @@ static void *accept_thread(void *arg)
     return NULL;
 }
 
+int iec61850_mms_server_set_rcb_manager_domain(
+    iec61850_mms_server_t *server, iec61850_rcb_manager_t *mgr,
+    const char *domain)
+{
+    size_t len;
+    uint32_t i;
+
+    if ((server == NULL) || (mgr == NULL) || (domain == NULL)) {
+        return -EINVAL;
+    }
+    /* Registrations are copied into sessions at accept time; refuse
+     * while running so no session can miss a registration. */
+    if (atomic_load(&server->running)) { return -EBUSY; }
+
+    len = strlen(domain);
+    if ((len == 0U) || (len >= (size_t)MMS_MAX_DOMAIN_NAME)) {
+        return -EINVAL;
+    }
+    for (i = 0U; i < server->rcb_reg_count; i++) {
+        if (server->rcb_regs[i].manager == mgr) { return -EEXIST; }
+        if (strcmp(server->rcb_regs[i].domain, domain) == 0) {
+            return -EEXIST;
+        }
+    }
+    if (server->rcb_reg_count >=
+        (uint32_t)IEC61850_MMS_SERVER_MAX_RCB_MANAGERS) {
+        return -ENOSPC;
+    }
+
+    server->rcb_regs[server->rcb_reg_count].manager = mgr;
+    (void)memcpy(server->rcb_regs[server->rcb_reg_count].domain, domain,
+                 len + 1U);
+    server->rcb_reg_count++;
+    return 0;
+}
+
+int iec61850_mms_server_set_rcb_manager(iec61850_mms_server_t *server,
+                                         iec61850_rcb_manager_t *mgr)
+{
+    if ((server == NULL) || (mgr == NULL)) { return -EINVAL; }
+
+    /* LD-name derivation: an RCB manager is constructed for exactly
+     * one logical device (iec61850_rcb_manager_init(mgr, ld_name))
+     * and the bridge keys its component objects by that LD name, so
+     * the manager itself carries the domain to expose. Hosts that
+     * need a different domain use the _domain() variant. */
+    return iec61850_mms_server_set_rcb_manager_domain(server, mgr,
+                                                      mgr->ld_name);
+}
+
 int iec61850_mms_server_start(iec61850_mms_server_t *server)
 {
     int ret;
+    uint32_t i;
 
     if (server == NULL) { return IEC61850_MMS_SERVER_ERR_ARGS; }
     if (atomic_load(&server->running)) { return IEC61850_MMS_SERVER_ERR_RUNNING; }
@@ -771,6 +937,29 @@ int iec61850_mms_server_start(iec61850_mms_server_t *server)
 
     ret = iec61850_tcp_listener_listen(&server->listener, 10);
     if (ret != 0) { return IEC61850_MMS_SERVER_ERR_LISTEN; }
+
+    /* WP-2x: expose every registered RCB manager's component objects
+     * in the server's data store. A manager already exposed (server
+     * restart, or a host that exposed it manually) is accepted as-is
+     * as long as store and domain match; exposure is otherwise the
+     * bridge's one-time setup. */
+    for (i = 0U; i < server->rcb_reg_count; i++) {
+        iec61850_rcb_manager_t *mgr = server->rcb_regs[i].manager;
+        const char *dom = server->rcb_regs[i].domain;
+
+        if (mgr->bridge.active) {
+            if ((mgr->bridge.store != server->data_store) ||
+                (strcmp(mgr->bridge.domain, dom) != 0)) {
+                iec61850_tcp_listener_close(&server->listener);
+                return IEC61850_MMS_SERVER_ERR_ARGS;
+            }
+            continue;
+        }
+        if (iec61850_rcb_manager_expose(mgr, server->data_store, dom) != 0) {
+            iec61850_tcp_listener_close(&server->listener);
+            return IEC61850_MMS_SERVER_ERR_ARGS;
+        }
+    }
 
     atomic_store(&server->stop_requested, false);
     atomic_store(&server->running, true);
