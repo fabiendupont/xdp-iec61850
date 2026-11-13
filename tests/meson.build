@@ -389,6 +389,24 @@ if get_option('enable_mms')
     )
     test('mms_client', test_mms_client, suite: 'unit')
 
+    # Unit tests — client async core + RCB enrollment (WP-S1 scaffolds,
+    # extended by WP-1a / WP-1c)
+    test_mms_client_core = executable('test_mms_client_core',
+        'unit/test_mms_client_core.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('mms_client_core', test_mms_client_core, suite: 'unit')
+
+    test_mms_client_rcb = executable('test_mms_client_rcb',
+        'unit/test_mms_client_rcb.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('mms_client_rcb', test_mms_client_rcb, suite: 'unit')
+
     # Integration: MMS Client-Server E2E
     test_mms_e2e = executable('test_mms_e2e',
         'integration/test_mms_e2e.c',

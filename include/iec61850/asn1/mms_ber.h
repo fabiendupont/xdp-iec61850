@@ -556,6 +556,16 @@ typedef struct {
 
     char config_ref[MMS_MAX_VARIABLE_NAME]; ///< Configuration reference
     bool config_ref_present;                ///< Include config ref in report
+
+    /* IEC 61850-7-2 report metadata — filled by
+     * mms_decode_iec61850_report (WP-S1 frozen extension for
+     * client-side reporting; also consumable by encoders). */
+    char rpt_id[MMS_MAX_STRING_LENGTH];     ///< rptID
+    char dat_set[MMS_MAX_STRING_LENGTH];    ///< datSet
+    uint32_t conf_rev;                      ///< confRev
+    bool conf_rev_present;                  ///< confRev was present
+    uint8_t incl_bit_str[32];               ///< inclusion bit string
+    uint32_t incl_bit_str_len;              ///< valid bytes in incl_bit_str
 } mms_information_report_t;
 
 /**
@@ -598,6 +608,24 @@ typedef struct {
  */
 int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
                                 uint8_t *buffer, size_t buflen);
+
+/**
+ * @brief Decode a full IEC 61850-7-2 URCB InformationReport PDU.
+ *
+ * Counterpart to mms_encode_iec61850_report(): parses the
+ * rptID/datSet/seqNum/timeOfEntry/confRev/optFlds/inclBitStr metadata
+ * and the dataset values into @p report (including the rpt_id/dat_set/
+ * conf_rev/incl_bit_str extension fields of mms_information_report_t).
+ * Present-flag semantics follow the report's optFlds.
+ *
+ * @param buffer  Encoded UnconfirmedPDU (InformationReport) bytes.
+ * @param buflen  Buffer length.
+ * @param report  Output report (caller-initialized).
+ * @return Decoded PDU length (> 0), or negative MMS_ERROR_* on
+ *         malformed input.
+ */
+int mms_decode_iec61850_report(const uint8_t *buffer, size_t buflen,
+                                mms_information_report_t *report);
 
 /* ============================================================================
  * Phase 7: Control Service Structures

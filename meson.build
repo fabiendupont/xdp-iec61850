@@ -121,6 +121,8 @@ if get_option('enable_mms')
         'src/mms/mms_data_store.c',
         'src/mms/mms_server.c',
         'src/mms/mms_client.c',
+        'src/mms/mms_client_core.c',
+        'src/mms/mms_client_rcb.c',
         'src/mms/mms_report.c',
         'src/mms/mms_control.c',
         'src/mms/mms_file_service.c',
