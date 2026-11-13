@@ -191,7 +191,11 @@ static void show_component(iec61850_mms_client_t *client,
     char item[MMS_MAX_VARIABLE_NAME];
     mms_value_t v;
 
-    (void)snprintf(item, sizeof(item), "%s%s", rcb_ref, suffix);
+    /* $-separated component naming (IEC 61850-8-1); a trailing '$' on
+     * caller references is tolerated for pre-1f callers. */
+    const char *sep = (rcb_ref[0] == '\0' ||
+                       rcb_ref[strlen(rcb_ref) - 1] == '$') ? "" : "$";
+    (void)snprintf(item, sizeof(item), "%s%s%s", rcb_ref, sep, suffix);
     (void)memset(&v, 0, sizeof(v));
     if (iec61850_mms_client_read(client, domain, item, &v) == 0) {
         printf("  %-8s = ", suffix);
