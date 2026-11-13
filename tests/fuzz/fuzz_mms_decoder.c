@@ -1,15 +1,23 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /*
- * Fuzz Target: MMS BER Decoder (scaffold — WP-0a)
+ * Fuzz Target: MMS BER Decoder
  *
- * Feed random bytes to the MMS BER decode surface. Must not crash or
- * trigger UB. Compatible with both AFL and libFuzzer entry points.
+ * Feed random bytes to the full MMS BER decode surface declared in
+ * include/iec61850/asn1/mms_ber.h. Must not crash or trigger UB.
+ * Compatible with both AFL and libFuzzer entry points.
  *
- * This file is scaffolded by WP-S0; WP-0a (fuzz-mms) fills in full
- * decode-surface coverage: confirmed request/response/error, reject,
- * InformationReport, all service decoders (Read, Write, GetNameList,
- * control, file, journal, named-variable-list), mms_decode_length and
- * mms_decode_value.
+ * Decode functions exercised:
+ *   - mms_decode_length, mms_decode_value
+ *   - mms_decode_initiate_request / initiate_response
+ *   - mms_decode_conclude_request / conclude_response
+ *   - mms_decode_confirmed_request / confirmed_response / confirmed_error
+ *   - mms_decode_information_report
+ *   - control services: select, select-with-value, operate, cancel
+ *     (request + response) and command termination
+ *
+ * Every decoder receives the same fuzz input; return codes are ignored
+ * (the contract is no crash / no UB). A truncated view of the input is
+ * additionally fed to a few decoders to exercise partial-buffer paths.
  *
  * License: BSD-2-Clause
  */
@@ -20,6 +28,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 /* libFuzzer entry point */
@@ -29,9 +38,111 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-    /* Smoke-level coverage until WP-0a expands the harness */
+    /*
+     * Output structs are large (up to a few hundred KB); keep them in
+     * static storage and re-initialize before each decode call.
+     */
+    static mms_initiate_request_t initiate_req;
+    static mms_initiate_response_t initiate_resp;
+    static mms_conclude_request_t conclude_req;
+    static mms_conclude_response_t conclude_resp;
+    static mms_confirmed_request_t confirmed_req;
+    static mms_confirmed_response_t confirmed_resp;
+    static mms_confirmed_error_t confirmed_err;
+    static mms_information_report_t info_report;
+    static mms_select_request_t select_req;
+    static mms_select_response_t select_resp;
+    static mms_select_with_value_request_t select_wv_req;
+    static mms_select_with_value_response_t select_wv_resp;
+    static mms_operate_request_t operate_req;
+    static mms_operate_response_t operate_resp;
+    static mms_cancel_request_t cancel_req;
+    static mms_cancel_response_t cancel_resp;
+    static mms_command_termination_t cmd_term;
+    static mms_value_t value;
     size_t length = 0;
+
+    /* Helper decoders */
     (void)mms_decode_length(data, size, &length);
+
+    memset(&value, 0, sizeof(value));
+    (void)mms_decode_value(data, size, &value);
+
+    /* Association management */
+    memset(&initiate_req, 0, sizeof(initiate_req));
+    (void)mms_decode_initiate_request(data, size, &initiate_req);
+
+    memset(&initiate_resp, 0, sizeof(initiate_resp));
+    (void)mms_decode_initiate_response(data, size, &initiate_resp);
+
+    memset(&conclude_req, 0, sizeof(conclude_req));
+    (void)mms_decode_conclude_request(data, size, &conclude_req);
+
+    memset(&conclude_resp, 0, sizeof(conclude_resp));
+    (void)mms_decode_conclude_response(data, size, &conclude_resp);
+
+    /* Confirmed services (covers Read, Write, GetNameList, file, journal,
+     * named-variable-list and type service decoders via the union in
+     * mms_confirmed_request_t / mms_confirmed_response_t) */
+    memset(&confirmed_req, 0, sizeof(confirmed_req));
+    (void)mms_decode_confirmed_request(data, size, &confirmed_req);
+
+    memset(&confirmed_resp, 0, sizeof(confirmed_resp));
+    (void)mms_decode_confirmed_response(data, size, &confirmed_resp);
+
+    memset(&confirmed_err, 0, sizeof(confirmed_err));
+    (void)mms_decode_confirmed_error(data, size, &confirmed_err);
+
+    /* Unconfirmed services */
+    memset(&info_report, 0, sizeof(info_report));
+    (void)mms_decode_information_report(data, size, &info_report);
+
+    /* Control services */
+    memset(&select_req, 0, sizeof(select_req));
+    (void)mms_decode_select_request(data, size, &select_req);
+
+    memset(&select_resp, 0, sizeof(select_resp));
+    (void)mms_decode_select_response(data, size, &select_resp);
+
+    memset(&select_wv_req, 0, sizeof(select_wv_req));
+    (void)mms_decode_select_with_value_request(data, size, &select_wv_req);
+
+    memset(&select_wv_resp, 0, sizeof(select_wv_resp));
+    (void)mms_decode_select_with_value_response(data, size, &select_wv_resp);
+
+    memset(&operate_req, 0, sizeof(operate_req));
+    (void)mms_decode_operate_request(data, size, &operate_req);
+
+    memset(&operate_resp, 0, sizeof(operate_resp));
+    (void)mms_decode_operate_response(data, size, &operate_resp);
+
+    memset(&cancel_req, 0, sizeof(cancel_req));
+    (void)mms_decode_cancel_request(data, size, &cancel_req);
+
+    memset(&cancel_resp, 0, sizeof(cancel_resp));
+    (void)mms_decode_cancel_response(data, size, &cancel_resp);
+
+    memset(&cmd_term, 0, sizeof(cmd_term));
+    (void)mms_decode_command_termination(data, size, &cmd_term);
+
+    /* Truncated views exercise partial-buffer bounds checks */
+    if (size > 1) {
+        const uint8_t *half = data + size / 2;
+        size_t half_len = size / 2;
+
+        memset(&value, 0, sizeof(value));
+        (void)mms_decode_value(half, half_len, &value);
+
+        memset(&confirmed_req, 0, sizeof(confirmed_req));
+        (void)mms_decode_confirmed_request(half, half_len, &confirmed_req);
+
+        memset(&confirmed_resp, 0, sizeof(confirmed_resp));
+        (void)mms_decode_confirmed_response(half, half_len, &confirmed_resp);
+
+        memset(&info_report, 0, sizeof(info_report));
+        (void)mms_decode_information_report(half, half_len, &info_report);
+    }
+
     return 0;
 }
 
