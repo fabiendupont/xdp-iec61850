@@ -9,6 +9,11 @@
  * Accepted packets are redirected to AF_XDP for userspace
  * processing; unsubscribed ports are dropped at wire speed.
  *
+ * WP-5a: after the subscription lookup accepts a packet, a
+ * per-dport token bucket (r_rl, limits from iec61850_rl_config)
+ * drops floods beyond the configured rate/burst without affecting
+ * other dports.
+ *
  * The IPv4 walk is deliberately fixed-offset (IHL == 5, no IP
  * options): all packet pointer arithmetic stays static, mirroring
  * the verifier-conscious style of node_goose_filter.  Substation
@@ -177,6 +182,15 @@ XGL_NODE(node_udp_filter)
 
     if (!action || *action == 0) {
         /* Not subscribed — drop */
+        XGL_STATS_INC_DROP(egl_node_stats, idx);
+        XGL_DROP();
+    }
+
+    /* Subscribed — per-dport token-bucket rate limit (WP-5a).
+     * The packet's cost is its full frame length in bytes. */
+    if (!iec61850_rl_evaluate(&r_rl, &iec61850_rl_config,
+                              IEC61850_RL_FAMILY_R, &dport,
+                              pkt_len)) {
         XGL_STATS_INC_DROP(egl_node_stats, idx);
         XGL_DROP();
     }
