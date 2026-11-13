@@ -215,7 +215,13 @@ static int dispatch_pdu(iec61850_mms_client_core_t *core,
         }
         (void)memset(&report, 0, sizeof(report));
         if (mms_decode_information_report(pdu, pdu_len, &report) < 0) {
-            return -EBADMSG;
+            /* Fall back to the full IEC 61850-7-2 report format
+             * (mms_encode_iec61850_report wire format): the generic
+             * decoder rejects its different listOfAccessResult tag. */
+            (void)memset(&report, 0, sizeof(report));
+            if (mms_decode_iec61850_report(pdu, pdu_len, &report) < 0) {
+                return -EBADMSG;
+            }
         }
         core->report_cb(&report, core->report_user_data);
         return 1;

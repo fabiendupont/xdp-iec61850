@@ -36,6 +36,47 @@ static inline bool length_fits(size_t offset, size_t len, size_t limit) {
 }
 
 /**
+ * @brief Back-patch a BER length in front of content encoded after a
+ *        3-byte reservation.
+ *
+ * Emits the minimal definite form (short form for lengths <= 127) and
+ * compacts the content leftwards when fewer than 3 bytes are needed.
+ * Fixes encoders that previously wrote a single raw short-form octet
+ * and corrupted responses with more than 127 content bytes.
+ *
+ * @param buf         Buffer whose first 3 bytes are the reservation and
+ *                    whose content follows immediately after.
+ * @param content_len Number of content bytes after the reservation.
+ * @return Total encoded size (length field + content), or negative
+ *         MMS_ERROR_* on overflow.
+ */
+static int mms_patch_list_length(uint8_t *buf, size_t content_len)
+{
+    size_t hdr;
+
+    if (content_len <= 127U) {
+        buf[0] = (uint8_t)content_len;
+        if (content_len > 0U) {
+            (void)memmove(&buf[1], &buf[3], content_len);
+        }
+        hdr = 1U;
+    } else if (content_len <= 0xFFU) {
+        buf[0] = 0x81U;
+        buf[1] = (uint8_t)content_len;
+        (void)memmove(&buf[2], &buf[3], content_len);
+        hdr = 2U;
+    } else if (content_len <= 0xFFFFU) {
+        buf[0] = 0x82U;
+        buf[1] = (uint8_t)(content_len >> 8U);
+        buf[2] = (uint8_t)(content_len & 0xFFU);
+        hdr = 3U;
+    } else {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    return (int)(hdr + content_len);
+}
+
+/**
  * @brief Encode BER length field (definite form)
  *
  * BER length encoding:
@@ -3335,8 +3376,10 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
             {
                 size_t rnvl_o = 0;
                 service_buf[rnvl_o++] = 0xA1;  /* listOfAccessResult [1] */
-                size_t rnvl_vals_start = rnvl_o + 1;
-                rnvl_o++;  /* skip length placeholder */
+                /* 3-byte length reservation (long-form capable) */
+                size_t rnvl_len_pos = rnvl_o;
+                size_t rnvl_vals_start = rnvl_o + 3;
+                rnvl_o = rnvl_vals_start;
                 for (uint32_t i = 0; i < response->params.readnamedvarlist.num_values; i++) {
                     ret = mms_encode_value(&response->params.readnamedvarlist.values[i],
                                            service_buf + rnvl_o,
@@ -3344,8 +3387,10 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
                     if (ret < 0) return ret;
                     rnvl_o += (size_t)ret;
                 }
-                service_buf[rnvl_vals_start - 1] = (uint8_t)(rnvl_o - rnvl_vals_start);
-                service_len = (int)rnvl_o;
+                ret = mms_patch_list_length(&service_buf[rnvl_len_pos],
+                                            rnvl_o - rnvl_vals_start);
+                if (ret < 0) return ret;
+                service_len = 1 + ret;
             }
             break;
 
@@ -3376,8 +3421,10 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
             {
                 size_t gnl_o = 0;
                 service_buf[gnl_o++] = 0xA0;  /* listOfIdentifier [0] */
-                size_t gnl_list_start = gnl_o + 1;  /* skip length byte */
-                gnl_o++;
+                /* 3-byte length reservation (long-form capable) */
+                size_t gnl_len_pos = gnl_o;
+                size_t gnl_list_start = gnl_o + 3;
+                gnl_o = gnl_list_start;
                 for (uint32_t i = 0; i < response->params.getnamelist.num_identifiers; i++) {
                     size_t name_len = strlen(response->params.getnamelist.identifiers[i]);
                     service_buf[gnl_o++] = 0x1A;  /* VisibleString */
@@ -3385,12 +3432,15 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
                     memcpy(service_buf + gnl_o, response->params.getnamelist.identifiers[i], name_len);
                     gnl_o += name_len;
                 }
-                service_buf[gnl_list_start - 1] = (uint8_t)(gnl_o - gnl_list_start);
+                ret = mms_patch_list_length(&service_buf[gnl_len_pos],
+                                            gnl_o - gnl_list_start);
+                if (ret < 0) return ret;
+                service_len = 1 + ret;
                 /* moreFollows [1] IMPLICIT BOOLEAN = FALSE */
-                service_buf[gnl_o++] = 0x81;
-                service_buf[gnl_o++] = 0x01;
-                service_buf[gnl_o++] = 0x00;
-                service_len = (int)gnl_o;
+                service_buf[service_len] = 0x81;
+                service_buf[service_len + 1] = 0x01;
+                service_buf[service_len + 2] = 0x00;
+                service_len += 3;
             }
             break;
 
