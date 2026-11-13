@@ -31,10 +31,13 @@ while providing identical isolation for protocol-level testing.
 
 | Script | Description |
 |--------|-------------|
-| `helpers.sh` | Common functions: netns create/teardown, process management, result reporting |
+| `helpers.sh` | Common functions: netns create/teardown, process management, result reporting, scenario compilation (WP-2d deviation pattern) |
 | `test_goose_vm_e2e.sh` | GOOSE publisher/subscriber E2E across network namespaces |
 | `test_sv_vm_e2e.sh` | SV publisher/subscriber E2E across network namespaces |
 | `test_isolation.sh` | APPID filtering and cross-namespace traffic isolation |
+| `test_rgoose_vm_e2e.sh` | R-GOOSE (IEC TR 61850-90-5) E2E across network namespaces: plain UDP pub/sub with replay rejection, secure signed pub/sub with tamper + replay rejection (WP-4e) |
+| `test_rsv_vm_e2e.sh` | R-SV (IEC TR 61850-90-5) E2E across network namespaces: plain UDP pub/sub with smpCnt continuity + replay rejection, secure signed pub/sub with tamper + replay rejection (WP-4e) |
+| `test_r_xdp.sh` | 90-5 XDP datapath: attach the IEC 61850 graph (dispatch → UDP dport filter → R-GOOSE/R-SV parse) to a veth end, verify dport-based AF_XDP redirection, drops of unregistered dports and BPF SPDU-number dedup (WP-4e) |
 
 ## Running
 
@@ -46,6 +49,11 @@ ninja -C builddir tests/goose_loopback tests/sv_loopback tests/test_packet_io_ra
 sudo tests/vm/test_goose_vm_e2e.sh
 sudo tests/vm/test_sv_vm_e2e.sh
 sudo tests/vm/test_isolation.sh
+sudo tests/vm/test_rgoose_vm_e2e.sh    # needs -Denable_security=true for
+sudo tests/vm/test_rsv_vm_e2e.sh       #   the secure-mode tests
+sudo tests/vm/test_r_xdp.sh            # needs libbpf/xgl at meson setup +
+                                       #   CAP_BPF (BPF objects from the
+                                       #   build tree)
 
 # Run all VM E2E tests
 sudo tests/vm/test_goose_vm_e2e.sh && \
@@ -88,3 +96,11 @@ vm-e2e:
    visible in unconnected namespace B
 5. **Parallel execution** -- Two namespaces using identical interface
    names run tests concurrently without interference
+6. **R-GOOSE/R-SV routable profiles** -- Plain-mode pub/sub over the
+   veth UDP path with SPDU-number replay rejection (including a raw
+   wire-level replay injection), secure-mode signed frames with
+   tamper-in-transit and replay rejection, across namespace
+   boundaries (WP-4e)
+7. **90-5 XDP datapath** -- dport-registered traffic redirected to
+   AF_XDP, unregistered dports dropped at XDP, duplicate SPDU
+   numbers dropped by the BPF dedup (WP-4e)

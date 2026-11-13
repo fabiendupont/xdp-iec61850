@@ -7,7 +7,8 @@ Usage:
     validate_pcap.py <pcap_file> <protocol> [field=expected ...]
                      [--decode-as SPEC ...]
 
-Protocols: goose, sv, mms, mms_report, mms_control_ed2
+Protocols: goose, sv, mms, mms_report, mms_control_ed2,
+           rgoose, rgoose_secure, rsv, rsv_secure
 
 Options:
     --decode-as SPEC  Passed to tshark as `-d SPEC` (repeatable). Use it
@@ -21,6 +22,7 @@ Examples:
     validate_pcap.py capture.pcap mms_report --decode-as tcp.port==10610,tpkt
     validate_pcap.py capture.pcap mms_control_ed2 \
         --decode-as tcp.port==10611,tpkt
+    validate_pcap.py capture.pcap rgoose ip.version=4 udp.dstport=10201
 
 Field names are tshark display-filter fields (tshark -T json nests them
 under per-layer trees; the lookup here searches those trees recursively).
@@ -185,6 +187,31 @@ DEFAULT_CHECKS = {
         "tpkt.version=3",
         "mms.confirmedServiceRequest=7",   # Select (SBO) request tag
         "mms.confirmedServiceRequest=9",   # Operate request tag
+    ],
+    # 90-5 routable profiles (WP-4e): the wire scenario publishes
+    # plain R-GOOSE on UDP 10201 / plain R-SV on 10202 and the
+    # HMAC-signed variants on 10203 / 10204 (loopback, kernel-built
+    # IP/UDP for plain; hand-built headers with a zero UDP checksum
+    # for secured).
+    "rgoose": [
+        "ip.version=4",
+        "ip.proto=17",
+        "udp.dstport=10201",
+    ],
+    "rgoose_secure": [
+        "udp.dstport=10203",
+        "udp.srcport=10203",
+        "udp.checksum=0x0000",
+    ],
+    "rsv": [
+        "ip.version=4",
+        "ip.proto=17",
+        "udp.dstport=10202",
+    ],
+    "rsv_secure": [
+        "udp.dstport=10204",
+        "udp.srcport=10204",
+        "udp.checksum=0x0000",
     ],
 }
 
