@@ -152,6 +152,10 @@ if get_option('enable_security')
         'src/security/key_manager.c',
         'src/security/hmac_verify.c',
         'src/security/cert_manager.c',
+        'src/security/cert_provider.c',
+    )
+    transport_sources += files(
+        'src/transport/tls_socket.c',
     )
     core_deps += [openssl_dep]
 endif

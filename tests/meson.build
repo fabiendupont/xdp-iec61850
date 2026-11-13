@@ -567,6 +567,24 @@ if get_option('enable_security')
     )
     test('hmac_verify', test_hmac_verify, suite: 'unit')
 
+    # Unit tests — cert provider + TLS socket (WP-S3 scaffolds,
+    # extended by WP-3a / WP-3b)
+    test_cert_provider = executable('test_cert_provider',
+        'unit/test_cert_provider.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('cert_provider', test_cert_provider, suite: 'unit')
+
+    test_tls_socket = executable('test_tls_socket',
+        'unit/test_tls_socket.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('tls_socket', test_tls_socket, suite: 'unit')
+
     test_security_protocols = executable('test_security_protocols',
         'unit/test_security_protocols.c',
         include_directories: [inc_dirs, test_inc],
