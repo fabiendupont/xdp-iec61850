@@ -2,10 +2,12 @@
 /*
  * Fuzz Target: IEC TR 61850-90-5 R-GOOSE / R-SV Decoders
  *
- * Feed random bytes to the routable-profile decoders. Must not crash
- * or trigger UB. Compatible with both AFL and libFuzzer entry points.
+ * Feed random bytes to the routable-profile decoders, and round-trip
+ * input-driven encodings (plain + secured) with a full truncation
+ * sweep of the encoded SPDU. Must not crash or trigger UB.
+ * Compatible with both AFL and libFuzzer entry points.
  *
- * WP-S4 scaffold — harness filled in by WP-4a alongside the codecs.
+ * Harness completed by WP-4a alongside the codecs.
  */
 
 #include "asn1/r_profile.h"
@@ -14,6 +16,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -78,18 +81,105 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-    /* Smoke-level coverage until WP-4a expands the harness */
     goose_apdu_t goose;
-    goose_apdu_init(&goose);
     iec61850_r_header_t hdr;
-    (void)iec61850_rgoose_decode(data, size, &goose, &hdr);
+    int ret;
 
-    sv_apdu_t sv;
-    sv_apdu_init(&sv);
-    (void)iec61850_rsv_decode(data, size, &sv, &hdr);
+    /* Raw decoders: both profiles, with and without metadata
+     * extraction. Must reject malformed input without crashing. */
+    goose_apdu_init(&goose);
+    (void)iec61850_rgoose_decode(data, size, &goose, &hdr);
+    goose_apdu_init(&goose);
+    (void)iec61850_rgoose_decode(data, size, &goose, NULL);
+
+    {
+        sv_apdu_t sv;
+        sv_apdu_init(&sv);
+        (void)iec61850_rsv_decode(data, size, &sv, &hdr);
+        sv_apdu_init(&sv);
+        (void)iec61850_rsv_decode(data, size, &sv, NULL);
+    }
 
     (void)iec61850_r_time_in_window(
         (uint32_t)(size & 0xFFFFFFFFU), (uint32_t)(size >> 5));
+
+    /* Encode-roundtrip driven by the input: build an APDU and a
+     * security extension from the fuzz bytes, encode, decode back,
+     * and sweep every truncation of the encoded SPDU. */
+    if (size >= 16U) {
+        uint8_t out[2048];
+        iec61850_r_security_t sec;
+        size_t i;
+
+        (void)memset(&sec, 0, sizeof(sec));
+        sec.present = (data[0] & 1U) != 0U;
+        sec.key_id = (uint16_t)(((uint16_t)data[2] << 8) | data[3]);
+        sec.time_of_day = ((uint32_t)data[4] << 24) |
+                          ((uint32_t)data[5] << 16) |
+                          ((uint32_t)data[6] << 8) | data[7];
+        sec.signature_len = (size_t)data[8];
+        for (i = 0U; i < sec.signature_len; i++) {
+            sec.signature[i] = data[(9U + i) % size];
+        }
+
+        /* R-GOOSE */
+        {
+            goose_apdu_t back;
+
+            goose_apdu_init(&goose);
+            (void)goose_set_gocbref(&goose, "FUZZ_GO_CB1");
+            (void)goose_set_datset(&goose, "FUZZ_DS1");
+            goose.stNum = ((uint32_t)data[10] << 8) | data[11];
+            goose.sqNum = ((uint32_t)data[12] << 8) | data[13];
+            goose.timeAllowedtoLive = 1000U;
+            goose.confRev = 1U;
+            goose.timestamp = 1000000ULL * (uint64_t)data[14];
+            (void)goose_add_int32(&goose, (int32_t)data[15]);
+            goose.numDatSetEntries = 1U;
+
+            ret = iec61850_rgoose_encode(&goose, sec.present ? &sec : NULL,
+                                         out, sizeof(out));
+            if (ret > 0) {
+                goose_apdu_init(&back);
+                (void)iec61850_rgoose_decode(out, (size_t)ret, &back, &hdr);
+                (void)iec61850_rgoose_decode(out, (size_t)ret, &back, NULL);
+                for (i = 0U; i < (size_t)ret; i++) {
+                    (void)iec61850_rgoose_decode(out, i, &back, NULL);
+                }
+            }
+        }
+
+        /* R-SV */
+        {
+            sv_apdu_t sv;
+            sv_apdu_t back;
+
+            sv_apdu_init(&sv);
+            sv.noASDU = 1U;
+            (void)sv_set_svid(&sv.asdu[0], "FUZZ_SV1");
+            sv.asdu[0].smpCnt = (uint16_t)(((uint16_t)data[10] << 8) |
+                                           data[11]);
+            sv.asdu[0].confRev = 1U;
+            sv.asdu[0].smpSynch = SV_SMPSYNCH_GLOBAL;
+            {
+                sv_quality_t q;
+                (void)memset(&q, 0, sizeof(q));
+                (void)sv_add_sample(&sv.asdu[0], (int32_t)data[12], q);
+                (void)sv_add_sample(&sv.asdu[0], (int32_t)data[13], q);
+            }
+
+            ret = iec61850_rsv_encode(&sv, sec.present ? &sec : NULL,
+                                      out, sizeof(out));
+            if (ret > 0) {
+                sv_apdu_init(&back);
+                (void)iec61850_rsv_decode(out, (size_t)ret, &back, &hdr);
+                (void)iec61850_rsv_decode(out, (size_t)ret, &back, NULL);
+                for (i = 0U; i < (size_t)ret; i++) {
+                    (void)iec61850_rsv_decode(out, i, &back, NULL);
+                }
+            }
+        }
+    }
     return 0;
 }
 
