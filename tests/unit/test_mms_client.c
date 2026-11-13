@@ -165,6 +165,67 @@ static void test_write_not_connected(void)
     PASS();
 }
 
+/* WP-2x: the hoisted detail variants (mms_client.h) — argument
+ * validation and the access_error initialization contract. */
+static void test_read_detail_null_args(void)
+{
+    TEST("read_detail_null_args");
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    mms_value_t val;
+    int32_t access_error = 0;
+
+    ASSERT_EQ(iec61850_mms_client_read_detail(NULL, "dom", "item", &val,
+                                               &access_error),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    ASSERT_EQ(access_error, -1);
+    access_error = 0;
+    ASSERT_EQ(iec61850_mms_client_read_detail(&client, "dom", NULL, &val,
+                                               &access_error),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    ASSERT_EQ(access_error, -1);
+    access_error = 0;
+    ASSERT_EQ(iec61850_mms_client_read_detail(&client, "dom", "item", NULL,
+                                               &access_error),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    ASSERT_EQ(access_error, -1);
+    /* NULL access_error is tolerated (plain-read semantics). */
+    ASSERT_EQ(iec61850_mms_client_read_detail(&client, "dom", "item", &val,
+                                               NULL),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    PASS();
+}
+
+static void test_write_detail_null_args(void)
+{
+    TEST("write_detail_null_args");
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    mms_value_t val;
+    int32_t access_error = 0;
+    (void)memset(&val, 0, sizeof(val));
+
+    ASSERT_EQ(iec61850_mms_client_write_detail(NULL, "dom", "item", &val,
+                                                &access_error),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    ASSERT_EQ(access_error, -1);
+    access_error = 0;
+    ASSERT_EQ(iec61850_mms_client_write_detail(&client, "dom", NULL, &val,
+                                                &access_error),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    ASSERT_EQ(access_error, -1);
+    access_error = 0;
+    ASSERT_EQ(iec61850_mms_client_write_detail(&client, "dom", "item", NULL,
+                                                &access_error),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    ASSERT_EQ(access_error, -1);
+    /* NULL access_error is tolerated (plain-write semantics). */
+    ASSERT_EQ(iec61850_mms_client_write_detail(&client, "dom", "item", &val,
+                                                NULL),
+              IEC61850_MMS_CLIENT_ERR_ARGS);
+    PASS();
+}
+
 static void test_get_name_list_null_args(void)
 {
     TEST("get_name_list_null_args");
@@ -243,6 +304,8 @@ int main(void)
     test_read_not_connected();
     test_write_null_args();
     test_write_not_connected();
+    test_read_detail_null_args();
+    test_write_detail_null_args();
     test_get_name_list_null_args();
     test_get_name_list_not_connected();
     test_get_var_attrs_null_args();
