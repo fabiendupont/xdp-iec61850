@@ -5,7 +5,9 @@
  * Dynamically allocates PROG_ARRAY indices for IEC 61850 BPF nodes
  * (GOOSE/SV filter+parse, 90-5 UDP filter + R-GOOSE/R-SV parse)
  * and populates the iec61850_node_config map so BPF programs can
- * look up their own index at runtime.
+ * look up their own index at runtime.  Seeds the WP-5a rate-limit
+ * family defaults, and exposes userspace setters for per-key and
+ * per-family token-bucket limits.
  */
 
 #include "iec61850_graph.h"
@@ -71,6 +73,51 @@ static int populate_config_map(struct xgl_graph *g, const int *indices)
     return 0;
 }
 
+/* ===== WP-5a: per-key token-bucket rate limiting ===== */
+
+/* Wire format of struct iec61850_rl_bucket
+ * (src/bpf/iec61850_maps.bpf.h) */
+struct iec61850_rl_bucket_value {
+    uint64_t rate;
+    uint64_t burst;
+    uint64_t tokens;
+    uint64_t last_ns;
+};
+
+/* Wire format of struct iec61850_rl_config
+ * (src/bpf/iec61850_maps.bpf.h) */
+struct iec61850_rl_config_value {
+    uint64_t rate;
+    uint64_t burst;
+};
+
+/* Seed the family-default rate-limit config with the documented
+ * defaults (WP-5a), so storm protection is active out of the box.
+ * Retunable via iec61850_graph_set_rate_default(). */
+static int populate_rl_defaults(struct xgl_graph *g)
+{
+    struct iec61850_rl_config_value config;
+    int fd;
+    int i;
+
+    fd = xgl_graph_get_map_fd(g, "iec61850_rl_config");
+    if (fd < 0) {
+        return fd;
+    }
+
+    config.rate = IEC61850_RL_DEFAULT_RATE_BYTES;
+    config.burst = IEC61850_RL_DEFAULT_BURST_BYTES;
+
+    for (i = 0; i < IEC61850_RL_FAMILY_COUNT; i++) {
+        __u32 fam = (__u32)i;
+
+        if (bpf_map_update_elem(fd, &fam, &config, BPF_ANY) != 0) {
+            return -errno;
+        }
+    }
+    return 0;
+}
+
 int iec61850_graph_register(struct xgl_graph *g, const char *bpf_dir,
                              struct iec61850_graph_indices *out)
 {
@@ -98,6 +145,12 @@ int iec61850_graph_register(struct xgl_graph *g, const char *bpf_dir,
 
     /* Populate config map so BPF programs know their PROG_ARRAY indices */
     ret = populate_config_map(g, indices);
+    if (ret != 0) {
+        return ret;
+    }
+
+    /* Seed the rate-limit family defaults (WP-5a) */
+    ret = populate_rl_defaults(g);
     if (ret != 0) {
         return ret;
     }
@@ -189,4 +242,103 @@ int iec61850_graph_get_filter_map_fd(struct xgl_graph *g,
     }
 
     return xgl_graph_get_map_fd(g, map_name);
+}
+
+/* ===== WP-5a: per-key token-bucket rate limiting — userspace setters ===== */
+
+/* Bucket-map name per rate-limit family (BPF-side map names) */
+static const char *const rl_map_names[IEC61850_RL_FAMILY_COUNT] = {
+    "goose_rl",
+    "sv_rl",
+    "r_rl",
+};
+
+static int rl_family_valid(int family)
+{
+    return (family >= 0) && (family < IEC61850_RL_FAMILY_COUNT);
+}
+
+/* Validate limits against the BPF refill-math bounds documented in
+ * iec61850_graph.h: rate <= 2^31-1 B/s keeps elapsed * rate below
+ * 2^63 (elapsed is capped at ~4.3 s in BPF), burst is sanity-bounded
+ * and must be nonzero whenever it can ever be consumed. */
+static int rl_validate_limits(const struct iec61850_rl_limits *limits)
+{
+    if (limits->rate > IEC61850_RL_MAX_RATE_BYTES) {
+        return -EINVAL;
+    }
+    if (limits->burst > IEC61850_RL_MAX_BURST_BYTES) {
+        return -EINVAL;
+    }
+    if ((limits->rate > 0U) && (limits->burst == 0U)) {
+        return -EINVAL;
+    }
+    return 0;
+}
+
+int iec61850_graph_set_rate_limit(struct xgl_graph *g, int family,
+                                  uint16_t key,
+                                  const struct iec61850_rl_limits *limits)
+{
+    struct iec61850_rl_bucket_value bucket;
+    int fd;
+    int ret;
+
+    if ((g == NULL) || (limits == NULL) || !rl_family_valid(family)) {
+        return -EINVAL;
+    }
+    ret = rl_validate_limits(limits);
+    if (ret != 0) {
+        return ret;
+    }
+
+    fd = iec61850_graph_get_filter_map_fd(g, rl_map_names[family]);
+    if (fd < 0) {
+        return fd;
+    }
+
+    /* Bucket starts full so a legitimate burst right after the call
+     * is never blocked; last_ns = 0 anchors the clock at the first
+     * packet (the refill of the boot-time "elapsed" is capped at the
+     * empty bucket headroom, i.e. zero). */
+    bucket.rate = limits->rate;
+    bucket.burst = limits->burst;
+    bucket.tokens = limits->burst;
+    bucket.last_ns = 0U;
+
+    if (bpf_map_update_elem(fd, &key, &bucket, BPF_ANY) != 0) {
+        return -errno;
+    }
+    return 0;
+}
+
+int iec61850_graph_set_rate_default(struct xgl_graph *g, int family,
+                                    const struct iec61850_rl_limits *limits)
+{
+    struct iec61850_rl_config_value config;
+    __u32 fam;
+    int fd;
+    int ret;
+
+    if ((g == NULL) || (limits == NULL) || !rl_family_valid(family)) {
+        return -EINVAL;
+    }
+    ret = rl_validate_limits(limits);
+    if (ret != 0) {
+        return ret;
+    }
+
+    fd = iec61850_graph_get_filter_map_fd(g, "iec61850_rl_config");
+    if (fd < 0) {
+        return fd;
+    }
+
+    fam = (__u32)family;
+    config.rate = limits->rate;
+    config.burst = limits->burst;
+
+    if (bpf_map_update_elem(fd, &fam, &config, BPF_ANY) != 0) {
+        return -errno;
+    }
+    return 0;
 }

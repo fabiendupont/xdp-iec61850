@@ -347,6 +347,164 @@ static void test_get_filter_map_fd(void)
     PASS();
 }
 
+/* ===== WP-5a: rate limiting — validation paths (no root needed) ===== */
+
+static void test_ratelimit_invalid_args(void)
+{
+    struct iec61850_rl_limits good = { .rate = 1024U, .burst = 4096U };
+    struct iec61850_rl_limits bad_rate;
+    struct iec61850_rl_limits bad_burst = { .rate = 1024U, .burst = 0U };
+    struct iec61850_rl_limits no_burst;
+
+    bad_rate.rate = IEC61850_RL_MAX_RATE_BYTES + 1U;
+    bad_rate.burst = 4096U;
+    no_burst.rate = 1024U;
+    no_burst.burst = IEC61850_RL_MAX_BURST_BYTES + 1U;
+
+    TEST("ratelimit_set_limit_invalid_args");
+    /* NULL graph / NULL limits / invalid family */
+    ASSERT_TRUE(iec61850_graph_set_rate_limit(NULL, IEC61850_RL_FAMILY_GOOSE,
+                                              0x1000U, &good) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_limit((struct xgl_graph *)8,
+                                              IEC61850_RL_FAMILY_GOOSE,
+                                              0x1000U, NULL) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_limit((struct xgl_graph *)8, -1,
+                                              0x1000U, &good) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_limit((struct xgl_graph *)8,
+                                              IEC61850_RL_FAMILY_COUNT,
+                                              0x1000U, &good) < 0);
+    /* Out-of-bounds limits (refill-math bounds) */
+    ASSERT_TRUE(iec61850_graph_set_rate_limit((struct xgl_graph *)8,
+                                              IEC61850_RL_FAMILY_GOOSE,
+                                              0x1000U, &bad_rate) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_limit((struct xgl_graph *)8,
+                                              IEC61850_RL_FAMILY_GOOSE,
+                                              0x1000U, &no_burst) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_limit((struct xgl_graph *)8,
+                                              IEC61850_RL_FAMILY_SV,
+                                              0x1000U, &bad_burst) < 0);
+    /* Same validation for the family-default setter */
+    ASSERT_TRUE(iec61850_graph_set_rate_default(NULL,
+                                                IEC61850_RL_FAMILY_R,
+                                                &good) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_default((struct xgl_graph *)8,
+                                                IEC61850_RL_FAMILY_R,
+                                                NULL) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_default((struct xgl_graph *)8, 99,
+                                                &good) < 0);
+    ASSERT_TRUE(iec61850_graph_set_rate_default((struct xgl_graph *)8,
+                                                IEC61850_RL_FAMILY_GOOSE,
+                                                &bad_rate) < 0);
+    PASS();
+}
+
+/* ===== WP-5a: rate limiting — privileged map round-trip ===== */
+
+/* Mirror of the BPF-side struct iec61850_rl_bucket */
+struct rl_bucket_rb {
+    uint64_t rate;
+    uint64_t burst;
+    uint64_t tokens;
+    uint64_t last_ns;
+};
+
+/* Mirror of the BPF-side struct iec61850_rl_config */
+struct rl_config_rb {
+    uint64_t rate;
+    uint64_t burst;
+};
+
+static void test_ratelimit_map_roundtrip(void)
+{
+    TEST("graph_ratelimit_map_roundtrip");
+    if (!is_root) { SKIP("not root"); }
+    if (!has_dispatch) { SKIP("xgl_dispatch.bpf.o not found"); }
+    if (!has_iec_bpf) { SKIP("IEC 61850 .bpf.o not found"); }
+
+    struct xgl_graph *g = xgl_graph_create("iec61850-rl", 0);
+    ASSERT_TRUE(g != NULL);
+
+    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
+    if (ret != 0) {
+        printf("SKIP: dispatch add_node failed (%d: %s)\n", ret, strerror(-ret));
+        tests_skipped++;
+        xgl_graph_destroy(g);
+        return;
+    }
+
+    struct iec61850_graph_indices indices;
+    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
+    ASSERT_EQ(ret, 0);
+
+    /* All four rate-limit maps must be retrievable via the generic
+     * map-fd accessor */
+    int goose_rl_fd = iec61850_graph_get_filter_map_fd(g, "goose_rl");
+    ASSERT_GE(goose_rl_fd, 0);
+
+    int sv_rl_fd = iec61850_graph_get_filter_map_fd(g, "sv_rl");
+    ASSERT_GE(sv_rl_fd, 0);
+
+    int r_rl_fd = iec61850_graph_get_filter_map_fd(g, "r_rl");
+    ASSERT_GE(r_rl_fd, 0);
+
+    int cfg_fd = iec61850_graph_get_filter_map_fd(g, "iec61850_rl_config");
+    ASSERT_GE(cfg_fd, 0);
+
+    /* Registration must have seeded every family with the
+     * documented defaults */
+    for (int fam = 0; fam < IEC61850_RL_FAMILY_COUNT; fam++) {
+        uint32_t key = (uint32_t)fam;
+        struct rl_config_rb cfg = { 0, 0 };
+
+        ASSERT_EQ(bpf_map_lookup_elem(cfg_fd, &key, &cfg), 0);
+        ASSERT_EQ(cfg.rate, IEC61850_RL_DEFAULT_RATE_BYTES);
+        ASSERT_EQ(cfg.burst, IEC61850_RL_DEFAULT_BURST_BYTES);
+    }
+
+    /* Per-key limit round-trip: the bucket starts full with the
+     * clock anchored at the first packet (last_ns = 0) */
+    struct iec61850_rl_limits lim = { .rate = 123456U, .burst = 4096U };
+    uint16_t key = htons(0x2000U);
+    ASSERT_EQ(iec61850_graph_set_rate_limit(g, IEC61850_RL_FAMILY_GOOSE,
+                                            key, &lim), 0);
+
+    struct rl_bucket_rb bucket = { 0, 0, 0, 0 };
+    ASSERT_EQ(bpf_map_lookup_elem(goose_rl_fd, &key, &bucket), 0);
+    ASSERT_EQ(bucket.rate, 123456U);
+    ASSERT_EQ(bucket.burst, 4096U);
+    ASSERT_EQ(bucket.tokens, 4096U);
+    ASSERT_EQ(bucket.last_ns, 0U);
+
+    /* The 90-5 bucket map is keyed by dport (network byte order) */
+    uint16_t dkey = htons(1024U);
+    ASSERT_EQ(iec61850_graph_set_rate_limit(g, IEC61850_RL_FAMILY_R,
+                                            dkey, &lim), 0);
+    ASSERT_EQ(bpf_map_lookup_elem(r_rl_fd, &dkey, &bucket), 0);
+    ASSERT_EQ(bucket.rate, 123456U);
+
+    /* Family-default retune round-trip */
+    struct iec61850_rl_limits def = { .rate = 100U, .burst = 512U };
+    ASSERT_EQ(iec61850_graph_set_rate_default(g, IEC61850_RL_FAMILY_R,
+                                              &def), 0);
+    uint32_t fam_key = (uint32_t)IEC61850_RL_FAMILY_R;
+    struct rl_config_rb cfg = { 0, 0 };
+    ASSERT_EQ(bpf_map_lookup_elem(cfg_fd, &fam_key, &cfg), 0);
+    ASSERT_EQ(cfg.rate, 100U);
+    ASSERT_EQ(cfg.burst, 512U);
+
+    /* Disabling a key (rate == 0) is valid and must round-trip */
+    struct iec61850_rl_limits off = { .rate = 0U, .burst = 0U };
+    uint16_t skey = htons(0x2001U);
+    ASSERT_EQ(iec61850_graph_set_rate_limit(g, IEC61850_RL_FAMILY_SV,
+                                            skey, &off), 0);
+    ASSERT_EQ(bpf_map_lookup_elem(sv_rl_fd, &skey, &bucket), 0);
+    ASSERT_EQ(bucket.rate, 0U);
+    ASSERT_EQ(bucket.tokens, 0U);
+
+    xgl_graph_destroy(g);
+    PASS();
+}
+
 static void test_full_pipeline(void)
 {
     TEST("graph_full_iec61850_pipeline");
@@ -434,10 +592,12 @@ int main(void)
     test_register_null_args();
     test_dispatch_null_args();
     test_dispatch_ethtype_for_role();
+    test_ratelimit_invalid_args();
     test_graph_register_nodes();
     test_graph_register_bad_dir();
     test_setup_dispatch_map();
     test_get_filter_map_fd();
+    test_ratelimit_map_roundtrip();
     test_full_pipeline();
 
     printf("\n%d/%d passed, %d skipped, %d failed\n",

@@ -6,6 +6,11 @@
  * Accepted packets are redirected to AF_XDP for userspace processing.
  * Unsubscribed APPIDs are dropped at wire speed.
  *
+ * WP-5a: after the subscription lookup accepts a packet, a per-APPID
+ * token bucket (goose_rl, limits from iec61850_rl_config) drops
+ * floods beyond the configured rate/burst without affecting other
+ * APPIDs.
+ *
  * Input: Packet dispatched from graph root (metadata already allocated)
  * Output: XDP_REDIRECT to AF_XDP or XDP_DROP
  */
@@ -83,6 +88,15 @@ XGL_NODE(node_goose_filter)
 
     if (!action || *action == 0) {
         /* Not subscribed — drop */
+        XGL_STATS_INC_DROP(egl_node_stats, idx);
+        XGL_DROP();
+    }
+
+    /* Subscribed — per-APPID token-bucket rate limit (WP-5a).
+     * The packet's cost is its full frame length in bytes. */
+    if (!iec61850_rl_evaluate(&goose_rl, &iec61850_rl_config,
+                              IEC61850_RL_FAMILY_GOOSE, &appid,
+                              pkt_len)) {
         XGL_STATS_INC_DROP(egl_node_stats, idx);
         XGL_DROP();
     }

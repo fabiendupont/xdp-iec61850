@@ -75,6 +75,211 @@ struct {
 } rsv_state_map SEC(".maps");
 
 /* =====================================================================
+ * WP-5A: per-key token-bucket rate limiting (storm protection)
+ * =====================================================================
+ *
+ * Storm protection at XDP: every filter node (GOOSE, SV, 90-5 UDP)
+ * runs a token bucket per filtered key AFTER the subscription filter
+ * accepts a packet, so a misbehaving publisher flooding one APPID
+ * (or 90-5 dport) is dropped at wire speed without affecting any
+ * other key.
+ *
+ * COST MODEL — BYTES.  The cost of a packet is its full frame length
+ * (data_end - data, i.e. the ethernet frame bytes as seen by XDP,
+ * FCS excluded).  Bytes rather than packets because a storm's impact
+ * on a substation network is bandwidth: GOOSE/SV frame sizes vary by
+ * an order of magnitude (a 100-byte SV sample and a 1500-byte GOOSE
+ * event must not cost the same), and the resource a flood exhausts
+ * is measured in bytes per second.
+ *
+ * REFILL MATH (all intermediates 64-bit):
+ *
+ *   elapsed = min(now - last_ns, IEC61850_RL_MAX_ELAPSED_NS)
+ *   refill  = elapsed * rate / 1e9                    [bytes]
+ *   tokens  = min(tokens + refill, burst)
+ *   admit   iff tokens >= frame_length, then tokens -= frame_length
+ *
+ * The elapsed-time cap keeps elapsed * rate below 2^63 for
+ * helper-validated rates (<= 2^31 B/s), so the refill multiply can
+ * never overflow; it is semantically invisible while the bucket is
+ * full and only under-refills a partially empty bucket left idle for
+ * more than ~4.3 s.  Limits written directly to the maps bypassing
+ * the userspace helper can at worst distort the token count (BPF
+ * arithmetic wraps), never violate memory safety.
+ *
+ * Buckets start FULL (tokens = burst), so the first packets of a
+ * legitimate GOOSE/R-GOOSE event burst always pass; see the default
+ * values and their rationale next to IEC61850_RL_DEFAULT_* in
+ * include/iec61850/iec61850_graph.h.
+ *
+ * CONCURRENCY: bucket updates are lock-free read-modify-write.  On a
+ * multi-queue NIC two CPUs may race on one bucket and briefly
+ * over-admit; this is the standard XDP token-bucket trade-off (the
+ * flood being dropped far exceeds any race window, and the fast path
+ * stays spinlock-free).  Exact accounting is not a goal.
+ */
+
+/* Token-bucket state for one key (APPID or 90-5 dport).  Buckets are
+ * created lazily by the filter nodes (inheriting the family default)
+ * or explicitly from userspace via iec61850_graph_set_rate_limit().
+ * rate == 0 disables limiting for the key. */
+struct iec61850_rl_bucket {
+    __u64 rate;      /* refill limit, bytes per second (0 = unlimited) */
+    __u64 burst;     /* bucket capacity, bytes */
+    __u64 tokens;    /* current tokens, bytes (always <= burst) */
+    __u64 last_ns;   /* bpf_ktime_get_ns() of the last evaluation */
+};
+
+/* Family default limits used to initialize buckets lazily.
+ * iec61850_graph_register() seeds documented defaults;
+ * iec61850_graph_set_rate_default() retunes them.  rate == 0 stops
+ * lazy bucket creation for the family (existing per-key buckets keep
+ * their own limits). */
+struct iec61850_rl_config {
+    __u64 rate;      /* bytes per second (0 = unlimited) */
+    __u64 burst;     /* bytes */
+};
+
+/* Rate-limit families (indices into iec61850_rl_config); mirror the
+ * IEC61850_RL_FAMILY_* constants in include/iec61850/iec61850_graph.h */
+#define IEC61850_RL_FAMILY_GOOSE  0
+#define IEC61850_RL_FAMILY_SV     1
+#define IEC61850_RL_FAMILY_R      2
+#define IEC61850_RL_FAMILY_COUNT  3
+
+/* Elapsed-time cap for the refill computation (~4.29 s < 2^32 ns):
+ * with rate <= 2^31-1 B/s the elapsed * rate product stays below
+ * 2^63, so the refill multiply cannot overflow 64 bits. */
+#define IEC61850_RL_MAX_ELAPSED_NS  4000000000ULL
+
+/* Nanoseconds per second, named for readability of the refill math */
+#define IEC61850_RL_NS_PER_SEC      1000000000ULL
+
+/* GOOSE rate-limit state: APPID -> token bucket
+ * key: APPID (network byte order, matching goose_filter) */
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256);
+    __type(key, __u16);
+    __type(value, struct iec61850_rl_bucket);
+} goose_rl SEC(".maps");
+
+/* SV rate-limit state: APPID -> token bucket */
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256);
+    __type(key, __u16);       /* APPID (network byte order) */
+    __type(value, struct iec61850_rl_bucket);
+} sv_rl SEC(".maps");
+
+/* 90-5 rate-limit state: UDP dport -> token bucket
+ * key: UDP destination port (network byte order, matching r_filter) */
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 256);
+    __type(key, __u16);       /* UDP dport (network byte order) */
+    __type(value, struct iec61850_rl_bucket);
+} r_rl SEC(".maps");
+
+/* Family default limits: family index -> {rate, burst} */
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, IEC61850_RL_FAMILY_COUNT);
+    __type(key, __u32);       /* IEC61850_RL_FAMILY_* */
+    __type(value, struct iec61850_rl_config);
+} iec61850_rl_config SEC(".maps");
+
+/* Refill and consume from an initialized bucket.  Returns 1 when a
+ * packet of `cost` bytes is admitted, 0 when it must be dropped.
+ *
+ * Straight-line 64-bit arithmetic only — no loops, no pointers
+ * derived from packet data (PREVAIL-friendly structure). */
+static __always_inline int
+iec61850_rl_admit(struct iec61850_rl_bucket *b, __u64 cost, __u64 now)
+{
+    __u64 tokens;
+    __u64 elapsed = 0;
+    __u64 refill;
+
+    if (b->rate == 0) {
+        return 1;    /* unlimited */
+    }
+
+    tokens = b->tokens;
+    if (tokens > b->burst) {
+        tokens = b->burst;    /* self-stabilizing after a retune */
+    }
+
+    if (now > b->last_ns) {
+        elapsed = now - b->last_ns;
+        if (elapsed > IEC61850_RL_MAX_ELAPSED_NS) {
+            elapsed = IEC61850_RL_MAX_ELAPSED_NS;
+        }
+    }
+
+    refill = (elapsed * b->rate) / IEC61850_RL_NS_PER_SEC;
+    if (refill > b->burst) {
+        refill = b->burst;
+    }
+    if (refill > b->burst - tokens) {
+        refill = b->burst - tokens;    /* tokens <= burst here */
+    }
+    tokens += refill;
+
+    b->last_ns = now;
+
+    if (tokens < cost) {
+        b->tokens = tokens;
+        return 0;
+    }
+
+    b->tokens = tokens - cost;
+    return 1;
+}
+
+/* Full rate-limit evaluation for one packet.  rl_map is the family
+ * bucket map (key = APPID / dport in network byte order, matching
+ * the filter-map convention), cfg_map the family-default ARRAY.  A
+ * key without a bucket inherits the family default (created lazily,
+ * starting full); a missing or disabled default leaves the key
+ * unlimited.  Returns 1 when `cost` bytes are admitted, 0 when the
+ * packet must be dropped.
+ *
+ * Always inlined, so the map pointers stay concrete at each call
+ * site for the verifier. */
+static __always_inline int
+iec61850_rl_evaluate(void *rl_map, void *cfg_map, __u32 family,
+                     const void *key, __u64 cost)
+{
+    struct iec61850_rl_bucket *b = bpf_map_lookup_elem(rl_map, key);
+    struct iec61850_rl_config *cfg;
+    struct iec61850_rl_bucket fresh;
+    __u64 now = bpf_ktime_get_ns();
+
+    if (b) {
+        return iec61850_rl_admit(b, cost, now);
+    }
+
+    cfg = bpf_map_lookup_elem(cfg_map, &family);
+    if (!cfg || cfg->rate == 0) {
+        return 1;    /* no limits configured for this family */
+    }
+
+    /* Lazy bucket creation: start full so the first burst of a
+     * legitimate publisher always passes.  BPF_NOEXIST keeps a
+     * racing CPU from clobbering an existing entry; the rare loser
+     * evaluates its local copy, over-admitting at most one burst,
+     * once. */
+    fresh.rate = cfg->rate;
+    fresh.burst = cfg->burst;
+    fresh.tokens = cfg->burst;
+    fresh.last_ns = now;
+    bpf_map_update_elem(rl_map, key, &fresh, BPF_NOEXIST);
+
+    return iec61850_rl_admit(&fresh, cost, now);
+}
+
+/* =====================================================================
  * WP-4A-RECONCILED: IEC TR 61850-90-5 session-header wire offsets
  * =====================================================================
  *
