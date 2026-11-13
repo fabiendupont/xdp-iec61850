@@ -58,15 +58,10 @@
 #include <string.h>
 
 /*
- * WP-1f private extension (mms_client.c; the public header
- * mms_client.h is frozen for this WP): write with the in-band
- * DataAccessError code reported through the last argument.
+ * iec61850_mms_client_write_detail() is public since WP-2x
+ * (mms_client.h): write with the in-band DataAccessError code
+ * reported through the last argument.
  */
-extern int iec61850_mms_client_write_detail(iec61850_mms_client_t *client,
-                                             const char *domain,
-                                             const char *item_id,
-                                             const mms_value_t *value,
-                                             int32_t *access_error);
 
 /* ========================================================================
  * Component-object naming
