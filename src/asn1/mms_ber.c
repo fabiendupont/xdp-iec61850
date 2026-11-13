@@ -4959,6 +4959,359 @@ int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
     return (int)off;
 }
 
+/* --------------------------------------------------------------------------
+ * Decoder counterpart of mms_encode_iec61850_report().
+ *
+ * Walks the same wire format documented in the comment block above the
+ * encoder. The field walk is driven by the optFlds bits: a field whose
+ * bit is set must be present, a field whose bit is clear must not be
+ * parsed. Two deliberate leniencies keep the roundtrip contract with
+ * mms_encode_iec61850_report() intact, since that encoder always emits
+ * datSet and the per-member reason codes regardless of the optFlds
+ * bits:
+ *   - datSet: if the data-set-name bit is clear but a VisibleString
+ *     ([10]) follows at that position, it is consumed and stored
+ *     anyway (no other field of that shape may appear there).
+ *   - reason codes: if the reason-for-inclusion bit is clear, trailing
+ *     bytes inside listOfAccessResult are skipped without parsing.
+ *
+ * Every wire-supplied length is validated with length_fits() against
+ * the tightest enclosing parent end before any read or memcpy.
+ * -------------------------------------------------------------------------- */
+
+/* optFlds bit positions (IEC 61850-7-2 §8.3.2). Bit 0 is the MSB of
+ * the first value octet of the optFlds BIT STRING; bits 0-7 live in
+ * the first value octet, bits 8-9 in the second. */
+#define IEC61850_OPTFLD_SEQ_NUM      0x40u  /* b1: sequence-number */
+#define IEC61850_OPTFLD_TIME_OF_ENTRY 0x20u /* b2: time-of-entry */
+#define IEC61850_OPTFLD_REASON       0x10u  /* b3: reason-for-inclusion */
+#define IEC61850_OPTFLD_DATA_SET     0x08u  /* b4: data-set-name */
+#define IEC61850_OPTFLD_CONF_REV     0x80u  /* b8 (2nd octet): confRev */
+
+int mms_decode_iec61850_report(const uint8_t* buffer, size_t buflen,
+                               mms_information_report_t* report)
+{
+    if (buffer == NULL || report == NULL || buflen < 2) {
+        return MMS_ERROR_INVALID_PARAM;
+    }
+
+    /* Reset every presence flag the decoder owns */
+    report->num_values = 0;
+    report->sq_num_present = false;
+    report->report_timestamp_present = false;
+    report->reasons_present = false;
+    report->data_references_present = false;
+    report->buffer_overflow_present = false;
+    report->entry_id_present = false;
+    report->config_ref_present = false;
+    report->conf_rev_present = false;
+    report->incl_bit_str_len = 0;
+    report->rpt_id[0] = '\0';
+    report->dat_set[0] = '\0';
+
+    size_t offset = 0;
+    size_t length = 0;
+    int ret;
+
+    /* unconfirmedPDU [3] CONSTRUCTED */
+    if (buffer[offset++] != MMS_TAG_UNCONFIRMED) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    ret = mms_decode_length(buffer + offset, buflen - offset, &length);
+    if (ret < 0) {
+        return ret;
+    }
+    offset += (size_t)ret;
+    if (!length_fits(offset, length, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    size_t pdu_end = offset + length;
+
+    /* informationReport [0] CONSTRUCTED */
+    if (offset >= pdu_end || buffer[offset++] != 0xA0) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    ret = mms_decode_length(buffer + offset, pdu_end - offset, &length);
+    if (ret < 0) {
+        return ret;
+    }
+    offset += (size_t)ret;
+    if (!length_fits(offset, length, pdu_end)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    size_t ir_end = offset + length;
+
+    /* variableAccessSpecification [1] — vmd-specific [0] "RPT".
+     * Content is skipped; the name is reported in variable_list_name. */
+    if (offset >= ir_end || buffer[offset++] != 0xA1) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    ret = mms_decode_length(buffer + offset, ir_end - offset, &length);
+    if (ret < 0) {
+        return ret;
+    }
+    offset += (size_t)ret;
+    if (!length_fits(offset, length, ir_end)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    memcpy(report->variable_list_name, "RPT", 3);
+    report->variable_list_name[3] = '\0';
+    offset += length;
+
+    /* listOfAccessResult [0] CONSTRUCTED — the tightest parent for
+     * every report field below. */
+    if (offset >= ir_end || buffer[offset++] != 0xA0) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    ret = mms_decode_length(buffer + offset, ir_end - offset, &length);
+    if (ret < 0) {
+        return ret;
+    }
+    offset += (size_t)ret;
+    if (!length_fits(offset, length, ir_end)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    size_t list_end = offset + length;
+
+    /* rptID [10] VisibleString — always present */
+    if (offset >= list_end || buffer[offset++] != 0x8A) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+    if (ret < 0) {
+        return ret;
+    }
+    offset += (size_t)ret;
+    if (length >= MMS_MAX_STRING_LENGTH ||
+        !length_fits(offset, length, list_end)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    memcpy(report->rpt_id, buffer + offset, length);
+    report->rpt_id[length] = '\0';
+    offset += length;
+
+    /* optFlds [4] BIT STRING — always present.
+     * Layout: <unused-bit count> <value octet 0> <value octet 1> ... */
+    if (offset >= list_end || buffer[offset++] != 0x84) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+    if (ret < 0) {
+        return ret;
+    }
+    offset += (size_t)ret;
+    if (!length_fits(offset, length, list_end)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    if (length < 1) {
+        return MMS_ERROR_INVALID_ENCODING;
+    }
+    {
+        size_t opt_unused = buffer[offset];
+        size_t opt_value_bytes = length - 1;
+        if (opt_unused > 7 || opt_unused > 8 * opt_value_bytes) {
+            return MMS_ERROR_INVALID_ENCODING;
+        }
+        uint8_t of0 = (opt_value_bytes >= 1) ? buffer[offset + 1] : 0;
+        uint8_t of1 = (opt_value_bytes >= 2) ? buffer[offset + 2] : 0;
+        offset += length;
+
+        bool has_seq_num = (of0 & IEC61850_OPTFLD_SEQ_NUM) != 0;
+        bool has_time = (of0 & IEC61850_OPTFLD_TIME_OF_ENTRY) != 0;
+        bool has_reason = (of0 & IEC61850_OPTFLD_REASON) != 0;
+        bool has_dat_set = (of0 & IEC61850_OPTFLD_DATA_SET) != 0;
+        bool has_conf_rev = (of1 & IEC61850_OPTFLD_CONF_REV) != 0;
+
+        /* seqNum [6] UNSIGNED — iff optFlds sequence-number */
+        if (has_seq_num) {
+            if (offset >= list_end || buffer[offset++] != 0x86) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+            if (ret < 0) {
+                return ret;
+            }
+            offset += (size_t)ret;
+            if (!length_fits(offset, length, list_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            uint32_t sq_val = 0;
+            ret = decode_unsigned(buffer + offset, length, &sq_val);
+            if (ret < 0) {
+                return ret;
+            }
+            report->sq_num = (uint16_t)sq_val;
+            report->sq_num_present = true;
+            offset += length;
+        }
+
+        /* timeOfEntry [12] BINARY-TIME — iff optFlds time-of-entry.
+         * The raw 6-byte value is stored big-endian in the low 48
+         * bits of report_timestamp. */
+        if (has_time) {
+            if (offset >= list_end || buffer[offset++] != 0x8C) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+            if (ret < 0) {
+                return ret;
+            }
+            offset += (size_t)ret;
+            if (!length_fits(offset, length, list_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            if (length != 6) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            report->report_timestamp = 0;
+            for (size_t i = 0; i < 6; i++) {
+                report->report_timestamp =
+                    (report->report_timestamp << 8) | buffer[offset + i];
+            }
+            report->report_timestamp_present = true;
+            offset += length;
+        }
+
+        /* datSet [10] VisibleString — iff optFlds data-set-name.
+         * Leniency: the companion encoder always emits datSet; when
+         * the bit is clear, a VisibleString at this position is still
+         * consumed so the walk stays aligned. */
+        if (has_dat_set ||
+            (offset < list_end && buffer[offset] == 0x8A)) {
+            if (offset >= list_end || buffer[offset++] != 0x8A) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+            if (ret < 0) {
+                return ret;
+            }
+            offset += (size_t)ret;
+            if (length >= MMS_MAX_STRING_LENGTH ||
+                !length_fits(offset, length, list_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            memcpy(report->dat_set, buffer + offset, length);
+            report->dat_set[length] = '\0';
+            offset += length;
+        }
+
+        /* confRev [6] UNSIGNED — iff optFlds confRev */
+        if (has_conf_rev) {
+            if (offset >= list_end || buffer[offset++] != 0x86) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+            if (ret < 0) {
+                return ret;
+            }
+            offset += (size_t)ret;
+            if (!length_fits(offset, length, list_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            ret = decode_unsigned(buffer + offset, length, &report->conf_rev);
+            if (ret < 0) {
+                return ret;
+            }
+            report->conf_rev_present = true;
+            offset += length;
+        }
+
+        /* inclusion-bitstring [4] BIT STRING — always present.
+         * One bit per dataset member; a set bit means the member's
+         * value (and reason code) follows. */
+        if (offset >= list_end || buffer[offset++] != 0x84) {
+            return MMS_ERROR_INVALID_ENCODING;
+        }
+        ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+        if (ret < 0) {
+            return ret;
+        }
+        offset += (size_t)ret;
+        if (!length_fits(offset, length, list_end)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        if (length < 1) {
+            return MMS_ERROR_INVALID_ENCODING;
+        }
+        {
+            size_t incl_unused = buffer[offset];
+            size_t incl_value_bytes = length - 1;
+            if (incl_unused > 7 || incl_unused > 8 * incl_value_bytes) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            if (incl_value_bytes > sizeof(report->incl_bit_str)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            if (incl_value_bytes > 0) {
+                memcpy(report->incl_bit_str, buffer + offset + 1,
+                       incl_value_bytes);
+            }
+            report->incl_bit_str_len = (uint32_t)incl_value_bytes;
+            offset += length;
+
+            /* Number of included members = set bits among the
+             * meaningful bits (8 * value_bytes - unused). */
+            size_t total_bits = 8 * incl_value_bytes - incl_unused;
+            uint32_t num_included = 0;
+            for (size_t bit = 0; bit < total_bits; bit++) {
+                uint8_t mask = (uint8_t)(0x80u >> (bit % 8));
+                if ((report->incl_bit_str[bit / 8] & mask) != 0) {
+                    num_included++;
+                }
+            }
+            if (num_included > MMS_MAX_NAMED_VARIABLES) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+
+            /* Data set member values — one per set inclusion bit */
+            for (uint32_t i = 0; i < num_included; i++) {
+                ret = mms_decode_value(buffer + offset, list_end - offset,
+                                       &report->values[i]);
+                if (ret < 0) {
+                    return ret;
+                }
+                offset += (size_t)ret;
+            }
+            report->num_values = num_included;
+
+            /* Reason-for-inclusion [4] BIT STRING per included member
+             * — iff optFlds reason-for-inclusion.
+             * Layout: <unused-bit count> <reason octet>. */
+            if (has_reason) {
+                for (uint32_t i = 0; i < num_included; i++) {
+                    if (offset >= list_end || buffer[offset++] != 0x84) {
+                        return MMS_ERROR_INVALID_ENCODING;
+                    }
+                    ret = mms_decode_length(buffer + offset,
+                                            list_end - offset, &length);
+                    if (ret < 0) {
+                        return ret;
+                    }
+                    offset += (size_t)ret;
+                    if (!length_fits(offset, length, list_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
+                    if (length < 2 || buffer[offset] > 7) {
+                        return MMS_ERROR_INVALID_ENCODING;
+                    }
+                    report->reasons[i] = buffer[offset + 1];
+                    offset += length;
+                }
+                report->reasons_present = true;
+            }
+        }
+    }
+
+    /* Trailing bytes inside listOfAccessResult (e.g. reason codes the
+     * companion encoder emits even when the reason optFld is clear)
+     * are ignored; report the end of the parsed report body. */
+    if (offset < list_end) {
+        offset = list_end;
+    }
+
+    return (int)offset;
+}
+
 int mms_decode_information_report(const uint8_t* buffer, size_t buflen,
                                   mms_information_report_t* report) {
     if (buffer == NULL || report == NULL || buflen < 2) {
