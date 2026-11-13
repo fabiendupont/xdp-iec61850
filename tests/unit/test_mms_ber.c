@@ -1171,6 +1171,417 @@ static void test_iec61850_report_oracle_default_optflds(void)
 }
 
 /* ========================================================================
+ * WP-2y: standard named-variable-list request encoding + Read
+ * response disambiguation (specificationWithResult service context)
+ * ======================================================================== */
+
+/* ReadNamedVariableList request — standard wire form, asserted
+ * byte-for-byte against the reference server's own client capture
+ * (diagnostics WP-ms10-investigation):
+ *   A4 L 80 01 01 A1 L A1 L2 A1 L3 1A <domainId> 1A <itemId>
+ * (specificationWithResult [0] TRUE, then variableAccessSpecification
+ * [1] { variableListName [1] { domain-specific [1] { ... } } }).
+ * The pre-WP-2y flat encoder (<domLen> <dom> <nameLen> <name>)
+ * decoded to empty names on every conformant server — the MS-10 root
+ * cause. */
+static void test_readnamedvarlist_request_standard_wire(void)
+{
+    TEST("readnamedvarlist_request_standard_wire");
+    static const uint8_t expected[] = {
+        0xA0, 0x2E,                   /* confirmedRequestPDU */
+        0x02, 0x01, 0x03,             /* invokeID 3 */
+        0xA4, 0x29,                   /* read [4] */
+        0x80, 0x01, 0x01,             /* specificationWithResult = TRUE */
+        0xA1, 0x24,                   /* variableAccessSpecification [1] */
+        0xA1, 0x22,                   /* variableListName [1] */
+        0xA1, 0x20,                   /* domain-specific [1] */
+        0x1A, 0x11, 's','i','m','p','l','e','I','O','G','e','n','e','r','i','c','I','O',
+        0x1A, 0x0B, 'L','L','N','0','$','E','v','e','n','t','s'
+    };
+    uint8_t buf[256];
+    mms_confirmed_request_t req;
+    memset(&req, 0, sizeof(req));
+    req.invoke_id = 3;
+    req.service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+    strncpy(req.params.readnamedvarlist.domain, "simpleIOGenericIO", MMS_MAX_DOMAIN_NAME - 1);
+    strncpy(req.params.readnamedvarlist.list_name, "LLN0$Events", MMS_MAX_VARIABLE_NAME - 1);
+
+    int enc_len = mms_encode_confirmed_request(&req, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len == (int)sizeof(expected));
+    ASSERT_TRUE(memcmp(buf, expected, sizeof(expected)) == 0);
+
+    /* Round-trip: the server-side decoder recovers the names. */
+    mms_confirmed_request_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_request(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(expected));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_TRUE(strcmp(decoded.params.readnamedvarlist.domain, "simpleIOGenericIO") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.readnamedvarlist.list_name, "LLN0$Events") == 0);
+    PASS();
+}
+
+/* DefineNamedVariableList request — standard wire form (WP-2y):
+ * variableListName [0] { domain-specific [1] { 1A, 1A } },
+ * listOfVariable [1] { SEQUENCE { namedVariable [0] {
+ * domain-specific [1] { 1A, 1A } } } }. */
+static void test_define_named_varlist_request_standard_wire(void)
+{
+    TEST("define_named_varlist_request_standard_wire");
+    static const uint8_t expected[] = {
+        0xA0, 0x66,                   /* confirmedRequestPDU */
+        0x02, 0x01, 0x0A,             /* invokeID 10 */
+        0xAB, 0x61,                   /* defineNamedVariableList [11] */
+        0xA0, 0x15,                   /* variableListName [0] */
+        0xA1, 0x13,                   /* domain-specific [1] */
+        0x1A, 0x07, 'I','E','D','1','L','D','0',
+        0x1A, 0x08, 'T','e','s','t','L','i','s','t',
+        0xA1, 0x48,                   /* listOfVariable [1] */
+        0x30, 0x20,                   /* SEQUENCE (member 1) */
+        0xA0, 0x1E,                   /* namedVariable [0] */
+        0xA1, 0x1C,                   /* domain-specific [1] */
+        0x1A, 0x07, 'I','E','D','1','L','D','0',
+        0x1A, 0x11, 'L','L','N','0','$','S','T','$','B','e','h','$','s','t','V','a','l',
+        0x30, 0x24,                   /* SEQUENCE (member 2) */
+        0xA0, 0x22,                   /* namedVariable [0] */
+        0xA1, 0x20,                   /* domain-specific [1] */
+        0x1A, 0x07, 'I','E','D','1','L','D','0',
+        0x1A, 0x15, 'G','G','I','O','1','$','S','T','$','S','P','C','S','O','1','$','s','t','V','a','l'
+    };
+    uint8_t buf[256];
+    mms_confirmed_request_t req;
+    mms_variable_spec_t vars[2];
+    memset(&req, 0, sizeof(req));
+    memset(vars, 0, sizeof(vars));
+    strncpy(vars[0].domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+    strncpy(vars[0].item_id, "LLN0$ST$Beh$stVal", MMS_MAX_VARIABLE_NAME - 1);
+    strncpy(vars[1].domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+    strncpy(vars[1].item_id, "GGIO1$ST$SPCSO1$stVal", MMS_MAX_VARIABLE_NAME - 1);
+    req.invoke_id = 10;
+    req.service = MMS_SERVICE_TYPE_DEFINE_NAMED_VARLIST;
+    strncpy(req.params.definenamedvarlist.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+    strncpy(req.params.definenamedvarlist.list_name, "TestList", MMS_MAX_VARIABLE_NAME - 1);
+    req.params.definenamedvarlist.num_variables = 2;
+    req.params.definenamedvarlist.variables[0] = vars[0];
+    req.params.definenamedvarlist.variables[1] = vars[1];
+
+    int enc_len = mms_encode_confirmed_request(&req, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len == (int)sizeof(expected));
+    ASSERT_TRUE(memcmp(buf, expected, sizeof(expected)) == 0);
+
+    mms_confirmed_request_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_request(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(expected));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_DEFINE_NAMED_VARLIST);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.list_name, "TestList") == 0);
+    ASSERT_EQ((int)decoded.params.definenamedvarlist.num_variables, 2);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.variables[0].domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.variables[0].item_id, "LLN0$ST$Beh$stVal") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.variables[1].domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.variables[1].item_id, "GGIO1$ST$SPCSO1$stVal") == 0);
+    PASS();
+}
+
+/* Pre-WP-2y flat DefineNamedVariableList dialect (kept decodable for
+ * replay of stored captures): [0] { <domLen> dom <nameLen> name },
+ * members [0] { <domLen> dom <itemLen> item }. */
+static void test_define_named_varlist_request_legacy_flat(void)
+{
+    TEST("define_named_varlist_request_legacy_flat");
+    static const uint8_t wire[] = {
+        0xA0, 0x19, 0x02, 0x01, 0x0D, 0xAB, 0x14,
+        0xA0, 0x04, 0x01, 'D', 0x01, 'L',
+        0xA1, 0x0C,
+        0xA0, 0x04, 0x01, 'D', 0x01, 'V',
+        0xA0, 0x04, 0x01, 'D', 0x01, 'V'
+    };
+    mms_confirmed_request_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_request(wire, sizeof(wire), &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(wire));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_DEFINE_NAMED_VARLIST);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.domain, "D") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.list_name, "L") == 0);
+    ASSERT_EQ((int)decoded.params.definenamedvarlist.num_variables, 2);
+    ASSERT_TRUE(strcmp(decoded.params.definenamedvarlist.variables[0].item_id, "V") == 0);
+    PASS();
+}
+
+/* DeleteNamedVariableList / GetNamedVariableListAttributes requests —
+ * standard wire form (variableListName [0] { domain-specific [1] {
+ * 1A, 1A } }, WP-2y) with round-trip, plus the pre-WP-2y flat
+ * dialect kept decodable. */
+static void test_delete_named_varlist_request_standard(void)
+{
+    TEST("delete_named_varlist_request_standard");
+    static const uint8_t expected[] = {
+        0xA0, 0x1C, 0x02, 0x01, 0x0B, 0xAD, 0x17,
+        0xA0, 0x15,
+        0xA1, 0x13,
+        0x1A, 0x07, 'I','E','D','1','L','D','0',
+        0x1A, 0x08, 'T','e','s','t','L','i','s','t'
+    };
+    static const uint8_t legacy_flat[] = {
+        0xA0, 0x18, 0x02, 0x01, 0x0C, 0xAD, 0x13,
+        0xA0, 0x11, 0x07, 'I','E','D','1','L','D','0',
+        0x08, 'T','e','s','t','L','i','s','t'
+    };
+    uint8_t buf[128];
+    mms_confirmed_request_t req;
+    memset(&req, 0, sizeof(req));
+    req.invoke_id = 11;
+    req.service = MMS_SERVICE_TYPE_DELETE_NAMED_VARLIST;
+    strncpy(req.params.deletenamedvarlist.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+    strncpy(req.params.deletenamedvarlist.list_name, "TestList", MMS_MAX_VARIABLE_NAME - 1);
+
+    int enc_len = mms_encode_confirmed_request(&req, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len == (int)sizeof(expected));
+    ASSERT_TRUE(memcmp(buf, expected, sizeof(expected)) == 0);
+
+    mms_confirmed_request_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_request(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(expected));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_DELETE_NAMED_VARLIST);
+    ASSERT_TRUE(strcmp(decoded.params.deletenamedvarlist.domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.deletenamedvarlist.list_name, "TestList") == 0);
+
+    memset(&decoded, 0, sizeof(decoded));
+    consumed = mms_decode_confirmed_request(legacy_flat, sizeof(legacy_flat), &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(legacy_flat));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_DELETE_NAMED_VARLIST);
+    ASSERT_TRUE(strcmp(decoded.params.deletenamedvarlist.domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.deletenamedvarlist.list_name, "TestList") == 0);
+    PASS();
+}
+
+static void test_get_named_varlist_attrs_request_standard(void)
+{
+    TEST("get_named_varlist_attrs_request_standard");
+    static const uint8_t expected[] = {
+        0xA0, 0x1C, 0x02, 0x01, 0x0E, 0xAC, 0x17,
+        0xA0, 0x15,
+        0xA1, 0x13,
+        0x1A, 0x07, 'I','E','D','1','L','D','0',
+        0x1A, 0x08, 'T','e','s','t','L','i','s','t'
+    };
+    static const uint8_t legacy_flat[] = {
+        0xA0, 0x18, 0x02, 0x01, 0x0F, 0xAC, 0x13,
+        0xA0, 0x11, 0x07, 'I','E','D','1','L','D','0',
+        0x08, 'T','e','s','t','L','i','s','t'
+    };
+    uint8_t buf[128];
+    mms_confirmed_request_t req;
+    memset(&req, 0, sizeof(req));
+    req.invoke_id = 14;
+    req.service = MMS_SERVICE_TYPE_GET_NAMED_VARLIST_ATTRS;
+    strncpy(req.params.getnamedvarlistattrs.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+    strncpy(req.params.getnamedvarlistattrs.list_name, "TestList", MMS_MAX_VARIABLE_NAME - 1);
+
+    int enc_len = mms_encode_confirmed_request(&req, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len == (int)sizeof(expected));
+    ASSERT_TRUE(memcmp(buf, expected, sizeof(expected)) == 0);
+
+    mms_confirmed_request_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_request(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(expected));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_GET_NAMED_VARLIST_ATTRS);
+    ASSERT_TRUE(strcmp(decoded.params.getnamedvarlistattrs.domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.getnamedvarlistattrs.list_name, "TestList") == 0);
+
+    memset(&decoded, 0, sizeof(decoded));
+    consumed = mms_decode_confirmed_request(legacy_flat, sizeof(legacy_flat), &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(legacy_flat));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_GET_NAMED_VARLIST_ATTRS);
+    ASSERT_TRUE(strcmp(decoded.params.getnamedvarlistattrs.domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.getnamedvarlistattrs.list_name, "TestList") == 0);
+    PASS();
+}
+
+/* WP-2y latent decode bug 1: a 1-member NVL read response carries the
+ * specificationWithResult echo and must decode as READ_NAMED_VARLIST
+ * — the old num_values == 1 heuristic classified it as a plain Read
+ * and read_named_varlist() returned ERR_MMS. */
+static void test_readnamedvarlist_response_single_member(void)
+{
+    TEST("readnamedvarlist_response_single_member");
+    mms_confirmed_response_t resp;
+    mms_confirmed_response_t decoded;
+    uint8_t buf[128];
+
+    /* Encoder round-trip. */
+    memset(&resp, 0, sizeof(resp));
+    resp.invoke_id = 7;
+    resp.service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+    resp.params.readnamedvarlist.num_values = 1;
+    resp.params.readnamedvarlist.values[0].type = MMS_TYPE_INTEGER;
+    resp.params.readnamedvarlist.values[0].value.integer = 42;
+
+    int enc = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+    ASSERT_TRUE(enc > 0);
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_response(buf, (size_t)enc, &decoded);
+    ASSERT_TRUE(consumed == enc);
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_EQ((int)decoded.params.readnamedvarlist.num_values, 1);
+    ASSERT_EQ((int)decoded.params.readnamedvarlist.values[0].value.integer, 42);
+    ASSERT_TRUE(!decoded.params.readnamedvarlist.failure);
+
+    /* Hand-built wire (server shape):
+     *   A4 L 80 01 01 A1 03 85 01 2A */
+    static const uint8_t wire[] = {
+        0xA1, 0x0D, 0x02, 0x01, 0x07, 0xA4, 0x08,
+        0x80, 0x01, 0x01,             /* specificationWithResult = TRUE */
+        0xA1, 0x03,                   /* listOfAccessResult [1] */
+        0x85, 0x01, 0x2A              /* integer 42 */
+    };
+    memset(&decoded, 0, sizeof(decoded));
+    consumed = mms_decode_confirmed_response(wire, sizeof(wire), &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(wire));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_EQ((int)decoded.params.readnamedvarlist.num_values, 1);
+    ASSERT_EQ((int)decoded.params.readnamedvarlist.values[0].value.integer, 42);
+    PASS();
+}
+
+/* WP-2y latent decode bug 2: a legitimate empty listOfAccessResult
+ * (0-member list) decodes to num_values == 0 with success; it used
+ * to be rejected as "unknown content" (MMS_ERROR_SERVICE_ERROR). */
+static void test_readnamedvarlist_response_empty_list(void)
+{
+    TEST("readnamedvarlist_response_empty_list");
+    static const uint8_t wire[] = {
+        0xA1, 0x0A, 0x02, 0x01, 0x08, 0xA4, 0x05,
+        0x80, 0x01, 0x01,             /* specificationWithResult = TRUE */
+        0xA1, 0x00                    /* listOfAccessResult: empty */
+    };
+    mms_confirmed_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+    int ret = mms_decode_confirmed_response(wire, sizeof(wire), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(wire));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.num_values, 0);
+    ASSERT_TRUE(!resp.params.readnamedvarlist.failure);
+    PASS();
+}
+
+/* WP-2y: a conformant server that honors specificationWithResult
+ * echoes the variableAccessSpecification [1] before the
+ * listOfAccessResult. The echo decodes to no AccessResults, so the
+ * decoder must skip it and parse the list that follows — with either
+ * result-list tag ([1] dialect or [2] standard). */
+static void test_readnamedvarlist_response_vas_echo(void)
+{
+    TEST("readnamedvarlist_response_vas_echo");
+    static const uint8_t dialect_list[] = {
+        0xA1, 0x17, 0x02, 0x01, 0x09, 0xA4, 0x12,
+        0x80, 0x01, 0x01,             /* specificationWithResult = TRUE */
+        0xA1, 0x08,                   /* variableAccessSpecification echo */
+        0xA1, 0x06,
+        0x1A, 0x01, 'D', 0x1A, 0x01, 'L',
+        0xA1, 0x03,                   /* listOfAccessResult [1] */
+        0x85, 0x01, 0x2A              /* integer 42 */
+    };
+    static const uint8_t standard_list[] = {
+        0xA1, 0x17, 0x02, 0x01, 0x09, 0xA4, 0x12,
+        0x80, 0x01, 0x01,             /* specificationWithResult = TRUE */
+        0xA1, 0x08,                   /* variableAccessSpecification echo */
+        0xA1, 0x06,
+        0x1A, 0x01, 'D', 0x1A, 0x01, 'L',
+        0xA2, 0x03,                   /* listOfAccessResult [2] */
+        0x85, 0x01, 0x2A              /* integer 42 */
+    };
+    mms_confirmed_response_t resp;
+
+    memset(&resp, 0, sizeof(resp));
+    int ret = mms_decode_confirmed_response(dialect_list, sizeof(dialect_list), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(dialect_list));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.num_values, 1);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.values[0].value.integer, 42);
+
+    memset(&resp, 0, sizeof(resp));
+    ret = mms_decode_confirmed_response(standard_list, sizeof(standard_list), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(standard_list));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.num_values, 1);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.values[0].value.integer, 42);
+    PASS();
+}
+
+/* WP-2y wire evidence: the reference server's reply to our standard
+ * read-named-variable-list request (captured through the diagnostics
+ * logproxy): the variableAccessSpecification is echoed as a
+ * constructed [0] before the listOfAccessResult [1], which carries
+ * the 4 boolean members of LLN0$Events. Must decode as a
+ * named-variable-list read with 4 values. */
+static void test_readnamedvarlist_response_reference_wire(void)
+{
+    TEST("readnamedvarlist_response_reference_wire");
+    static const uint8_t wire[] = {
+        0xA1, 0x39, 0x02, 0x01, 0x03, 0xA4, 0x34,
+        0xA0, 0x24,                   /* variableAccessSpecification echo [0] */
+        0xA1, 0x22,
+        0xA1, 0x20,
+        0x1A, 0x11, 's','i','m','p','l','e','I','O','G','e','n','e','r','i','c','I','O',
+        0x1A, 0x0B, 'L','L','N','0','$','E','v','e','n','t','s',
+        0xA1, 0x0C,                   /* listOfAccessResult [1] */
+        0x83, 0x01, 0x00,             /* boolean FALSE (× 4 members) */
+        0x83, 0x01, 0x00,
+        0x83, 0x01, 0x00,
+        0x83, 0x01, 0x00
+    };
+    mms_confirmed_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+    int ret = mms_decode_confirmed_response(wire, sizeof(wire), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(wire));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ_NAMED_VARLIST);
+    ASSERT_EQ((int)resp.params.readnamedvarlist.num_values, 4);
+    ASSERT_TRUE(!resp.params.readnamedvarlist.failure);
+    for (int i = 0; i < 4; i++) {
+        ASSERT_EQ((int)resp.params.readnamedvarlist.values[i].type,
+                  (int)MMS_TYPE_BOOLEAN);
+    }
+    PASS();
+}
+
+/* WP-2y regression guard: plain Read responses (no access-specification
+ * echo) keep their WP-1f classification — a
+ * single value is a plain Read, a single failure AccessResult is an
+ * in-band plain-read failure (BUG-R2 wire). */
+static void test_read_response_plain_unchanged(void)
+{
+    TEST("read_response_plain_unchanged");
+    static const uint8_t single_value[] = {
+        0xA1, 0x0A, 0x02, 0x01, 0x01, 0xA4, 0x05,
+        0xA1, 0x03, 0x85, 0x01, 0x2A
+    };
+    static const uint8_t inband_failure[] = {
+        0xA1, 0x0A, 0x02, 0x01, 0x01, 0xA4, 0x05, 0xA1, 0x03,
+        0x80, 0x01, 0x0A
+    };
+    mms_confirmed_response_t resp;
+
+    memset(&resp, 0, sizeof(resp));
+    int ret = mms_decode_confirmed_response(single_value, sizeof(single_value), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(single_value));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ);
+    ASSERT_EQ((int)resp.params.read.value.value.integer, 42);
+    ASSERT_TRUE(!resp.params.read.failure);
+
+    memset(&resp, 0, sizeof(resp));
+    ret = mms_decode_confirmed_response(inband_failure, sizeof(inband_failure), &resp);
+    ASSERT_TRUE(ret == (int)sizeof(inband_failure));
+    ASSERT_EQ((int)resp.service, (int)MMS_SERVICE_TYPE_READ);
+    ASSERT_TRUE(resp.params.read.failure);
+    ASSERT_EQ((int)resp.params.read.access_error, 10);
+    PASS();
+}
+
+/* ========================================================================
  * Error Handling
  * ======================================================================== */
 
@@ -2085,6 +2496,18 @@ int main(void)
     test_write_response_failure_choice();
     test_readnamedvarlist_member_failure();
     test_iec61850_report_oracle_default_optflds();
+
+    printf("\n--- WP-2y: standard NVL encoders + response disambiguation ---\n");
+    test_readnamedvarlist_request_standard_wire();
+    test_define_named_varlist_request_standard_wire();
+    test_define_named_varlist_request_legacy_flat();
+    test_delete_named_varlist_request_standard();
+    test_get_named_varlist_attrs_request_standard();
+    test_readnamedvarlist_response_single_member();
+    test_readnamedvarlist_response_empty_list();
+    test_readnamedvarlist_response_vas_echo();
+    test_readnamedvarlist_response_reference_wire();
+    test_read_response_plain_unchanged();
 
     printf("\n--- Error Handling ---\n");
     test_null_parameters();

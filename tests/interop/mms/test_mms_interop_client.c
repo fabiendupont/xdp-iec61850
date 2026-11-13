@@ -5,7 +5,7 @@
  * Launches libiec61850's server_example_basic_io as a subprocess,
  * then connects our MMS client to it over TCP loopback.
  *
- * Tests: MC-01 through MC-11 (including MC-02b, MC-02c)
+ * Tests: MC-01 through MC-12 (including MC-02b, MC-02c)
  * No root needed (TCP loopback).
  * Requires: LIBIEC61850_BUILD_DIR set or default path exists.
  */
@@ -459,6 +459,78 @@ static void test_mc11_write_read_back(void)
 }
 
 /*
+ * MC-12: Read a named variable list (dataset) from the libiec61850 server
+ *
+ * WP-2y: the missing coverage that let the flat-format NVL request
+ * encoder hide — read_named_varlist() was never exercised against a
+ * real server. Discovers the server's datasets via GetNameList
+ * (object class NAMED_VARIABLE_LIST, domain scope) and reads one.
+ * The oracle's server_example_basic_io exposes LLN0$Events (4
+ * members), LLN0$Events2 and LLN0$Measurements in the
+ * simpleIOGenericIO domain.
+ */
+static void test_mc12_read_named_varlist(void)
+{
+    INTEROP_TEST("MC-12: read named variable list from libiec61850 server");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    pid_t srv = start_libiec_server(g_port);
+    if (srv < 0) { g_port++; INTEROP_FAIL("server start failed"); }
+
+    iec61850_mms_client_t client;
+    iec61850_mms_client_init(&client);
+    int ret = iec61850_mms_client_connect(&client, "127.0.0.1", g_port, 5000);
+    if (ret != IEC61850_MMS_CLIENT_OK) {
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("connect failed");
+    }
+
+    /* Discover the datasets the server exposes in its domain. */
+    char lists[32][MMS_MAX_VARIABLE_NAME];
+    uint32_t count = 0;
+    ret = iec61850_mms_client_get_name_list(&client,
+                                               MMS_OBJECT_CLASS_NAMED_VARIABLE_LIST,
+                                               "simpleIOGenericIO", lists, &count, 32);
+    if (ret != IEC61850_MMS_CLIENT_OK) {
+        iec61850_mms_client_disconnect(&client);
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_FAIL("GetNameList of named variable lists failed");
+    }
+    if (count == 0) {
+        /* No datasets exposed by this server build — nothing to read. */
+        iec61850_mms_client_disconnect(&client);
+        interop_stop_helper(srv);
+        g_port++;
+        INTEROP_SKIP("no named variable lists exposed");
+    }
+
+    /* Prefer a known multi-member list (LLN0$Events: 4 members on the
+     * reference model); fall back to the first discovered list. */
+    const char *pick = lists[0];
+    for (uint32_t i = 0; i < count; i++) {
+        if (strcmp(lists[i], "LLN0$Events") == 0) {
+            pick = lists[i];
+            break;
+        }
+    }
+
+    mms_value_t values[8];
+    uint32_t num_values = 0;
+    ret = iec61850_mms_client_read_named_varlist(&client, "simpleIOGenericIO",
+                                                   pick, values, &num_values, 8);
+
+    iec61850_mms_client_disconnect(&client);
+    interop_stop_helper(srv);
+    g_port++;
+
+    INTEROP_ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
+    INTEROP_ASSERT(num_values >= 1);
+    INTEROP_PASS();
+}
+
+/*
  * MC-09: libiec61850 mms_utility reads from our server
  * Our server → libiec61850 mms_utility client
  */
@@ -538,6 +610,7 @@ int main(void)
     test_mc08_reconnect();
     test_mc10_write();
     test_mc11_write_read_back();
+    test_mc12_read_named_varlist();
     test_mc09_libiec_reads_our_server();
 
     INTEROP_SUMMARY();
