@@ -558,6 +558,10 @@ int iec61850_session_decode(const uint8_t *buf, size_t buf_len,
                 plen = buf[offset];
                 offset++;
             }
+            /* Wire-declared user-data length must stay inside the
+             * input buffer; reject instead of returning a range that
+             * extends past it. */
+            if ((offset + plen) > buf_len) { break; }
             *user_data = &buf[offset];
             *user_data_len = plen;
             break;  /* User data is always last */
@@ -998,6 +1002,9 @@ int iec61850_pres_decode(const uint8_t *buf, size_t buf_len,
                     size_t a0_len;
                     ret = ber_read_length(buf, buf_len, &offset, &a0_len);
                     if (ret != 0) { return ret; }
+                    /* Wire-declared length must stay inside the PDV-list
+                     * (and therefore inside the input buffer) */
+                    if ((offset + a0_len) > seq_end) { return -EBADMSG; }
                     *app_pdu = &buf[offset];
                     *app_len = a0_len;
                 } else {

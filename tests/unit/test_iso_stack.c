@@ -133,6 +133,39 @@ static void test_session_requirements_tag(void)
     PASS();
 }
 
+static void test_session_userdata_len_oob(void)
+{
+    TEST("session_userdata_len_oob");
+    /* CONNECT SPDU with a user-data PI (0xC1) whose declared length
+     * (4) exceeds the bytes actually present (2). The decoder must
+     * reject the user data instead of returning an out-of-bounds
+     * range. Regression test for the WP-0b fuzz finding. */
+    uint8_t pdu[] = {0x0D, 0x04, 0xC1, 0x04, 0x41, 0x42};
+    uint8_t si_type;
+    const uint8_t *ud;
+    size_t ud_len;
+
+    int ret = iec61850_session_decode(pdu, sizeof(pdu), &si_type, NULL,
+                                        &ud, &ud_len);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(si_type, IEC61850_SI_CONNECT);
+    ASSERT_TRUE(ud == NULL);
+    ASSERT_EQ((int)ud_len, 0);
+
+    /* Same overflow via the 3-byte (0xFF) length form: declares 16
+     * bytes where only 2 follow. */
+    uint8_t pdu3[] = {0x0D, 0x06, 0xC1, 0xFF, 0x00, 0x10, 0x41, 0x42};
+    ud = NULL;
+    ud_len = 0;
+    ret = iec61850_session_decode(pdu3, sizeof(pdu3), &si_type, NULL,
+                                    &ud, &ud_len);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(ud == NULL);
+    ASSERT_EQ((int)ud_len, 0);
+
+    PASS();
+}
+
 /* ========================================================================
  * Presentation
  * ======================================================================== */
@@ -155,6 +188,47 @@ static void test_pres_pdata_roundtrip(void)
     ASSERT_EQ(pcid, IEC61850_PCID_MMS);
     ASSERT_EQ((int)decoded_len, (int)sizeof(app_data));
     ASSERT_EQ(decoded[0], 0x60);
+
+    PASS();
+}
+
+static void test_pres_a0_len_oob(void)
+{
+    TEST("pres_a0_len_oob");
+    /* PDV-list whose [0] CONSTRUCTED wrapper (0xA0) declares 16 bytes
+     * of content where only 9 remain inside the SEQUENCE. The decoder
+     * must fail with -EBADMSG instead of returning an out-of-bounds
+     * (app_pdu, app_len) range. Derived from the WP-0b crash seed
+     * crash_pres_a0_len_oob.bin (presentation layer only). */
+    const uint8_t pdu[] = {
+        0x61, 0x0E,                   /* fully-encoded-data, len 14 */
+        0x30, 0x0C,                   /* PDV-list SEQUENCE, len 12 */
+        0x02, 0x01, 0x03,             /* pcid INTEGER 3 */
+        0xA0, 0x10,                   /* [0] wrapper claims 16 bytes */
+        0x61, 0x0E, 0x06, 0x05, 0x29, 0x01, 0x07, 0x82, 0x00 /* 9 only */
+    };
+    uint8_t pcid;
+    const uint8_t *app_pdu;
+    size_t app_len;
+
+    int ret = iec61850_pres_decode(pdu, sizeof(pdu), &pcid,
+                                     &app_pdu, &app_len);
+    ASSERT_TRUE(ret < 0);
+
+    /* Control: a well-formed variant (a0 length matches content and
+     * fits the SEQUENCE) still decodes. */
+    const uint8_t ok_pdu[] = {
+        0x61, 0x10,                   /* fully-encoded-data, len 16 */
+        0x30, 0x0E,                   /* PDV-list SEQUENCE, len 14 */
+        0x02, 0x01, 0x03,             /* pcid INTEGER 3 */
+        0xA0, 0x09,                   /* [0] wrapper, 9 bytes content */
+        0x61, 0x0E, 0x06, 0x05, 0x29, 0x01, 0x07, 0x82, 0x00 /* 9 bytes */
+    };
+    ret = iec61850_pres_decode(ok_pdu, sizeof(ok_pdu), &pcid,
+                                 &app_pdu, &app_len);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ((int)app_len, 9);
+    ASSERT_EQ(app_pdu[0], 0x61);
 
     PASS();
 }
@@ -261,9 +335,11 @@ int main(void)
     test_session_connect_accept_roundtrip();
     test_session_data_give_tokens();
     test_session_requirements_tag();
+    test_session_userdata_len_oob();
 
     printf("\n--- Presentation ---\n");
     test_pres_pdata_roundtrip();
+    test_pres_a0_len_oob();
     test_pres_cp_encode();
 
     printf("\n--- ACSE ---\n");
