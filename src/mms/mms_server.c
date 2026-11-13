@@ -20,6 +20,8 @@ void iec61850_mms_server_config_init(iec61850_mms_server_config_t *cfg)
     cfg->max_pdu_size = IEC61850_MMS_MAX_PDU_SIZE;
     cfg->max_sessions = IEC61850_MMS_MAX_SESSIONS;
     cfg->accept_timeout_ms = 1000;
+    cfg->after_response = NULL;
+    cfg->after_response_user_data = NULL;
 }
 
 void iec61850_mms_server_init(iec61850_mms_server_t *server,
