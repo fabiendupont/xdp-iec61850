@@ -3408,10 +3408,23 @@ int mms_encode_confirmed_response(const mms_confirmed_response_t* response,
 
         case MMS_SERVICE_TYPE_WRITE:
             service_tag = MMS_SERVICE_WRITE;
-            /* Write-Response: success [1] IMPLICIT NULL */
-            service_buf[0] = 0x81;  /* success [1] PRIMITIVE */
-            service_buf[1] = 0x00;  /* length 0 */
-            service_len = 2;
+            /* Write-Response: WriteResult CHOICE — success [1]
+             * IMPLICIT NULL, or failure [0] IMPLICIT DataAccessError
+             * (WP-1f, BUG-R3). */
+            if (response->params.write.failure) {
+                uint8_t err_buf[8];
+                service_buf[0] = 0x80;  /* failure [0] PRIMITIVE */
+                ret = encode_integer(response->params.write.access_error,
+                                     err_buf, sizeof(err_buf));
+                if (ret < 0) return ret;
+                service_buf[1] = (uint8_t)ret;
+                memcpy(service_buf + 2, err_buf, (size_t)ret);
+                service_len = 2 + ret;
+            } else {
+                service_buf[0] = 0x81;  /* success [1] PRIMITIVE */
+                service_buf[1] = 0x00;  /* length 0 */
+                service_len = 2;
+            }
             break;
 
         case MMS_SERVICE_TYPE_GET_NAMELIST:
@@ -3895,18 +3908,43 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 }
                 size_t result_end = offset + result_len;
 
-                /* Check for AccessResult failure [0] */
-                if (offset < result_end && buffer[offset] == 0x80) {
-                    /* failure [0] IMPLICIT INTEGER — data access error */
-                    response->service = MMS_SERVICE_TYPE_READ;
-                    offset = result_end;
-                    return MMS_ERROR_SERVICE_ERROR;
-                }
-
-                /* Try to decode multiple values (ReadNamedVariableList) */
+                /* Walk the AccessResult elements. An element tagged
+                 * [0] (0x80) is a failure (IMPLICIT DataAccessError)
+                 * — valid MMS carried in-band (WP-1f, BUG-R2); any
+                 * other tag is a data value. */
                 uint32_t num_values = 0;
+                uint32_t num_failures = 0;
+                int32_t first_error = 0;
                 size_t temp_offset = offset;
                 while (temp_offset < result_end && num_values < MMS_MAX_NAMED_VARIABLES) {
+                    if (buffer[temp_offset] == 0x80) {
+                        /* failure [0] IMPLICIT INTEGER — data access error */
+                        size_t fail_len;
+                        int32_t fail_code = 0;
+                        temp_offset++;
+                        ret = mms_decode_length(buffer + temp_offset,
+                                                result_end - temp_offset, &fail_len);
+                        if (ret < 0) {
+                            return ret;
+                        }
+                        temp_offset += (size_t)ret;
+                        if (!length_fits(temp_offset, fail_len, result_end)) {
+                            return MMS_ERROR_BUFFER_TOO_SMALL;
+                        }
+                        if (fail_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
+                        ret = decode_integer(buffer + temp_offset, fail_len, &fail_code);
+                        if (ret < 0) {
+                            return ret;
+                        }
+                        temp_offset += fail_len;
+                        if (num_failures == 0) {
+                            first_error = fail_code;
+                        }
+                        num_failures++;
+                        continue;
+                    }
                     ret = mms_decode_value(buffer + temp_offset, result_end - temp_offset,
                                          &response->params.readnamedvarlist.values[num_values]);
                     if (ret < 0) {
@@ -3917,15 +3955,29 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
                 }
 
                 /* Determine if it's a single Read or ReadNamedVariableList */
-                if (num_values == 1 && temp_offset == result_end) {
+                if (num_values == 0 && num_failures > 0) {
+                    /* Single-variable Read answered with a failure
+                     * AccessResult: a delivered (decoded) response
+                     * carrying the in-band failure (WP-1f, BUG-R2). */
+                    response->service = MMS_SERVICE_TYPE_READ;
+                    response->params.read.failure = true;
+                    response->params.read.access_error = first_error;
+                    offset = result_end;
+                } else if (num_values == 1 && num_failures == 0 &&
+                           temp_offset == result_end) {
                     /* Single value - regular Read */
                     response->service = MMS_SERVICE_TYPE_READ;
                     response->params.read.value = response->params.readnamedvarlist.values[0];
+                    response->params.read.failure = false;
+                    response->params.read.access_error = 0;
                     offset = temp_offset;
                 } else if (num_values > 0) {
-                    /* Multiple values - ReadNamedVariableList */
+                    /* Multiple values - ReadNamedVariableList (a
+                     * member failure is recorded in-band, WP-1f) */
                     response->service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
                     response->params.readnamedvarlist.num_values = num_values;
+                    response->params.readnamedvarlist.failure = (num_failures > 0);
+                    response->params.readnamedvarlist.access_error = first_error;
                     offset = temp_offset;
                 } else {
                     /* Failed to decode — unknown content */
@@ -3940,11 +3992,51 @@ int mms_decode_confirmed_response(const uint8_t* buffer, size_t buflen,
             break;
 
         case MMS_SERVICE_WRITE:
-            /* Write response is empty for both Write and WriteNamedVariableList */
+            /* Write-Response ::= SEQUENCE OF WriteResult, WriteResult
+             * ::= CHOICE { failure [0] IMPLICIT DataAccessError,
+             *              success [1] IMPLICIT NULL } (WP-1f, BUG-R3:
+             * the CHOICE used to be skipped wholesale, masking
+             * rejected writes). Our client writes one variable per
+             * request, so at most one result is expected, but every
+             * result present is walked. */
             response->service = MMS_SERVICE_TYPE_WRITE;
             /* Note: Cannot distinguish Write vs WriteNamedVariableList from response alone */
             /* Client must track which type of request was sent */
-            offset += field_len;
+            {
+                size_t wr_end = offset + field_len;
+                response->params.write.failure = false;
+                response->params.write.access_error = 0;
+                while (offset < wr_end) {
+                    uint8_t wr_tag = buffer[offset++];
+                    size_t wr_len;
+                    ret = mms_decode_length(buffer + offset, wr_end - offset, &wr_len);
+                    if (ret < 0) {
+                        return ret;
+                    }
+                    offset += ret;
+                    if (!length_fits(offset, wr_len, wr_end)) {
+                        return MMS_ERROR_BUFFER_TOO_SMALL;
+                    }
+                    if (wr_tag == 0x80) {
+                        /* failure [0] IMPLICIT DataAccessError */
+                        int32_t fail_code = 0;
+                        if (wr_len < 1) {
+                            return MMS_ERROR_INVALID_ENCODING;
+                        }
+                        ret = decode_integer(buffer + offset, wr_len, &fail_code);
+                        if (ret < 0) {
+                            return ret;
+                        }
+                        if (!response->params.write.failure) {
+                            response->params.write.failure = true;
+                            response->params.write.access_error = fail_code;
+                        }
+                    }
+                    /* success [1] IMPLICIT NULL and unknown results are
+                     * skipped; the first failure wins. */
+                    offset += wr_len;
+                }
+            }
             break;
 
         case MMS_SERVICE_GET_NAMELIST:
@@ -4891,11 +4983,24 @@ int mms_encode_information_report(const mms_information_report_t* report,
  *         86 xx seqNum       -- unsigned [6]             (if sq_num_present)
  *         8C 06 xx...        -- binary-time [12]         (if time_present)
  *         8A xx datSet       -- visible-string [10]
+ *         83 01 xx           -- bufOvfl boolean [3]      (if bufOvfl optFld)
+ *         89 08 xx...        -- entryID octet-string [9] (if entryID optFld)
  *         86 xx confRev      -- unsigned [6]             (if conf_rev_present)
  *         84 xx inclBitStr   -- bit-string [4]
  *         (data values: 83 boolean / 87 float / 86 unsigned per member)
  *         (reason codes: 84 02 padding reason  per member)
  * ============================================================================ */
+
+/* optFlds bit positions (IEC 61850-7-2 §8.3.2). Bit 0 is the MSB of
+ * the first value octet of the optFlds BIT STRING; bits 0-7 live in
+ * the first value octet, bits 8-9 in the second. */
+#define IEC61850_OPTFLD_SEQ_NUM      0x40u  /* b1: sequence-number */
+#define IEC61850_OPTFLD_TIME_OF_ENTRY 0x20u /* b2: time-of-entry */
+#define IEC61850_OPTFLD_REASON       0x10u  /* b3: reason-for-inclusion */
+#define IEC61850_OPTFLD_DATA_SET     0x08u  /* b4: data-set-name */
+#define IEC61850_OPTFLD_BUF_OVFL     0x02u  /* b6: buffer-overflow (BRCB) */
+#define IEC61850_OPTFLD_ENTRY_ID     0x01u  /* b7: entryID (BRCB) */
+#define IEC61850_OPTFLD_CONF_REV     0x80u  /* b8 (2nd octet): confRev */
 
 int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
                                 uint8_t *buffer, size_t buflen)
@@ -4945,6 +5050,24 @@ int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
 
     /* datSet [10] VisibleString */
     ACR_STR(0x8A, report->dat_set);
+
+    /* bufOvfl [3] BOOLEAN — iff optFlds buffer-overflow (WP-1f,
+     * BUG-R4: appears between datSet and confRev, as sent by servers
+     * whose BRCB defaults include the buffer-overflow option). */
+    if (report->opt_flds_byte & IEC61850_OPTFLD_BUF_OVFL) {
+        ACR_BYTE(0x83); ACR_BYTE(1);
+        ACR_BYTE(report->buffer_overflow ? 0xFFU : 0x00U);
+    }
+
+    /* entryID — iff optFlds entryID: OCTET-STRING [9], 8 bytes
+     * big-endian (WP-1f, BUG-R4). */
+    if (report->opt_flds_byte & IEC61850_OPTFLD_ENTRY_ID) {
+        ACR_BYTE(0x89); ACR_BYTE(8);
+        for (int _i = 0; _i < 8; _i++) {
+            ACR_BYTE((uint8_t)((report->entry_id >>
+                                (((uint64_t)(7 - _i)) * 8u)) & 0xFFu));
+        }
+    }
 
     /* confRev [6] UNSIGNED */
     if (report->conf_rev_present) {
@@ -5028,15 +5151,6 @@ int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
  * Every wire-supplied length is validated with length_fits() against
  * the tightest enclosing parent end before any read or memcpy.
  * -------------------------------------------------------------------------- */
-
-/* optFlds bit positions (IEC 61850-7-2 §8.3.2). Bit 0 is the MSB of
- * the first value octet of the optFlds BIT STRING; bits 0-7 live in
- * the first value octet, bits 8-9 in the second. */
-#define IEC61850_OPTFLD_SEQ_NUM      0x40u  /* b1: sequence-number */
-#define IEC61850_OPTFLD_TIME_OF_ENTRY 0x20u /* b2: time-of-entry */
-#define IEC61850_OPTFLD_REASON       0x10u  /* b3: reason-for-inclusion */
-#define IEC61850_OPTFLD_DATA_SET     0x08u  /* b4: data-set-name */
-#define IEC61850_OPTFLD_CONF_REV     0x80u  /* b8 (2nd octet): confRev */
 
 int mms_decode_iec61850_report(const uint8_t* buffer, size_t buflen,
                                mms_information_report_t* report)
@@ -5170,6 +5284,8 @@ int mms_decode_iec61850_report(const uint8_t* buffer, size_t buflen,
         bool has_time = (of0 & IEC61850_OPTFLD_TIME_OF_ENTRY) != 0;
         bool has_reason = (of0 & IEC61850_OPTFLD_REASON) != 0;
         bool has_dat_set = (of0 & IEC61850_OPTFLD_DATA_SET) != 0;
+        bool has_buf_ovfl = (of0 & IEC61850_OPTFLD_BUF_OVFL) != 0;
+        bool has_entry_id = (of0 & IEC61850_OPTFLD_ENTRY_ID) != 0;
         bool has_conf_rev = (of1 & IEC61850_OPTFLD_CONF_REV) != 0;
 
         /* seqNum [6] UNSIGNED — iff optFlds sequence-number */
@@ -5242,6 +5358,56 @@ int mms_decode_iec61850_report(const uint8_t* buffer, size_t buflen,
             }
             memcpy(report->dat_set, buffer + offset, length);
             report->dat_set[length] = '\0';
+            offset += length;
+        }
+
+        /* bufOvfl [3] BOOLEAN — iff optFlds buffer-overflow (WP-1f,
+         * BUG-R4: the oracle's default BRCB options 0x7a/0x7b include
+         * it between datSet and confRev; any nonzero octet is TRUE). */
+        if (has_buf_ovfl) {
+            if (offset >= list_end || buffer[offset++] != 0x83) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+            if (ret < 0) {
+                return ret;
+            }
+            offset += (size_t)ret;
+            if (!length_fits(offset, length, list_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            if (length < 1) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            report->buffer_overflow = (buffer[offset] != 0);
+            report->buffer_overflow_present = true;
+            offset += length;
+        }
+
+        /* entryID — iff optFlds entryID: OCTET-STRING [9], 1-8 bytes
+         * big-endian into the low bits of entry_id (WP-1f, BUG-R4;
+         * IEC 61850-8-1 Ed.2 uses 8 bytes). */
+        if (has_entry_id) {
+            if (offset >= list_end || buffer[offset++] != 0x89) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            ret = mms_decode_length(buffer + offset, list_end - offset, &length);
+            if (ret < 0) {
+                return ret;
+            }
+            offset += (size_t)ret;
+            if (!length_fits(offset, length, list_end)) {
+                return MMS_ERROR_BUFFER_TOO_SMALL;
+            }
+            if ((length < 1) || (length > 8)) {
+                return MMS_ERROR_INVALID_ENCODING;
+            }
+            report->entry_id = 0;
+            for (size_t i = 0; i < length; i++) {
+                report->entry_id =
+                    (report->entry_id << 8) | buffer[offset + i];
+            }
+            report->entry_id_present = true;
             offset += length;
         }
 

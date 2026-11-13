@@ -175,6 +175,12 @@ static int dispatch_pdu(iec61850_mms_client_core_t *core,
         if (mms_decode_confirmed_response(pdu, pdu_len, &response) < 0) {
             return -EBADMSG;
         }
+        /* A decoded confirmed response is DELIVERED (status 0) even
+         * when it carries an in-band service failure — e.g. a
+         * Read-Response failure AccessResult or a Write-Response
+         * failure CHOICE (WP-1f, BUG-R2/R3): those are valid MMS
+         * PDUs, not malformed ones. Only an undecodable PDU is
+         * -EBADMSG (which fails no entry). */
         entry = pending_find_undelivered(core, response.invoke_id);
         if (entry == NULL) {
             return 0; /* stale or unmatched response */

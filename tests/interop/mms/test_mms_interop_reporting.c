@@ -69,14 +69,12 @@
  *          between datSet and confRev is the unhandled field.
  *          -> MR-04b
  *
- * Naming divergence (worked around, not a bug per se): the oracle
- * exposes RCB components as "$"-separated structure names
- * ("LLN0$RP$EventsRCB01$RptEna"), while our client concatenates
- * the component suffix onto the RCB name ("<rcb>RptEna", the
- * convention of our own server). Passing the RCB name with its
- * trailing "$" (as discovered from the name list) makes the frozen
- * client API produce the oracle's names, so all scenarios pass
- * discovered names like "LLN0$RP$EventsIndexed01$" verbatim.
+ * Naming (WP-1f DIV-1, aligned to the IEC 61850-8-1 standard
+ * convention): the oracle exposes RCB components as "$"-separated
+ * structure names ("LLN0$RP$EventsRCB01$RptEna"), and so does this
+ * repo's client (component item = "<rcb-reference>$<Component>") and
+ * server bridge. All scenarios pass discovered RCB references
+ * (e.g. "LLN0$RP$EventsIndexed01") verbatim.
  *
  * Other oracle observations (documented, not asserted):
  *   - BRCBs use Ed.2 ResvTms (no Resv); enrollment without a
@@ -173,9 +171,10 @@ static int discover_domain(iec61850_mms_client_t *client, char *domain,
 /*
  * Discover RCB names with a full GetNameList sweep, filtering the
  * "...$RptEna" component pattern (the same wire observation
- * rcb_list() is supposed to make). Out names keep the trailing "$"
- * so the client's component naming (rcb_name + suffix) matches the
- * oracle's "$"-separated component objects.
+ * rcb_list() makes). Out names are the RCB references without the
+ * trailing "$" — the client's component naming
+ * (rcb_name + "$" + suffix) matches the oracle's "$"-separated
+ * component objects (WP-1f DIV-1).
  *
  * prefix selects the RCB class ("LLN0$RP$" URCB / "LLN0$BR$" BRCB);
  * NULL matches any.
@@ -199,9 +198,9 @@ static int discover_rcbs(iec61850_mms_client_t *client, const char *domain,
 
     for (i = 0; i < vcount && found < max_names; i++) {
         size_t len = strlen(vars[i]);
-        if ((len > 6U) &&
-            (strcmp(&vars[i][len - 6U], "RptEna") == 0)) {
-            size_t base = len - 6U;
+        if ((len > 7U) &&
+            (strcmp(&vars[i][len - 7U], "$RptEna") == 0)) {
+            size_t base = len - 7U;
             if (base >= (size_t)IEC61850_RCB_MAX_NAME) {
                 base = (size_t)IEC61850_RCB_MAX_NAME - 1U;
             }
@@ -217,13 +216,13 @@ static int discover_rcbs(iec61850_mms_client_t *client, const char *domain,
     return (int)found;
 }
 
-/* Read one RCB component (rcb_name includes the trailing "$"). */
+/* Read one RCB component (rcb_name is the reference, no trailing "$"). */
 static int read_component(iec61850_mms_client_t *client, const char *domain,
                            const char *rcb_name, const char *suffix,
                            mms_value_t *value)
 {
     char item[MMS_MAX_VARIABLE_NAME];
-    (void)snprintf(item, sizeof(item), "%s%s", rcb_name, suffix);
+    (void)snprintf(item, sizeof(item), "%s$%s", rcb_name, suffix);
     (void)memset(value, 0, sizeof(*value));
     return iec61850_mms_client_read(client, domain, item, value);
 }
@@ -451,7 +450,7 @@ static void test_mr02_rcb_get_values(void)
     }
 
     /* The operation under test: rcb_get_values on an oracle URCB
-     * (name as discovered, trailing "$" included). */
+     * (reference as discovered, verbatim). */
     int gv = -1;
     iec61850_mms_client_rcb_values_t values;
     (void)memset(&values, 0, sizeof(values));

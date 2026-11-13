@@ -9,8 +9,8 @@
  *
  * Layer 2 (same-process loopback, per the WP-1c plan): the repo's own
  * mms_server is started with an RCB-provisioned data store (IEC
- * 61850-8-1 Ed.2 component-object naming: RCB <name> exposes named
- * variables "<name>RptEna", "<name>Resv", ... in the LD domain).
+ * 61850-8-1 component-object naming, WP-1f DIV-1: RCB <name> exposes
+ * named variables "<name>$<Component>" in the LD domain).
  * The server's after_response hook mirrors client RCB writes into
  * the repo's own RCB engine (mms_report.c) and pushes the generated
  * InformationReports onto the wire, so report reception is exercised
@@ -201,7 +201,8 @@ static void ds_put(const char *domain, const char *item, const mms_value_t *v)
 static void comp_name(char *out, size_t out_size,
                        const char *rcb, const char *suffix)
 {
-    (void)snprintf(out, out_size, "%s%s", rcb, suffix);
+    /* IEC 61850-8-1 component naming (WP-1f DIV-1): "<ref>$<Comp>". */
+    (void)snprintf(out, out_size, "%s$%s", rcb, suffix);
 }
 
 /* Provision one RCB's component objects (Ed.2 naming). */
@@ -311,6 +312,10 @@ static void mirror_rcb_component(iec61850_rcb_t *engine, const char *domain,
         return;
     }
     suffix = &item[n];
+    /* Component naming (WP-1f DIV-1): "<ref>$<Comp>". */
+    if (suffix[0] == '$') {
+        suffix++;
+    }
 
     if (iec61850_mms_ds_read_variable(&g_ds, domain, item, &v) !=
         (int)IEC61850_MMS_DS_OK) {
@@ -745,15 +750,15 @@ static void test_enrollment_order_and_roundtrip(void)
     iec61850_mms_client_rcb_values_t values;
     iec61850_mms_client_rcb_values_t readback;
     static const char *expected_order[] = {
-        URCB_NAME "Resv",
-        URCB_NAME "RptID",
-        URCB_NAME "DatSet",
-        URCB_NAME "ConfRev",
-        URCB_NAME "OptFlds",
-        URCB_NAME "TrgOps",
-        URCB_NAME "BufTm",
-        URCB_NAME "IntgPd",
-        URCB_NAME "RptEna",
+        URCB_NAME "$Resv",
+        URCB_NAME "$RptID",
+        URCB_NAME "$DatSet",
+        URCB_NAME "$ConfRev",
+        URCB_NAME "$OptFlds",
+        URCB_NAME "$TrgOps",
+        URCB_NAME "$BufTm",
+        URCB_NAME "$IntgPd",
+        URCB_NAME "$RptEna",
     };
     uint32_t mask;
     uint32_t i;
@@ -895,7 +900,7 @@ static void test_purge_and_entry_id(void)
                                                 BRCB_NAME);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
     ret = iec61850_mms_client_read(&client, DOMAIN_BRCB,
-                                    BRCB_NAME "PurgeBuf", &val);
+                                    BRCB_NAME "$PurgeBuf", &val);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
     ASSERT_EQ((int)val.type, (int)MMS_TYPE_BOOLEAN);
     ASSERT_TRUE(val.value.boolean);
@@ -944,7 +949,7 @@ static void test_ownership_conflict(void)
      * Resv write: the Owner probe (the failed write itself gets an
      * error response, which does not trigger the hook). */
     ASSERT_EQ((int)g_write_log_count, 1);
-    ASSERT_STR(g_write_log[0], URCB2_NAME "Owner");
+    ASSERT_STR(g_write_log[0], URCB2_NAME "$Owner");
 
     /* u3 has neither Resv nor Owner: plain MMS error, no retry. */
     g_write_log_count = 0u;

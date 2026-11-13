@@ -370,6 +370,10 @@ static void test_enable_disable_lifecycle(void)
 #define BR_LDD  "LDD"
 #define BR_STVAL "XCBR1$ST$Pos$stVal"
 #define BR_HZ    "MMXU1$MX$Hz$mag$f"
+/* Exposed RCB references (WP-1f DIV-1: LN0 "$"-separated naming,
+ * built by the bridge from the RCB name/type). */
+#define BR_URCB_REF "LLN0$RP$u1"
+#define BR_BRCB_REF "LLN0$BR$b1"
 
 static mms_value_t br_bool(bool b)
 {
@@ -474,41 +478,41 @@ static void test_bridge_expose_components(void)
 
     /* URCB components (Resv, no EntryID/PurgeBuf). */
     const char *urcb_comps[] = {
-        "u1RptID", "u1RptEna", "u1Resv", "u1DatSet", "u1ConfRev",
-        "u1OptFlds", "u1BufTm", "u1TrgOps", "u1IntgPd", "u1GI",
-        "u1SqNum", "u1Owner"
+        BR_URCB_REF "$RptID", BR_URCB_REF "$RptEna", BR_URCB_REF "$Resv", BR_URCB_REF "$DatSet", BR_URCB_REF "$ConfRev",
+        BR_URCB_REF "$OptFlds", BR_URCB_REF "$BufTm", BR_URCB_REF "$TrgOps", BR_URCB_REF "$IntgPd", BR_URCB_REF "$GI",
+        BR_URCB_REF "$SqNum", BR_URCB_REF "$Owner"
     };
     for (size_t i = 0; i < sizeof(urcb_comps) / sizeof(urcb_comps[0]); i++) {
         ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, BR_LD, urcb_comps[i]));
     }
-    ASSERT_TRUE(!iec61850_mms_ds_variable_exists(&ds, BR_LD, "u1EntryID"));
-    ASSERT_TRUE(!iec61850_mms_ds_variable_exists(&ds, BR_LD, "u1PurgeBuf"));
+    ASSERT_TRUE(!iec61850_mms_ds_variable_exists(&ds, BR_LD, BR_URCB_REF "$EntryID"));
+    ASSERT_TRUE(!iec61850_mms_ds_variable_exists(&ds, BR_LD, BR_URCB_REF "$PurgeBuf"));
 
     /* BRCB components (EntryID + PurgeBuf, no Resv). */
     const char *brcb_comps[] = {
-        "b1RptID", "b1RptEna", "b1DatSet", "b1ConfRev", "b1OptFlds",
-        "b1BufTm", "b1TrgOps", "b1IntgPd", "b1GI", "b1SqNum", "b1Owner",
-        "b1EntryID", "b1PurgeBuf"
+        BR_BRCB_REF "$RptID", BR_BRCB_REF "$RptEna", BR_BRCB_REF "$DatSet", BR_BRCB_REF "$ConfRev", BR_BRCB_REF "$OptFlds",
+        BR_BRCB_REF "$BufTm", BR_BRCB_REF "$TrgOps", BR_BRCB_REF "$IntgPd", BR_BRCB_REF "$GI", BR_BRCB_REF "$SqNum", BR_BRCB_REF "$Owner",
+        BR_BRCB_REF "$EntryID", BR_BRCB_REF "$PurgeBuf"
     };
     for (size_t i = 0; i < sizeof(brcb_comps) / sizeof(brcb_comps[0]); i++) {
         ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, BR_LD, brcb_comps[i]));
     }
-    ASSERT_TRUE(!iec61850_mms_ds_variable_exists(&ds, BR_LD, "b1Resv"));
+    ASSERT_TRUE(!iec61850_mms_ds_variable_exists(&ds, BR_LD, BR_BRCB_REF "$Resv"));
 
     /* Component types (IEC 61850-8-1 Ed.2 wire types). */
-    v = bridge_read_comp(&mgr, "u1RptEna");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$RptEna");
     ASSERT_EQ((int)v.type, (int)MMS_TYPE_BOOLEAN);
-    v = bridge_read_comp(&mgr, "u1RptID");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$RptID");
     ASSERT_EQ((int)v.type, (int)MMS_TYPE_VISIBLE_STRING);
-    v = bridge_read_comp(&mgr, "u1ConfRev");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$ConfRev");
     ASSERT_EQ((int)v.type, (int)MMS_TYPE_UNSIGNED);
-    v = bridge_read_comp(&mgr, "u1OptFlds");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$OptFlds");
     ASSERT_EQ((int)v.type, (int)MMS_TYPE_BIT_STRING);
     ASSERT_EQ((int)v.value.bit_string.bit_count, 10);
-    v = bridge_read_comp(&mgr, "u1TrgOps");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$TrgOps");
     ASSERT_EQ((int)v.type, (int)MMS_TYPE_BIT_STRING);
     ASSERT_EQ((int)v.value.bit_string.bit_count, 6);
-    v = bridge_read_comp(&mgr, "b1EntryID");
+    v = bridge_read_comp(&mgr, BR_BRCB_REF "$EntryID");
     ASSERT_EQ((int)v.type, (int)MMS_TYPE_OCTET_STRING);
     ASSERT_EQ((int)v.value.octet_string.len, 8);
 
@@ -532,42 +536,42 @@ static void test_bridge_component_validation(void)
 
     /* Configuration while disabled is accepted. */
     v = br_str(BR_LDD "/ds1");
-    bridge_write_comp(&mgr, "u1DatSet", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$DatSet", &v);
     ASSERT_STR(mgr.rcbs[0].attrs.dat_set, BR_LDD "/ds1");
 
     /* Ed.2: URCB RptEna=TRUE requires a prior reservation. */
     v = br_bool(true);
-    bridge_write_comp(&mgr, "u1RptEna", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$RptEna", &v);
     ASSERT_TRUE(!mgr.rcbs[0].attrs.rpt_ena);
-    v = bridge_read_comp(&mgr, "u1RptEna");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$RptEna");
     ASSERT_TRUE(!v.value.boolean);   /* reverted */
 
     /* Reservation, then enable succeeds. */
     v = br_bool(true);
-    bridge_write_comp(&mgr, "u1Resv", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$Resv", &v);
     ASSERT_TRUE(mgr.rcbs[0].resv);
     v = br_bool(true);
-    bridge_write_comp(&mgr, "u1RptEna", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$RptEna", &v);
     ASSERT_TRUE(mgr.rcbs[0].attrs.rpt_ena);
 
     /* Configuration and read-only components are rejected while
      * enabled (reverted in the store). */
     v = br_str("somewhere/else");
-    bridge_write_comp(&mgr, "u1DatSet", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$DatSet", &v);
     ASSERT_STR(mgr.rcbs[0].attrs.dat_set, BR_LDD "/ds1");
-    v = bridge_read_comp(&mgr, "u1DatSet");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$DatSet");
     ASSERT_STR(v.value.visible_string.data, BR_LDD "/ds1");
 
-    v = bridge_read_comp(&mgr, "u1SqNum");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$SqNum");
     ASSERT_EQ((int)v.value.unsigned_val, 0);
     v.value.unsigned_val = 99U;
-    bridge_write_comp(&mgr, "u1SqNum", &v);
-    v = bridge_read_comp(&mgr, "u1SqNum");
+    bridge_write_comp(&mgr, BR_URCB_REF "$SqNum", &v);
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$SqNum");
     ASSERT_EQ((int)v.value.unsigned_val, 0);   /* read-only, reverted */
 
     /* Disable releases the reservation and the Owner. */
     v = br_bool(false);
-    bridge_write_comp(&mgr, "u1RptEna", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$RptEna", &v);
     ASSERT_TRUE(!mgr.rcbs[0].attrs.rpt_ena);
     ASSERT_TRUE(!mgr.rcbs[0].resv);
     ASSERT_TRUE(mgr.rcbs[0].owner[0] == '\0');
@@ -592,9 +596,9 @@ static void test_bridge_brcb_persistence_and_purge(void)
 
     /* Arm the BRCB (no reservation required). */
     v = br_str(BR_LDD "/ds1");
-    bridge_write_comp(&mgr, "b1DatSet", &v);
+    bridge_write_comp(&mgr, BR_BRCB_REF "$DatSet", &v);
     v = br_bool(true);
-    bridge_write_comp(&mgr, "b1RptEna", &v);
+    bridge_write_comp(&mgr, BR_BRCB_REF "$RptEna", &v);
     ASSERT_TRUE(mgr.rcbs[1].attrs.rpt_ena);
 
     /* Data changes with no association: buffered only, the visible
@@ -617,9 +621,9 @@ static void test_bridge_brcb_persistence_and_purge(void)
 
     /* PurgeBuf clears the buffer and resets the visible marker. */
     v = br_bool(true);
-    bridge_write_comp(&mgr, "b1PurgeBuf", &v);
+    bridge_write_comp(&mgr, BR_BRCB_REF "$PurgeBuf", &v);
     ASSERT_EQ((int)buf->count, 0);
-    v = bridge_read_comp(&mgr, "b1EntryID");
+    v = bridge_read_comp(&mgr, BR_BRCB_REF "$EntryID");
     ASSERT_EQ((int)v.value.octet_string.len, 8);
     {
         uint64_t marker = 0U;
@@ -652,9 +656,9 @@ static void test_bridge_clear_association_urcb(void)
 
     /* Reserve + enable. */
     v = br_bool(true);
-    bridge_write_comp(&mgr, "u1Resv", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$Resv", &v);
     v = br_bool(true);
-    bridge_write_comp(&mgr, "u1RptEna", &v);
+    bridge_write_comp(&mgr, BR_URCB_REF "$RptEna", &v);
     ASSERT_TRUE(mgr.rcbs[0].attrs.rpt_ena);
     ASSERT_TRUE(mgr.rcbs[0].resv);
 
@@ -663,7 +667,7 @@ static void test_bridge_clear_association_urcb(void)
     ASSERT_TRUE(!mgr.rcbs[0].attrs.rpt_ena);
     ASSERT_TRUE(!mgr.rcbs[0].resv);
     ASSERT_TRUE(mgr.rcbs[0].owner[0] == '\0');
-    v = bridge_read_comp(&mgr, "u1RptEna");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$RptEna");
     ASSERT_TRUE(!v.value.boolean);
 
     iec61850_rcb_manager_destroy(&mgr);
@@ -685,22 +689,22 @@ static void test_bridge_write_prevalidation(void)
     /* Not an RCB component: the server handles it normally. */
     ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LDD, BR_STVAL, &v, NULL),
               -ENOENT);
-    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, "zzzRptEna", &v, NULL),
+    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, "zzz$RptEna", &v, NULL),
               -ENOENT);
 
     /* Ed.2 validation rejects enabling an unreserved URCB and leaves
      * the store untouched (pre-commit wiring can fail the Write). */
-    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, "u1RptEna", &v, NULL),
+    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, BR_URCB_REF "$RptEna", &v, NULL),
               -EACCES);
-    v = bridge_read_comp(&mgr, "u1RptEna");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$RptEna");
     ASSERT_TRUE(!v.value.boolean);
 
     /* Reservation then enable succeed and are published. */
     v = br_bool(true);
-    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, "u1Resv", &v, NULL), 0);
-    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, "u1RptEna", &v, NULL), 0);
+    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, BR_URCB_REF "$Resv", &v, NULL), 0);
+    ASSERT_EQ(iec61850_rcb_bridge_write(&mgr, BR_LD, BR_URCB_REF "$RptEna", &v, NULL), 0);
     ASSERT_TRUE(mgr.rcbs[0].attrs.rpt_ena);
-    v = bridge_read_comp(&mgr, "u1RptEna");
+    v = bridge_read_comp(&mgr, BR_URCB_REF "$RptEna");
     ASSERT_TRUE(v.value.boolean);
 
     iec61850_rcb_manager_destroy(&mgr);
@@ -714,7 +718,9 @@ static void test_bridge_write_prevalidation(void)
  * ======================================================================== */
 
 #define LOOP_PORT   11821
-#define LOOP_LD     "LD"      /* RCB component objects */
+#define LOOP_LD     "LD"      /* RCB component objects  */
+#define LOOP_URCB_REF "LLN0$RP$u1"   /* exposed URCB reference */
+#define LOOP_BRCB_REF "LLN0$BR$b1"   /* exposed BRCB reference */
 #define LOOP_LDD    "LDD"     /* monitored data points  */
 #define LOOP_STVAL  "XCBR1$ST$Pos$stVal"
 #define LOOP_HZ     "MMXU1$MX$Hz$mag$f"
@@ -853,8 +859,8 @@ static void test_loop_rcb_list(void)
               IEC61850_MMS_CLIENT_OK);
     ASSERT_EQ((int)count, 2);
     for (uint32_t i = 0U; i < count; i++) {
-        if (strcmp(names[i], "u1") == 0) { found_u1 = true; }
-        if (strcmp(names[i], "b1") == 0) { found_b1 = true; }
+        if (strcmp(names[i], LOOP_URCB_REF) == 0) { found_u1 = true; }
+        if (strcmp(names[i], LOOP_BRCB_REF) == 0) { found_b1 = true; }
     }
     ASSERT_TRUE(found_u1);
     ASSERT_TRUE(found_b1);
@@ -884,7 +890,7 @@ static void test_loop_urcb_enroll_report(void)
 
     /* Initial state through the component objects. */
     (void)memset(&values, 0, sizeof(values));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, "u1",
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, LOOP_URCB_REF,
                                                   &values),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_TRUE(!values.buffered);
@@ -913,12 +919,12 @@ static void test_loop_urcb_enroll_report(void)
            (uint32_t)IEC61850_RCB_FIELD_TRG_OPS |
            (uint32_t)IEC61850_RCB_FIELD_RPT_ENA;
 
-    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, "u1",
+    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, LOOP_URCB_REF,
                                               &values, mask);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
 
     (void)memset(&readback, 0, sizeof(readback));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, "u1",
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, LOOP_URCB_REF,
                                                   &readback),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_TRUE(readback.resv);
@@ -959,10 +965,10 @@ static void test_loop_urcb_enroll_report(void)
     ASSERT_EQ(g_loop_report_count, 0);
 
     /* Disable: reservation and Owner released, no further reports. */
-    ASSERT_EQ(iec61850_mms_client_rcb_disable(&client, LOOP_LD, "u1"),
+    ASSERT_EQ(iec61850_mms_client_rcb_disable(&client, LOOP_LD, LOOP_URCB_REF),
               IEC61850_MMS_CLIENT_OK);
     (void)memset(&readback, 0, sizeof(readback));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, "u1",
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, LOOP_URCB_REF,
                                                   &readback),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_TRUE(!readback.attrs.rpt_ena);
@@ -1012,7 +1018,7 @@ static void test_loop_brcb_buffered_resume(void)
            (uint32_t)IEC61850_RCB_FIELD_TRG_OPS |
            (uint32_t)IEC61850_RCB_FIELD_RPT_ENA;
 
-    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, "b1",
+    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, LOOP_BRCB_REF,
                                               &values, mask);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
 
@@ -1060,9 +1066,9 @@ static void test_loop_brcb_buffered_resume(void)
 
     /* Re-associate and resume after EntryID 2. */
     loop_connect(&client);
-    ASSERT_EQ(iec61850_mms_client_rcb_set_entry_id(&client, LOOP_LD, "b1", 2U),
+    ASSERT_EQ(iec61850_mms_client_rcb_set_entry_id(&client, LOOP_LD, LOOP_BRCB_REF, 2U),
               IEC61850_MMS_CLIENT_OK);
-    ASSERT_EQ(iec61850_mms_client_rcb_enable(&client, LOOP_LD, "b1"),
+    ASSERT_EQ(iec61850_mms_client_rcb_enable(&client, LOOP_LD, LOOP_BRCB_REF),
               IEC61850_MMS_CLIENT_OK);
 
     g_loop_report_count = 0;
@@ -1105,14 +1111,14 @@ static void test_loop_brcb_purge(void)
     loop_connect(&client);
 
     /* Re-adopt the (still enabled) BRCB, then purge. */
-    ASSERT_EQ(iec61850_mms_client_rcb_enable(&client, LOOP_LD, "b1"),
+    ASSERT_EQ(iec61850_mms_client_rcb_enable(&client, LOOP_LD, LOOP_BRCB_REF),
               IEC61850_MMS_CLIENT_OK);
-    ASSERT_EQ(iec61850_mms_client_rcb_purge_buffer(&client, LOOP_LD, "b1"),
+    ASSERT_EQ(iec61850_mms_client_rcb_purge_buffer(&client, LOOP_LD, LOOP_BRCB_REF),
               IEC61850_MMS_CLIENT_OK);
 
     ASSERT_EQ((int)buf->count, 0);
     (void)memset(&v, 0, sizeof(v));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, "b1", &v),
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, LOOP_BRCB_REF, &v),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_TRUE(v.buffered);
     ASSERT_TRUE(v.attrs.entry_id == 0U);   /* marker reset by purge */
@@ -1144,7 +1150,7 @@ static void test_loop_buftm_aggregation(void)
     loop_connect(&client);
 
     /* Reconfigure BufTm (requires RptEna=FALSE), then re-enable. */
-    ASSERT_EQ(iec61850_mms_client_rcb_disable(&client, LOOP_LD, "b1"),
+    ASSERT_EQ(iec61850_mms_client_rcb_disable(&client, LOOP_LD, LOOP_BRCB_REF),
               IEC61850_MMS_CLIENT_OK);
 
     (void)memset(&values, 0, sizeof(values));
@@ -1152,7 +1158,7 @@ static void test_loop_buftm_aggregation(void)
     values.attrs.rpt_ena = true;
     mask = (uint32_t)IEC61850_RCB_FIELD_BUF_TM |
            (uint32_t)IEC61850_RCB_FIELD_RPT_ENA;
-    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, "b1",
+    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, LOOP_BRCB_REF,
                                               &values, mask);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
 
@@ -1191,7 +1197,7 @@ static void test_loop_buftm_aggregation(void)
 
     /* Sequence number advanced by exactly one (single report). */
     (void)memset(&values, 0, sizeof(values));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, "b1",
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client, LOOP_LD, LOOP_BRCB_REF,
                                                   &values),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_EQ((int)values.attrs.sq_num, 7);   /* 5 (resume) + 1 (purge) + 1 */
@@ -1229,12 +1235,12 @@ static void test_loop_ownership_conflict(void)
            (uint32_t)IEC61850_RCB_FIELD_DAT_SET |
            (uint32_t)IEC61850_RCB_FIELD_TRG_OPS |
            (uint32_t)IEC61850_RCB_FIELD_RPT_ENA;
-    ret = iec61850_mms_client_rcb_set_values(&client_a, LOOP_LD, "u1",
+    ret = iec61850_mms_client_rcb_set_values(&client_a, LOOP_LD, LOOP_URCB_REF,
                                               &values, mask);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
 
     (void)memset(&readback, 0, sizeof(readback));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_a, LOOP_LD, "u1",
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_a, LOOP_LD, LOOP_URCB_REF,
                                                   &readback),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_TRUE(readback.owner[0] != '\0');
@@ -1247,21 +1253,21 @@ static void test_loop_ownership_conflict(void)
     loop_connect(&client_b);
     (void)memset(&values, 0, sizeof(values));
     values.resv = true;
-    ret = iec61850_mms_client_rcb_set_values(&client_b, LOOP_LD, "u1",
+    ret = iec61850_mms_client_rcb_set_values(&client_b, LOOP_LD, LOOP_URCB_REF,
                                               &values,
                                               (uint32_t)IEC61850_RCB_FIELD_RESV);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);   /* accepted by the store */
 
     (void)memset(&readback, 0, sizeof(readback));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_b, LOOP_LD, "u1",
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_b, LOOP_LD, LOOP_URCB_REF,
                                                   &readback),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_STR(readback.owner, owner_a);      /* still A's */
 
-    ASSERT_EQ(iec61850_mms_client_rcb_enable(&client_b, LOOP_LD, "u1"),
+    ASSERT_EQ(iec61850_mms_client_rcb_enable(&client_b, LOOP_LD, LOOP_URCB_REF),
               IEC61850_MMS_CLIENT_OK);
     (void)memset(&readback, 0, sizeof(readback));
-    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_b, LOOP_LD, "u1",
+    ASSERT_EQ(iec61850_mms_client_rcb_get_values(&client_b, LOOP_LD, LOOP_URCB_REF,
                                                   &readback),
               IEC61850_MMS_CLIENT_OK);
     ASSERT_STR(readback.owner, owner_a);      /* B could not take over */
@@ -1277,7 +1283,7 @@ static void test_loop_ownership_conflict(void)
     ASSERT_EQ(g_loop_report_count, 1);        /* A receives it */
 
     /* Owner releases. */
-    ASSERT_EQ(iec61850_mms_client_rcb_disable(&client_a, LOOP_LD, "u1"),
+    ASSERT_EQ(iec61850_mms_client_rcb_disable(&client_a, LOOP_LD, LOOP_URCB_REF),
               IEC61850_MMS_CLIENT_OK);
 
     (void)iec61850_mms_client_disconnect(&client_b);
@@ -1315,7 +1321,7 @@ static void test_loop_gi_report(void)
            (uint32_t)IEC61850_RCB_FIELD_TRG_OPS |
            (uint32_t)IEC61850_RCB_FIELD_RPT_ENA;
 
-    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, "u1",
+    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, LOOP_URCB_REF,
                                               &values, mask);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
 
@@ -1325,7 +1331,7 @@ static void test_loop_gi_report(void)
     g_loop_report_count = 0;
     (void)memset(&values, 0, sizeof(values));
     values.attrs.gi = true;
-    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, "u1",
+    ret = iec61850_mms_client_rcb_set_values(&client, LOOP_LD, LOOP_URCB_REF,
                                               &values,
                                               (uint32_t)IEC61850_RCB_FIELD_GI);
     ASSERT_EQ(ret, IEC61850_MMS_CLIENT_OK);
@@ -1342,7 +1348,7 @@ static void test_loop_gi_report(void)
     ASSERT_EQ((int)g_loop_last.reasons[0], (int)IEC61850_REASON_GI);
     ASSERT_EQ((int)g_loop_last.reasons[1], (int)IEC61850_REASON_GI);
 
-    (void)iec61850_mms_client_rcb_disable(&client, LOOP_LD, "u1");
+    (void)iec61850_mms_client_rcb_disable(&client, LOOP_LD, LOOP_URCB_REF);
     (void)iec61850_mms_client_disconnect(&client);
     PASS();
 }

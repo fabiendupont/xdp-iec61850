@@ -649,9 +649,13 @@ iec61850_report_buffer_t *iec61850_rcb_manager_get_buffer(
 /* ========================================================================
  * RCB <-> data-store bridge — IEC 61850-8-1 Ed.2 semantics (WP-2a)
  *
- * Component-object model: RCB <name> exposes one named variable per
- * component ("<name>RptEna", "<name>DatSet", ...). Value encodings
- * (matching this repo's WP-1c client):
+ * Component-object model (WP-1f DIV-1, standard "$"-separated
+ * naming): every managed RCB is exposed under the LN0 reference
+ * "LLN0$RP$<name>" (URCB) / "LLN0$BR$<name>" (BRCB) — RCBs live in
+ * LN0 per IEC 61850-7-2 — with one named variable per component,
+ * named "<reference>$<Component>" (e.g. "LLN0$RP$urcb01$RptEna"),
+ * matching the naming of reference IEC 61850 servers and of this
+ * repo's WP-1c client. Value encodings (matching the client):
  *   RptEna, Resv, GI, PurgeBuf ... BOOLEAN
  *   RptID, DatSet, Owner ........ VISIBLE-STRING
  *   ConfRev, BufTm, IntgPd, SqNum  UNSIGNED
@@ -1264,6 +1268,9 @@ void iec61850_rcb_manager_flush_reports(iec61850_rcb_manager_t *mgr)
 
 /* ---- component variable plumbing ---- */
 
+/* Build the IEC 61850-8-1 component item name: "<reference>$<suffix>"
+ * where the reference is the exposed name of RCB idx (built at
+ * expose() time from the RCB's name/type, see bridge_expose_rcb). */
 static int bridge_component_item(const iec61850_rcb_manager_t *mgr,
                                  uint32_t idx, rcb_comp_t comp,
                                  char *out, size_t out_size)
@@ -1275,7 +1282,7 @@ static int bridge_component_item(const iec61850_rcb_manager_t *mgr,
     suffix = bridge_comp_suffix(comp);
     if (suffix == NULL) { return -EINVAL; }
 
-    return (snprintf(out, out_size, "%s%s", mgr->bridge.names[idx],
+    return (snprintf(out, out_size, "%s$%s", mgr->bridge.names[idx],
                      suffix) < (int)out_size) ? 0 : -EINVAL;
 }
 
@@ -1448,9 +1455,22 @@ static int bridge_expose_rcb(iec61850_rcb_manager_t *mgr, uint32_t idx)
     if (!mgr->bridge.active) { return -EINVAL; }
     if ((name == NULL) || (name[0] == '\0')) { return -EINVAL; }
 
-    (void)strncpy(mgr->bridge.names[idx], name,
-                  (size_t)IEC61850_RCB_MAX_NAME - 1U);
-    mgr->bridge.names[idx][IEC61850_RCB_MAX_NAME - 1U] = '\0';
+    /* Exposed reference, IEC 61850-8-1 (WP-1f DIV-1): RCBs live in
+     * LN0 ("LLN0"), $-separated with the RP (URCB) / BR (BRCB)
+     * segment, e.g. "LLN0$RP$urcb01". Truncation beyond the
+     * IEC61850_RCB_MAX_NAME budget keeps the reference usable (the
+     * same truncated form is used consistently for publish and
+     * lookup). */
+    {
+        const char *seg =
+            (rcb->type == IEC61850_RCB_BUFFERED) ? "BR" : "RP";
+        int n = snprintf(mgr->bridge.names[idx],
+                         (size_t)IEC61850_RCB_MAX_NAME,
+                         "LLN0$%s$%s", seg, name);
+        if (n < 0) {
+            return -EINVAL;
+        }
+    }
     mgr->bridge.shadow[idx].valid = false;
 
     /* GI snapshots read from the bridged store. */
@@ -2100,8 +2120,9 @@ static bool bridge_lookup_item(iec61850_rcb_manager_t *mgr,
         const char *name = mgr->bridge.names[i];
         size_t n = strlen(name);
 
-        if ((n > 0u) && (strncmp(item, name, n) == 0) && (item[n] != '\0')) {
-            rcb_comp_t comp = bridge_suffix_comp(&item[n],
+        if ((n > 0u) && (strncmp(item, name, n) == 0) &&
+            (item[n] == '$') && (item[n + 1u] != '\0')) {
+            rcb_comp_t comp = bridge_suffix_comp(&item[n + 1u],
                                                  mgr->rcbs[i].type);
             if (comp != RCB_COMP_NONE) {
                 *idx_out = i;
