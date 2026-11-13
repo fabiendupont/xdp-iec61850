@@ -987,6 +987,7 @@ wire_test_scripts = [
     ['wire_mms', 'interop/wire/test_wire_mms.sh'],
     ['wire_mms_report', 'interop/wire/test_wire_mms_report.sh'],
     ['wire_mms_control_ed2', 'interop/wire/test_wire_mms_control_ed2.sh'],
+    ['wire_rgoose', 'interop/wire/test_wire_rgoose.sh'],
 ]
 wire_test_env = environment()
 wire_test_env.set('MESON_BUILD_ROOT', meson.project_build_root())

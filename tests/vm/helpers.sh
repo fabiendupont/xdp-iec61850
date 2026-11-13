@@ -144,6 +144,48 @@ wait_for_file() {
     return 1
 }
 
+# ---- Scenario compilation (WP-2d deviation pattern) ----
+
+# build_scenario NAME OUT_PATH
+#   Compile tests/integration/NAME.c against the meson build tree and
+#   link it exactly like the registered test targets (the link line
+#   is derived from an existing registered target via `ninja -t
+#   commands`; meson.build additions are orchestrator-owned).  The
+#   security define is picked up from the registered 90-5 target when
+#   the build tree has -Denable_security=true.
+#   Returns 0 on success (binary at OUT_PATH), 1 when the scenario
+#   cannot be built (caller should SKIP).
+build_scenario() {
+    local name="$1"
+    local out="$2"
+    local src="$PROJECT_DIR/tests/integration/$name.c"
+    local link_line sec_flags
+
+    command -v cc >/dev/null 2>&1 || return 1
+    command -v ninja >/dev/null 2>&1 || return 1
+    [ -f "$BUILDDIR/build.ninja" ] || return 1
+    [ -f "$src" ] || return 1
+
+    if ninja -C "$BUILDDIR" -t commands tests/test_rgoose_pubsub 2>/dev/null | \
+       grep -q IEC61850_SECURITY_ENABLED; then
+        sec_flags="-DIEC61850_SECURITY_ENABLED"
+    fi
+
+    link_line="$(ninja -C "$BUILDDIR" -t commands tests/test_packet_io_raw_veth 2>/dev/null | tail -1)"
+    [ -n "$link_line" ] || return 1
+
+    cc -std=c11 -O2 -I"$PROJECT_DIR/include/iec61850" \
+       -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE $sec_flags \
+       -c "$src" -o "$out.o" 2>/dev/null || { rm -f "$out.o"; return 1; }
+
+    (cd "$BUILDDIR" && echo "$link_line" | \
+        sed -e "s|-o tests/test_packet_io_raw_veth|-o $out|" \
+            -e "s|tests/test_packet_io_raw_veth.p/[^ ]*c.o|$out.o|" \
+        > "$out.cmd" && sh "$out.cmd") || { rm -f "$out.o" "$out.cmd"; return 1; }
+    rm -f "$out.o" "$out.cmd"
+    [ -x "$out" ]
+}
+
 # ---- Test result helpers ----
 
 _TESTS_RUN=0
