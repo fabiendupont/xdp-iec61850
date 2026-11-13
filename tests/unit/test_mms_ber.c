@@ -295,6 +295,88 @@ static void test_read_response_roundtrip(void)
  * Write Request
  * ======================================================================== */
 
+static void test_getnamelist_response_long_list(void)
+{
+    TEST("getnamelist_response_long_list");
+    /* Regression for the short-form length bug: >127 content bytes in
+     * listOfIdentifier previously produced a corrupted PDU. */
+    uint8_t buf[MMS_MAX_PDU_SIZE];
+    mms_confirmed_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+    resp.invoke_id = 7;
+    resp.service = MMS_SERVICE_TYPE_GET_NAMELIST;
+    resp.params.getnamelist.num_identifiers = 30;
+    for (uint32_t i = 0; i < 30; i++) {
+        (void)snprintf(resp.params.getnamelist.identifiers[i],
+                       MMS_MAX_VARIABLE_NAME, "var%02uabcdefghijklmnop", i);
+    }
+
+    int enc_len = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+
+    mms_confirmed_response_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_response(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed > 0);
+    ASSERT_EQ((int)decoded.params.getnamelist.num_identifiers, 30);
+    for (uint32_t i = 0; i < 30; i++) {
+        ASSERT_TRUE(strcmp(decoded.params.getnamelist.identifiers[i],
+                           resp.params.getnamelist.identifiers[i]) == 0);
+    }
+    ASSERT_TRUE(!decoded.params.getnamelist.more_follows);
+
+    /* Control: a short list still uses the canonical short form */
+    memset(&resp, 0, sizeof(resp));
+    resp.invoke_id = 8;
+    resp.service = MMS_SERVICE_TYPE_GET_NAMELIST;
+    resp.params.getnamelist.num_identifiers = 2;
+    (void)snprintf(resp.params.getnamelist.identifiers[0], MMS_MAX_VARIABLE_NAME, "a");
+    (void)snprintf(resp.params.getnamelist.identifiers[1], MMS_MAX_VARIABLE_NAME, "b");
+    enc_len = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+    memset(&decoded, 0, sizeof(decoded));
+    consumed = mms_decode_confirmed_response(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed > 0);
+    ASSERT_EQ((int)decoded.params.getnamelist.num_identifiers, 2);
+    PASS();
+}
+
+static void test_readnamedvarlist_response_long_list(void)
+{
+    TEST("readnamedvarlist_response_long_list");
+    /* Regression for the short-form length bug in listOfAccessResult. */
+    uint8_t buf[MMS_MAX_PDU_SIZE];
+    mms_confirmed_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+    resp.invoke_id = 9;
+    resp.service = MMS_SERVICE_TYPE_READ_NAMED_VARLIST;
+    resp.params.readnamedvarlist.num_values = 12;
+    for (uint32_t i = 0; i < 12; i++) {
+        resp.params.readnamedvarlist.values[i].type = MMS_TYPE_VISIBLE_STRING;
+        (void)snprintf(resp.params.readnamedvarlist.values[i].value.visible_string.data,
+                       MMS_MAX_STRING_LENGTH, "value%02u_0123456789abcdef", i);
+        resp.params.readnamedvarlist.values[i].value.visible_string.len =
+            strlen(resp.params.readnamedvarlist.values[i].value.visible_string.data);
+    }
+
+    int enc_len = mms_encode_confirmed_response(&resp, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len > 0);
+
+    mms_confirmed_response_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_response(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed > 0);
+    ASSERT_EQ((int)decoded.params.readnamedvarlist.num_values, 12);
+    for (uint32_t i = 0; i < 12; i++) {
+        ASSERT_EQ((int)decoded.params.readnamedvarlist.values[i].value.visible_string.len,
+                  (int)resp.params.readnamedvarlist.values[i].value.visible_string.len);
+        ASSERT_TRUE(memcmp(decoded.params.readnamedvarlist.values[i].value.visible_string.data,
+                           resp.params.readnamedvarlist.values[i].value.visible_string.data,
+                           resp.params.readnamedvarlist.values[i].value.visible_string.len) == 0);
+    }
+    PASS();
+}
+
 static void test_write_request_roundtrip(void)
 {
     TEST("write_request_roundtrip");
@@ -1758,6 +1840,8 @@ int main(void)
     printf("\n--- Confirmed Services ---\n");
     test_read_request_roundtrip();
     test_read_response_roundtrip();
+    test_getnamelist_response_long_list();
+    test_readnamedvarlist_response_long_list();
     test_write_request_roundtrip();
     test_getnamelist_request_roundtrip();
     test_confirmed_error_roundtrip();
