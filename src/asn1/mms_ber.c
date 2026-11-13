@@ -5329,15 +5329,22 @@ int mms_encode_information_report(const mms_information_report_t* report,
  *       A0 xx  -- listOfAccessResult [0] CONSTRUCTED
  *         8A xx rptID        -- visible-string [10]
  *         84 03 xx xx xx     -- optFlds bit-string [4]  (padding+value)
- *         86 xx seqNum       -- unsigned [6]             (if sq_num_present)
- *         8C 06 xx...        -- binary-time [12]         (if time_present)
- *         8A xx datSet       -- visible-string [10]
+ *         86 xx seqNum       -- unsigned [6]             (if seqNum optFld)
+ *         8C 06 xx...        -- binary-time [12]         (if timeOfEntry optFld)
+ *         8A xx datSet       -- visible-string [10]      (if datSet optFld)
  *         83 01 xx           -- bufOvfl boolean [3]      (if bufOvfl optFld)
  *         89 08 xx...        -- entryID octet-string [9] (if entryID optFld)
- *         86 xx confRev      -- unsigned [6]             (if conf_rev_present)
- *         84 xx inclBitStr   -- bit-string [4]
- *         (data values: 83 boolean / 87 float / 86 unsigned per member)
- *         (reason codes: 84 02 padding reason  per member)
+ *         86 xx confRev      -- unsigned [6]             (if confRev optFld)
+ *         84 xx inclBitStr   -- bit-string [4], one bit per member,
+ *                               MSB-first, sized to the member count
+ *                               (0 members: 84 01 00)
+ *         (data values: 83 boolean / 85 integer / 86 unsigned per member)
+ *         (reason codes: 84 02 02 reason  per included member,
+ *          only if the reason-for-inclusion optFld is set)
+ *
+ * Every metadata field after optFlds is emitted iff its optFlds bit is
+ * set; rptID and optFlds are always present. Every length is BER
+ * definite-form, long form where the content exceeds 127 octets.
  * ============================================================================ */
 
 /* optFlds bit positions (IEC 61850-7-2 §8.3.2). Bit 0 is the MSB of
@@ -5351,85 +5358,241 @@ int mms_encode_information_report(const mms_information_report_t* report,
 #define IEC61850_OPTFLD_ENTRY_ID     0x01u  /* b7: entryID (BRCB) */
 #define IEC61850_OPTFLD_CONF_REV     0x80u  /* b8 (2nd octet): confRev */
 
+/* Size in octets of the BER definite-form length encoding of @p n
+ * (1 for the short form, 1 + value octets for the long form). */
+static size_t ber_length_size(size_t n)
+{
+    size_t octets = 0;
+    size_t t = n;
+
+    if (n < 128u) {
+        return 1u;
+    }
+    while (t != 0u) {
+        octets++;
+        t >>= 8;
+    }
+    return 1u + octets;
+}
+
+/* Append <tag> <len> <string bytes> to a staging buffer at *off. */
+static int iec61850_emit_string(uint8_t *buf, size_t buflen, size_t *off,
+                                uint8_t tag, const char *s)
+{
+    size_t len = strlen(s);
+    int lh;
+
+    if (!has_space(*off, 1u, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[(*off)++] = tag;
+    lh = mms_encode_length(len, buf + *off, buflen - *off);
+    if (lh < 0) {
+        return lh;
+    }
+    *off += (size_t)lh;
+    if (!has_space(*off, len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    memcpy(buf + *off, s, len);
+    *off += len;
+    return 0;
+}
+
+/* Append <tag 0x86> <len> <unsigned big-endian minimal octets>. */
+static int iec61850_emit_unsigned(uint8_t *buf, size_t buflen, size_t *off,
+                                  uint32_t val)
+{
+    uint8_t tmp[4];
+    size_t n = 0;
+    int lh;
+    int i;
+
+    if (val == 0u) {
+        tmp[n++] = 0u;
+    } else {
+        uint32_t v = val;
+        while (v != 0u) {
+            tmp[n++] = (uint8_t)(v & 0xFFu);
+            v >>= 8;
+        }
+        for (i = 0; i < (int)(n / 2u); i++) {
+            uint8_t x = tmp[i];
+            tmp[i] = tmp[n - 1u - (size_t)i];
+            tmp[n - 1u - (size_t)i] = x;
+        }
+    }
+
+    if (!has_space(*off, 1u, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[(*off)++] = 0x86;
+    lh = mms_encode_length(n, buf + *off, buflen - *off);
+    if (lh < 0) {
+        return lh;
+    }
+    *off += (size_t)lh;
+    if (!has_space(*off, n, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    memcpy(buf + *off, tmp, n);
+    *off += n;
+    return 0;
+}
+
+/* Append <tag> <len> <content bytes verbatim>. */
+static int iec61850_emit_fixed(uint8_t *buf, size_t buflen, size_t *off,
+                               uint8_t tag, const uint8_t *content,
+                               size_t len)
+{
+    int lh;
+
+    if (!has_space(*off, 1u, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[(*off)++] = tag;
+    lh = mms_encode_length(len, buf + *off, buflen - *off);
+    if (lh < 0) {
+        return lh;
+    }
+    *off += (size_t)lh;
+    if (!has_space(*off, len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    memcpy(buf + *off, content, len);
+    *off += len;
+    return 0;
+}
+
+/* Append a BIT STRING TLV for @p nbits bits taken MSB-first from
+ * @p bits. Content = 1 unused-bit-count octet + ceil(nbits/8) value
+ * octets; nbits == 0 emits the minimal empty form (<tag> 01 00). */
+static int iec61850_emit_bitstring(uint8_t *buf, size_t buflen, size_t *off,
+                                   uint8_t tag, const uint8_t *bits,
+                                   uint32_t nbits)
+{
+    uint32_t value_bytes = (nbits + 7u) / 8u;
+    uint8_t unused = (uint8_t)((value_bytes * 8u) - nbits);
+    size_t content_len = 1u + (size_t)value_bytes;
+    int lh;
+
+    if (!has_space(*off, 1u, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[(*off)++] = tag;
+    lh = mms_encode_length(content_len, buf + *off, buflen - *off);
+    if (lh < 0) {
+        return lh;
+    }
+    *off += (size_t)lh;
+    if (!has_space(*off, content_len, buflen)) {
+        return MMS_ERROR_BUFFER_TOO_SMALL;
+    }
+    buf[(*off)++] = unused;
+    memcpy(buf + *off, bits, (size_t)value_bytes);
+    *off += (size_t)value_bytes;
+    return 0;
+}
+
 int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
                                 uint8_t *buffer, size_t buflen)
 {
     if (!report || !buffer) return MMS_ERROR_INVALID_PARAM;
 
+    /* One value per set inclusion bit: the wire is only self-consistent
+     * when the value count matches the member count. The decoder
+     * derives the member count from the set bits, so a mismatch would
+     * produce an undecodable PDU. */
+    if (report->num_members > (uint32_t)MMS_MAX_NAMED_VARIABLES) {
+        return MMS_ERROR_INVALID_PARAM;
+    }
+    if (report->num_values != report->num_members) {
+        return MMS_ERROR_INVALID_PARAM;
+    }
+
     /* Build from the inside out into a staging buffer */
     uint8_t acr[MMS_MAX_PDU_SIZE];  /* listOfAccessResult content */
     size_t  ao = 0;
-
-#define ACR_BYTE(b) do { if (ao < sizeof(acr)) acr[ao++] = (uint8_t)(b); } while(0)
-#define ACR_STR(tag, s) do { \
-    size_t _l = strlen(s); \
-    ACR_BYTE(tag); ACR_BYTE((uint8_t)_l); \
-    memcpy(acr + ao, s, _l); ao += _l; } while(0)
-#define ACR_UINT(val) do { \
-    uint8_t _tb[4]; int _tl = 0; uint32_t _v = (val); \
-    if (_v == 0) { _tb[_tl++] = 0; } \
-    else { uint32_t _t = _v; while (_t) { _tb[_tl++] = (uint8_t)(_t & 0xFF); _t >>= 8; } \
-           for (int _i = 0; _i < _tl/2; _i++) { uint8_t _x = _tb[_i]; _tb[_i] = _tb[_tl-1-_i]; _tb[_tl-1-_i] = _x; } } \
-    ACR_BYTE(0x86); ACR_BYTE((uint8_t)_tl); \
-    memcpy(acr + ao, _tb, (size_t)_tl); ao += (size_t)_tl; } while(0)
+    int ret;
 
     /* rptID [10] VisibleString */
-    ACR_STR(0x8A, report->rpt_id);
+    ret = iec61850_emit_string(acr, sizeof(acr), &ao, 0x8A, report->rpt_id);
+    if (ret < 0) return ret;
 
     /* optFlds [4] BIT-STRING: 3-byte encoding (1 padding + 2 value bytes).
      * Format: 84 03 <padding-bits> <byte0> <byte1>
      * opt_flds_byte maps to: b0=reserved b1=seqNum b2=timestamp b3=reason
      *   b4=datSet b5=dataRef b6=bufOvfl b7=entryID, next byte b0=confRev */
     {
-        uint8_t of0 = report->opt_flds_byte;
-        uint8_t of1 = report->conf_rev_present ? 0x80U : 0x00U;
-        ACR_BYTE(0x84); ACR_BYTE(3); ACR_BYTE(6); ACR_BYTE(of0); ACR_BYTE(of1);
+        uint8_t of[2];
+        of[0] = report->opt_flds_byte;
+        of[1] = report->conf_rev_present ? 0x80U : 0x00U;
+        ret = iec61850_emit_bitstring(acr, sizeof(acr), &ao, 0x84, of, 10u);
+        if (ret < 0) return ret;
     }
 
     /* seqNum [6] UNSIGNED */
     if (report->sq_num_present) {
-        ACR_UINT(report->sq_num);
+        ret = iec61850_emit_unsigned(acr, sizeof(acr), &ao, report->sq_num);
+        if (ret < 0) return ret;
     }
 
     /* timeOfEntry [12] BINARY-TIME 6 bytes */
     if (report->time_of_entry_present) {
-        ACR_BYTE(0x8C); ACR_BYTE(6);
-        memcpy(acr + ao, report->time_of_entry, 6); ao += 6;
+        ret = iec61850_emit_fixed(acr, sizeof(acr), &ao, 0x8C,
+                                  report->time_of_entry, 6u);
+        if (ret < 0) return ret;
     }
 
-    /* datSet [10] VisibleString */
-    ACR_STR(0x8A, report->dat_set);
+    /* datSet [10] VisibleString — iff optFlds data-set-name */
+    if (report->opt_flds_byte & IEC61850_OPTFLD_DATA_SET) {
+        ret = iec61850_emit_string(acr, sizeof(acr), &ao, 0x8A,
+                                   report->dat_set);
+        if (ret < 0) return ret;
+    }
 
     /* bufOvfl [3] BOOLEAN — iff optFlds buffer-overflow (WP-1f,
      * BUG-R4: appears between datSet and confRev, as sent by servers
      * whose BRCB defaults include the buffer-overflow option). */
     if (report->opt_flds_byte & IEC61850_OPTFLD_BUF_OVFL) {
-        ACR_BYTE(0x83); ACR_BYTE(1);
-        ACR_BYTE(report->buffer_overflow ? 0xFFU : 0x00U);
+        uint8_t b = report->buffer_overflow ? 0xFFU : 0x00U;
+        ret = iec61850_emit_fixed(acr, sizeof(acr), &ao, 0x83, &b, 1u);
+        if (ret < 0) return ret;
     }
 
     /* entryID — iff optFlds entryID: OCTET-STRING [9], 8 bytes
      * big-endian (WP-1f, BUG-R4). */
     if (report->opt_flds_byte & IEC61850_OPTFLD_ENTRY_ID) {
-        ACR_BYTE(0x89); ACR_BYTE(8);
-        for (int _i = 0; _i < 8; _i++) {
-            ACR_BYTE((uint8_t)((report->entry_id >>
-                                (((uint64_t)(7 - _i)) * 8u)) & 0xFFu));
+        uint8_t eid[8];
+        for (size_t i = 0; i < 8u; i++) {
+            eid[i] = (uint8_t)((report->entry_id >>
+                                ((7u - i) * 8u)) & 0xFFu);
         }
+        ret = iec61850_emit_fixed(acr, sizeof(acr), &ao, 0x89, eid, 8u);
+        if (ret < 0) return ret;
     }
 
     /* confRev [6] UNSIGNED */
     if (report->conf_rev_present) {
-        ACR_UINT(report->conf_rev);
+        ret = iec61850_emit_unsigned(acr, sizeof(acr), &ao, report->conf_rev);
+        if (ret < 0) return ret;
     }
 
-    /* inclBitStr [4] BIT-STRING — one bit per member, MSB first, 2 unused bits */
+    /* inclBitStr [4] BIT-STRING — one bit per included member, MSB
+     * first across as many value octets as the member count requires.
+     * A 0-member report carries the minimal empty bit string
+     * (84 01 00), never the invalid 84 02 08 00 form. */
     {
+        uint8_t incl[32];  /* 256 members max, per the decoder contract */
         uint32_t n = report->num_members;
-        /* Build bit string: n bits set, padded to 8 bits */
-        uint32_t pad = (n < 8) ? (8u - n) : 0u;
-        uint8_t  bv  = (n >= 8) ? 0xFFu : (uint8_t)(0xFFu << pad);
-        ACR_BYTE(0x84); ACR_BYTE(2); ACR_BYTE((uint8_t)pad); ACR_BYTE(bv);
+
+        memset(incl, 0, sizeof(incl));
+        for (uint32_t bit = 0; bit < n; bit++) {
+            incl[bit / 8u] |= (uint8_t)(0x80u >> (bit % 8u));
+        }
+        ret = iec61850_emit_bitstring(acr, sizeof(acr), &ao, 0x84,
+                                      incl, n);
+        if (ret < 0) return ret;
     }
 
     /* Data values — one per included member */
@@ -5439,46 +5602,65 @@ int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
         ao += (size_t)rv;
     }
 
-    /* Reason codes [4] BIT-STRING — one per member: 2 bits padding, 6 bits reason */
-    for (uint32_t i = 0; i < report->num_members; i++) {
-        ACR_BYTE(0x84); ACR_BYTE(2); ACR_BYTE(2); ACR_BYTE(report->reason_code);
+    /* Reason codes [4] BIT-STRING — one per included member: 2 bits
+     * padding, 6 bits reason; only when the reason-for-inclusion
+     * optFlds bit is set. */
+    if (report->opt_flds_byte & IEC61850_OPTFLD_REASON) {
+        for (uint32_t i = 0; i < report->num_members; i++) {
+            uint8_t rc = (uint8_t)(report->reason_code & 0x3Fu);
+            ret = iec61850_emit_bitstring(acr, sizeof(acr), &ao, 0x84,
+                                          &rc, 6u);
+            if (ret < 0) return ret;
+        }
     }
 
-#undef ACR_BYTE
-#undef ACR_STR
-#undef ACR_UINT
+    /* Assemble informationReport [0] CONSTRUCTED content:
+     *   variableAccessSpecification [1] -> vmd-specific [0] "RPT"
+     *   listOfAccessResult [0] -> acr
+     * Every length uses the shared BER encoder (long form >= 128). */
+    {
+        size_t list_len_size = ber_length_size(ao);
+        size_t ir_len = 7u + 1u + list_len_size + ao;
+        size_t inner_len_size = ber_length_size(ir_len);
+        size_t inner_len = 1u + inner_len_size + ir_len;
+        size_t outer_len_size = ber_length_size(inner_len);
+        size_t off = 0;
 
-    /* Assemble informationReport [0] CONSTRUCTED content */
-    uint8_t ir[MMS_MAX_PDU_SIZE];
-    size_t  io = 0;
+        if (!has_space(0, 1u + outer_len_size + inner_len, buflen)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
 
-    /* variableAccessSpecification [1] CONSTRUCTED → vmd-specific [0] "RPT" */
-    ir[io++] = 0xA1; ir[io++] = 0x05;
-    ir[io++] = 0x80; ir[io++] = 0x03;
-    ir[io++] = 0x52; ir[io++] = 0x50; ir[io++] = 0x54;  /* "RPT" */
+        /* unconfirmedPDU [3] CONSTRUCTED */
+        buffer[off++] = 0xA3;
+        ret = mms_encode_length(inner_len, buffer + off, buflen - off);
+        if (ret < 0) return ret;
+        off += (size_t)ret;
 
-    /* listOfAccessResult [0] CONSTRUCTED */
-    ir[io++] = 0xA0;
-    if (ao > 127) { ir[io++] = 0x81; }
-    ir[io++] = (uint8_t)ao;
-    memcpy(ir + io, acr, ao); io += ao;
+        /* informationReport [0] CONSTRUCTED */
+        buffer[off++] = 0xA0;
+        ret = mms_encode_length(ir_len, buffer + off, buflen - off);
+        if (ret < 0) return ret;
+        off += (size_t)ret;
 
-    /* Wrap in unconfirmedPDU [3] CONSTRUCTED → informationReport [0] CONSTRUCTED */
-    size_t needed = 4 + io;  /* A3 len A0 len + io */
-    if (needed + 4 > buflen) return MMS_ERROR_BUFFER_TOO_SMALL;
+        /* variableAccessSpecification [1] CONSTRUCTED -> vmd-specific
+         * [0] "RPT" */
+        buffer[off++] = 0xA1; buffer[off++] = 0x05;
+        buffer[off++] = 0x80; buffer[off++] = 0x03;
+        buffer[off++] = 0x52; buffer[off++] = 0x50; buffer[off++] = 0x54;
 
-    size_t off = 0;
-    buffer[off++] = 0xA3;  /* unconfirmedPDU [3] */
-    size_t outer_len_pos = off++;
-    buffer[off++] = 0xA0;  /* informationReport [0] */
-    size_t inner_len_pos = off++;
+        /* listOfAccessResult [0] CONSTRUCTED */
+        buffer[off++] = 0xA0;
+        ret = mms_encode_length(ao, buffer + off, buflen - off);
+        if (ret < 0) return ret;
+        off += (size_t)ret;
+        if (!has_space(off, ao, buflen)) {
+            return MMS_ERROR_BUFFER_TOO_SMALL;
+        }
+        memcpy(buffer + off, acr, ao);
+        off += ao;
 
-    memcpy(buffer + off, ir, io); off += io;
-
-    buffer[inner_len_pos] = (uint8_t)(io);
-    buffer[outer_len_pos] = (uint8_t)(2 + io);
-
-    return (int)off;
+        return (int)off;
+    }
 }
 
 /* --------------------------------------------------------------------------
@@ -5487,10 +5669,9 @@ int mms_encode_iec61850_report(const mms_iec61850_report_t *report,
  * Walks the same wire format documented in the comment block above the
  * encoder. The field walk is driven by the optFlds bits: a field whose
  * bit is set must be present, a field whose bit is clear must not be
- * parsed. Two deliberate leniencies keep the roundtrip contract with
- * mms_encode_iec61850_report() intact, since that encoder always emits
- * datSet and the per-member reason codes regardless of the optFlds
- * bits:
+ * parsed. Two deliberate leniencies are retained for wire captured
+ * from senders that emit datSet / reason codes regardless of the
+ * optFlds bits (pre-WP-2z versions of the companion encoder):
  *   - datSet: if the data-set-name bit is clear but a VisibleString
  *     ([10]) follows at that position, it is consumed and stored
  *     anyway (no other field of that shape may appear there).
@@ -5555,7 +5736,10 @@ int mms_decode_iec61850_report(const uint8_t* buffer, size_t buflen,
     size_t ir_end = offset + length;
 
     /* variableAccessSpecification [1] — vmd-specific [0] "RPT".
-     * Content is skipped; the name is reported in variable_list_name. */
+     * Content is skipped; the name is a constant marker, not the
+     * report's identity. The rptID parsed from listOfAccessResult is
+     * copied into variable_list_name below so generic report
+     * consumers see the RCB's RptID (WP-2z). */
     if (offset >= ir_end || buffer[offset++] != 0xA1) {
         return MMS_ERROR_INVALID_ENCODING;
     }
@@ -5567,8 +5751,7 @@ int mms_decode_iec61850_report(const uint8_t* buffer, size_t buflen,
     if (!length_fits(offset, length, ir_end)) {
         return MMS_ERROR_BUFFER_TOO_SMALL;
     }
-    memcpy(report->variable_list_name, "RPT", 3);
-    report->variable_list_name[3] = '\0';
+    report->variable_list_name[0] = '\0';
     offset += length;
 
     /* listOfAccessResult [0] CONSTRUCTED — the tightest parent for
@@ -5602,6 +5785,14 @@ int mms_decode_iec61850_report(const uint8_t* buffer, size_t buflen,
     memcpy(report->rpt_id, buffer + offset, length);
     report->rpt_id[length] = '\0';
     offset += length;
+
+    /* The rptID is the report's identity: mirror it into
+     * variable_list_name for generic report consumers (WP-2z; the
+     * vmd-specific "RPT" marker carries no identity). */
+    if (length < MMS_MAX_VARIABLE_NAME) {
+        memcpy(report->variable_list_name, report->rpt_id, length);
+        report->variable_list_name[length] = '\0';
+    }
 
     /* optFlds [4] BIT STRING — always present.
      * Layout: <unused-bit count> <value octet 0> <value octet 1> ... */
