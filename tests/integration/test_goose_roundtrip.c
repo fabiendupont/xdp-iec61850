@@ -94,7 +94,7 @@ static void test_goose_frame_roundtrip(void)
     size_t apdu_out_len = 0;
 
     ret = iec61850_eth_frame_parse(frame, frame_len, &ethertype, &app_id,
-                                     &vlan_id, &apdu_out, &apdu_out_len, NULL);
+                                     &vlan_id, &apdu_out, &apdu_out_len, NULL, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)ethertype, (int)IEC61850_ETHERTYPE_GOOSE);
     ASSERT_EQ((int)app_id, 0x0001);
@@ -121,7 +121,7 @@ static void test_goose_frame_roundtrip(void)
     /* Verify subscriber processes it correctly */
     iec61850_goose_subscriber_t sub;
     iec61850_goose_subscriber_init(&sub, NULL);
-    bool accepted = iec61850_goose_subscriber_process(&sub, &decoded, 1000000ULL);
+    bool accepted = iec61850_goose_subscriber_process(&sub, &decoded, 1000000ULL, false);
     ASSERT_TRUE(accepted);
     ASSERT_EQ((int)sub.total_messages, 1);
 
@@ -167,7 +167,7 @@ static void test_goose_state_change_e2e(void)
     goose_apdu_t decoded;
     goose_apdu_init(&decoded);
     goose_decode_apdu(apdu_buf, apdu_len, &decoded);
-    iec61850_goose_subscriber_process(&sub, &decoded, 1000000ULL);
+    iec61850_goose_subscriber_process(&sub, &decoded, 1000000ULL, false);
     ASSERT_EQ(g_cb_count, 1);
     ASSERT_TRUE(g_last_msg.is_new_state);
 
@@ -176,7 +176,7 @@ static void test_goose_state_change_e2e(void)
     ASSERT_EQ(ret, 0);
     goose_apdu_init(&decoded);
     goose_decode_apdu(apdu_buf, apdu_len, &decoded);
-    iec61850_goose_subscriber_process(&sub, &decoded, 2000000ULL);
+    iec61850_goose_subscriber_process(&sub, &decoded, 2000000ULL, false);
     ASSERT_EQ(g_cb_count, 2);
     ASSERT_TRUE(g_last_msg.is_retransmission);
 
@@ -187,7 +187,7 @@ static void test_goose_state_change_e2e(void)
     ASSERT_EQ(ret, 0);
     goose_apdu_init(&decoded);
     goose_decode_apdu(apdu_buf, apdu_len, &decoded);
-    iec61850_goose_subscriber_process(&sub, &decoded, 3000000ULL);
+    iec61850_goose_subscriber_process(&sub, &decoded, 3000000ULL, false);
     ASSERT_EQ(g_cb_count, 3);
     ASSERT_TRUE(g_last_msg.is_new_state);
     ASSERT_TRUE(g_last_msg.apdu.allData[0].value.boolean == true);
@@ -233,7 +233,7 @@ static void test_goose_appid_filter(void)
     uint16_t et, ai, vi;
     const uint8_t *apdu_out;
     size_t apdu_out_len;
-    iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi, &apdu_out, &apdu_out_len, NULL);
+    iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi, &apdu_out, &apdu_out_len, NULL, NULL);
     ASSERT_EQ((int)ai, 0x0042);
 
     iec61850_goose_publisher_destroy(&pub);
@@ -282,7 +282,7 @@ static void test_sv_frame_roundtrip(void)
     const uint8_t *apdu_out;
     size_t apdu_out_len;
     ret = iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi,
-                                     &apdu_out, &apdu_out_len, NULL);
+                                     &apdu_out, &apdu_out_len, NULL, NULL);
     ASSERT_EQ(ret, 0);
     ASSERT_EQ((int)et, (int)IEC61850_ETHERTYPE_SV);
     ASSERT_EQ((int)ai, 0x4000);
@@ -299,7 +299,7 @@ static void test_sv_frame_roundtrip(void)
     /* Process through subscriber */
     iec61850_sv_subscriber_t sub;
     iec61850_sv_subscriber_init(&sub, NULL);
-    bool accepted = iec61850_sv_subscriber_process(&sub, &sv_decoded.asdu[0], 1000000ULL);
+    bool accepted = iec61850_sv_subscriber_process(&sub, &sv_decoded.asdu[0], 1000000ULL, false);
     ASSERT_TRUE(accepted);
 
     iec61850_sv_publisher_destroy(&pub);
@@ -333,7 +333,7 @@ static void test_sv_smpcnt_sequence(void)
         sv_decode_apdu(apdu_buf, apdu_len, &decoded);
         ASSERT_EQ((int)decoded.asdu[0].smpCnt, i);
 
-        iec61850_sv_subscriber_process(&sub, &decoded.asdu[0], (uint64_t)(i * 1000000));
+        iec61850_sv_subscriber_process(&sub, &decoded.asdu[0], (uint64_t)(i * 1000000), false);
     }
 
     ASSERT_EQ((int)sub.total_messages, 10);

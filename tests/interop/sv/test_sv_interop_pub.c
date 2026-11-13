@@ -45,7 +45,7 @@ static void test_sp01_flat_format(void)
     uint16_t et, ai, vi;
     const uint8_t *apdu;
     size_t apdu_len;
-    iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi, &apdu, &apdu_len, NULL);
+    iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi, &apdu, &apdu_len, NULL, NULL);
 
     bool found_87 = false;
     for (size_t i = 0; i < apdu_len; i++) {

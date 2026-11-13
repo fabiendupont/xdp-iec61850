@@ -137,3 +137,21 @@ void iec61850_ptp_clock_destroy(iec61850_ptp_clock_t *clock)
     clock->initialized = false;
     clock->sync_status = IEC61850_PTP_SYNC_UNKNOWN;
 }
+
+uint8_t iec61850_time_quality_from_ptp(
+    enum iec61850_ptp_sync_status status)
+{
+    switch (status) {
+    case IEC61850_PTP_SYNC_LOCKED:
+        return IEC61850_TQ_LEAP_KNOWN | IEC61850_TQ_ACCURACY_1MS;
+    case IEC61850_PTP_SYNC_SYNCING:
+        return IEC61850_TQ_CLOCK_NOT_SYNCED |
+               IEC61850_TQ_ACCURACY_UNSPECIFIED;
+    case IEC61850_PTP_SYNC_UNSYNC:
+    case IEC61850_PTP_SYNC_UNKNOWN:
+    default:
+        return IEC61850_TQ_CLOCK_FAILURE |
+               IEC61850_TQ_CLOCK_NOT_SYNCED |
+               IEC61850_TQ_ACCURACY_UNSPECIFIED;
+    }
+}

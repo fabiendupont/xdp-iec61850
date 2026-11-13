@@ -26,6 +26,7 @@ typedef struct {
     char dataset[SV_MAX_DATSET_LEN];
     uint32_t conf_rev;
     uint8_t smp_synch;     /* 0=none, 1=local, 2=global */
+    bool simulation;       /* Ed.2 frame-level simulation bit */
     uint16_t smp_rate;     /* samples per cycle */
     uint8_t num_channels;
     uint16_t vlan_id;
@@ -126,3 +127,7 @@ int iec61850_sv_publisher_publish(iec61850_sv_publisher_t *pub);
 #endif
 
 #endif /* IEC61850_SV_PUBLISHER_H */
+
+/* Ed.2: frame-level simulation bit (reserved1 LSB). */
+void iec61850_sv_publisher_set_simulation(
+    iec61850_sv_publisher_t *pub, bool simulation);

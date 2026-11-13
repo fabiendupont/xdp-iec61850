@@ -36,6 +36,25 @@ enum iec61850_ptp_sync_status {
     IEC61850_PTP_SYNC_LOCKED  = 3,  /**< Locked to PTP grandmaster */
 };
 
+/* Ed.2 TimeQuality byte (IEC 61850-8-1 §8.1.3.6, carried in the
+ * GOOSE t timestamp and Timestamp data attributes):
+ *   bit 7 leapKnown, bit 6 clockFailure, bit 5 clockNotSynchronized,
+ *   bits 0-3 timeAccuracy (10 => 1 ms class, the 9-3 power
+ *   profile target). */
+#define IEC61850_TQ_LEAP_KNOWN           0x80U
+#define IEC61850_TQ_CLOCK_FAILURE        0x40U
+#define IEC61850_TQ_CLOCK_NOT_SYNCED     0x20U
+#define IEC61850_TQ_ACCURACY_1MS         0x0AU
+#define IEC61850_TQ_ACCURACY_UNSPECIFIED 0x0FU
+
+/**
+ * Derive the Ed.2 TimeQuality byte from the PTP clock sync
+ * status — the wiring between the 9-3 time sync and published
+ * GOOSE/SV timestamp quality.
+ */
+uint8_t iec61850_time_quality_from_ptp(
+    enum iec61850_ptp_sync_status status);
+
 /**
  * PTP clock instance.
  *

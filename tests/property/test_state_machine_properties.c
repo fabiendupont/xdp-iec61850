@@ -85,12 +85,12 @@ static void prop_duplicate_detection(void)
 
         /* First process: always accepted */
         bool first = iec61850_goose_subscriber_process(&sub, &apdu,
-                                                         (uint64_t)(rand() % 1000000));
+                                                         (uint64_t)(rand() % 1000000), false);
         PROPERTY_ASSERT(first, "first message should be accepted");
 
         /* Same stNum+sqNum: always duplicate */
         bool second = iec61850_goose_subscriber_process(&sub, &apdu,
-                                                          (uint64_t)(rand() % 1000000));
+                                                          (uint64_t)(rand() % 1000000), false);
         PROPERTY_ASSERT(!second, "duplicate should be rejected");
 
         iec61850_goose_subscriber_destroy(&sub);

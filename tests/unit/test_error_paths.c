@@ -108,10 +108,10 @@ static void test_subscriber_null_inputs(void)
     goose_apdu_t apdu;
     goose_apdu_init(&apdu);
 
-    ASSERT_TRUE(!iec61850_goose_subscriber_process(NULL, &apdu, 0));
+    ASSERT_TRUE(!iec61850_goose_subscriber_process(NULL, &apdu, 0, false));
     iec61850_goose_subscriber_t sub;
     iec61850_goose_subscriber_init(&sub, NULL);
-    ASSERT_TRUE(!iec61850_goose_subscriber_process(&sub, NULL, 0));
+    ASSERT_TRUE(!iec61850_goose_subscriber_process(&sub, NULL, 0, false));
 
     /* get_pub_state with NULL */
     ASSERT_TRUE(iec61850_goose_subscriber_get_pub_state(NULL, "test") == NULL);
@@ -166,10 +166,10 @@ static void test_sv_subscriber_null_inputs(void)
     sv_asdu_t asdu;
     sv_asdu_init(&asdu);
 
-    ASSERT_TRUE(!iec61850_sv_subscriber_process(NULL, &asdu, 0));
+    ASSERT_TRUE(!iec61850_sv_subscriber_process(NULL, &asdu, 0, false));
     iec61850_sv_subscriber_t sub;
     iec61850_sv_subscriber_init(&sub, NULL);
-    ASSERT_TRUE(!iec61850_sv_subscriber_process(&sub, NULL, 0));
+    ASSERT_TRUE(!iec61850_sv_subscriber_process(&sub, NULL, 0, false));
 
     ASSERT_TRUE(iec61850_sv_subscriber_get_pub_state(NULL, "test") == NULL);
     ASSERT_TRUE(iec61850_sv_subscriber_get_pub_state(&sub, NULL) == NULL);
@@ -351,12 +351,12 @@ static void test_eth_frame_null_args(void)
     uint16_t et, ai, vi;
     const uint8_t *apdu_out;
     size_t apdu_len;
-    ASSERT_TRUE(iec61850_eth_frame_parse(NULL, 100, &et, &ai, &vi, &apdu_out, &apdu_len, NULL) != 0);
+    ASSERT_TRUE(iec61850_eth_frame_parse(NULL, 100, &et, &ai, &vi, &apdu_out, &apdu_len, NULL, NULL) != 0);
 
     /* Parse: too short */
     uint8_t short_frame[5] = {0};
     ASSERT_TRUE(iec61850_eth_frame_parse(short_frame, 5, &et, &ai, &vi,
-                &apdu_out, &apdu_len, NULL) != 0);
+                &apdu_out, &apdu_len, NULL, NULL) != 0);
 
     PASS();
 }

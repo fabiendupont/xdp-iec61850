@@ -172,7 +172,7 @@ static void test_sv_subscriber_process(void)
     asdu.smpCnt = 0;
     sv_add_sample(&asdu, 1000, (sv_quality_t){0});
 
-    bool accepted = iec61850_sv_subscriber_process(&sub, &asdu, 1000000);
+    bool accepted = iec61850_sv_subscriber_process(&sub, &asdu, 1000000, false);
     ASSERT_TRUE(accepted);
     ASSERT_EQ(g_sv_cb_count, 1);
     ASSERT_TRUE(g_sv_last_msg.is_new_sample);
@@ -194,8 +194,8 @@ static void test_sv_subscriber_duplicate(void)
     sv_set_svid(&asdu, "SV_PUB_1");
     asdu.smpCnt = 5;
 
-    iec61850_sv_subscriber_process(&sub, &asdu, 1000000);
-    bool accepted = iec61850_sv_subscriber_process(&sub, &asdu, 2000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 1000000, false);
+    bool accepted = iec61850_sv_subscriber_process(&sub, &asdu, 2000000, false);
     ASSERT_TRUE(!accepted);
     ASSERT_EQ(g_sv_cb_count, 1);
     ASSERT_EQ((int)sub.total_duplicates, 1);
@@ -218,11 +218,11 @@ static void test_sv_subscriber_gap_detection(void)
 
     /* smpCnt=0 */
     asdu.smpCnt = 0;
-    iec61850_sv_subscriber_process(&sub, &asdu, 1000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 1000000, false);
 
     /* smpCnt=5 (gap of 4) */
     asdu.smpCnt = 5;
-    iec61850_sv_subscriber_process(&sub, &asdu, 2000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 2000000, false);
     ASSERT_TRUE(g_sv_last_msg.has_gap);
     ASSERT_EQ((int)g_sv_last_msg.gap_count, 4);
     ASSERT_EQ((int)sub.total_gaps, 4);
@@ -246,11 +246,11 @@ static void test_sv_subscriber_filtering(void)
 
     sv_set_svid(&asdu, "SV_PUB_1");
     asdu.smpCnt = 0;
-    ASSERT_TRUE(iec61850_sv_subscriber_process(&sub, &asdu, 1000));
+    ASSERT_TRUE(iec61850_sv_subscriber_process(&sub, &asdu, 1000, false));
 
     sv_set_svid(&asdu, "SV_PUB_OTHER");
     asdu.smpCnt = 0;
-    ASSERT_TRUE(!iec61850_sv_subscriber_process(&sub, &asdu, 2000));
+    ASSERT_TRUE(!iec61850_sv_subscriber_process(&sub, &asdu, 2000, false));
 
     iec61850_sv_subscriber_destroy(&sub);
     PASS();

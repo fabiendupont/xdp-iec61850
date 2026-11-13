@@ -1083,3 +1083,13 @@ test_ptp = executable('test_ptp',
 )
 
 test('ptp', test_ptp, suite: 'unit')
+
+# Ed.2 conformance flags (simulation/test bits, time quality)
+test_ed2 = executable('test_ed2',
+    'unit/test_ed2_conformance.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+
+test('ed2_conformance', test_ed2, suite: 'unit')

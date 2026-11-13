@@ -42,6 +42,8 @@ typedef struct {
     uint16_t app_id;         /* APPID */
     uint16_t vlan_id;        /* 802.1Q VLAN ID (0 = no VLAN) */
     uint8_t vlan_priority;   /* 802.1Q priority (0-7) */
+    bool simulation;          /* Ed.2 frame-level simulation bit
+                               * (reserved1 LSB, IEC 61850-8-1) */
 } iec61850_eth_frame_config_t;
 
 /**
@@ -83,7 +85,8 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
                               uint16_t *ethertype, uint16_t *app_id,
                               uint16_t *vlan_id,
                               const uint8_t **apdu, size_t *apdu_len,
-                              size_t *apdu_offset_out);
+                              size_t *apdu_offset_out,
+                              bool *simulation_out);
 
 /**
  * Update the PDU Length field in an already-built frame.

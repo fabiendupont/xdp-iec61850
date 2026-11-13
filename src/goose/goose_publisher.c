@@ -198,7 +198,8 @@ int iec61850_goose_publisher_prepare(iec61850_goose_publisher_t *pub,
     apdu.confRev = pub->conf_rev;
     apdu.stNum = pub->st_num;
     apdu.sqNum = pub->sq_num;
-    apdu.test = false;
+    apdu.test = pub->config.test;
+    apdu.time_quality = pub->config.time_quality;
     apdu.ndsCom = false;
     apdu.numDatSetEntries = pub->data_count;
 
@@ -436,6 +437,7 @@ int iec61850_goose_publisher_build_frame(iec61850_goose_publisher_t *pub,
     (void)memcpy(fcfg.src_mac, pub->config.src_mac, 6);
     fcfg.ethertype = IEC61850_ETHERTYPE_GOOSE;
     fcfg.app_id = pub->config.app_id;
+    fcfg.simulation = pub->config.simulation;
     fcfg.vlan_id = pub->config.vlan_id;
     fcfg.vlan_priority = pub->config.vlan_priority;
 
@@ -483,4 +485,22 @@ int iec61850_goose_publisher_publish(iec61850_goose_publisher_t *pub)
     }
 
     return packet_io_send(pub->io, frame_buf, (uint32_t)frame_len);
+}
+
+void iec61850_goose_publisher_set_test(iec61850_goose_publisher_t *pub,
+                                       bool test)
+{
+    if (pub != NULL) { pub->config.test = test; }
+}
+
+void iec61850_goose_publisher_set_simulation(
+    iec61850_goose_publisher_t *pub, bool simulation)
+{
+    if (pub != NULL) { pub->config.simulation = simulation; }
+}
+
+void iec61850_goose_publisher_set_time_quality(
+    iec61850_goose_publisher_t *pub, uint8_t time_quality)
+{
+    if (pub != NULL) { pub->config.time_quality = time_quality; }
 }

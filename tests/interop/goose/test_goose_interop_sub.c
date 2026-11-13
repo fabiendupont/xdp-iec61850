@@ -553,10 +553,10 @@ static void test_gs12_duplicate(void)
     goose_apdu_init(&decoded);
     goose_decode_apdu(apdu_buf, apdu_len, &decoded);
 
-    iec61850_goose_subscriber_process(&sub, &decoded, 1000000ULL);
+    iec61850_goose_subscriber_process(&sub, &decoded, 1000000ULL, false);
     INTEROP_ASSERT_EQ(g_cb_count, 1);
 
-    bool accepted = iec61850_goose_subscriber_process(&sub, &decoded, 2000000ULL);
+    bool accepted = iec61850_goose_subscriber_process(&sub, &decoded, 2000000ULL, false);
     INTEROP_ASSERT(!accepted);
     INTEROP_ASSERT_EQ(g_cb_count, 1);
     INTEROP_ASSERT(sub.total_duplicates >= 1);

@@ -328,6 +328,7 @@ int iec61850_sv_publisher_build_frame(iec61850_sv_publisher_t *pub,
     }
 
     (void)memset(&fcfg, 0, sizeof(fcfg));
+    fcfg.simulation = pub->config.simulation;
     (void)memcpy(fcfg.dst_mac, pub->config.dst_mac, 6);
     (void)memcpy(fcfg.src_mac, pub->config.src_mac, 6);
     fcfg.ethertype = IEC61850_ETHERTYPE_SV;
@@ -379,4 +380,10 @@ int iec61850_sv_publisher_publish(iec61850_sv_publisher_t *pub)
     }
 
     return packet_io_send(pub->io, frame_buf, (uint32_t)frame_len);
+}
+
+void iec61850_sv_publisher_set_simulation(
+    iec61850_sv_publisher_t *pub, bool simulation)
+{
+    if (pub != NULL) { pub->config.simulation = simulation; }
 }

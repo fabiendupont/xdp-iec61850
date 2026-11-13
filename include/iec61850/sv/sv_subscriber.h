@@ -29,6 +29,7 @@ typedef struct {
     bool is_duplicate;
     bool has_gap;
     uint32_t gap_count;
+    bool simulation;   /* Ed.2 frame-level simulation bit */
 } iec61850_sv_message_t;
 
 typedef struct {
@@ -47,6 +48,9 @@ typedef struct {
     uint16_t filter_appid;
     uint16_t smp_rate;       /* samples per cycle (0 = use default 80) */
     uint32_t timeout_ms;
+    /* Ed.2: simulated frames must not be processed as real data
+     * (IEC 61850-8-1). */
+    bool reject_simulation;  /* default: true */
 } iec61850_sv_sub_config_t;
 
 typedef void (*iec61850_sv_callback_t)(const iec61850_sv_message_t *msg,
@@ -88,7 +92,8 @@ void iec61850_sv_subscriber_set_callback(iec61850_sv_subscriber_t *sub,
  */
 bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
                                      const sv_asdu_t *asdu,
-                                     uint64_t recv_time_ns);
+                                     uint64_t recv_time_ns,
+                                     bool simulation);
 
 void iec61850_sv_subscriber_check_timeouts(iec61850_sv_subscriber_t *sub,
                                             uint64_t current_time_ns);

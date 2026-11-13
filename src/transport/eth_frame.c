@@ -76,8 +76,9 @@ int iec61850_eth_frame_build(uint8_t *frame_buf, size_t frame_size,
     frame_buf[offset] = 0;
     offset++;
 
-    /* PDU Header: Reserved1 + Reserved2 */
-    frame_buf[offset] = 0; offset++;
+    /* PDU Header: Reserved1 (Ed.2 simulation bit in the LSB) +
+     * Reserved2. */
+    frame_buf[offset] = cfg->simulation ? 1U : 0U; offset++;
     frame_buf[offset] = 0; offset++;
     frame_buf[offset] = 0; offset++;
     frame_buf[offset] = 0; offset++;
@@ -99,7 +100,8 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
                               uint16_t *ethertype, uint16_t *app_id,
                               uint16_t *vlan_id,
                               const uint8_t **apdu, size_t *apdu_len, /* NOLINT(bugprone-easily-swappable-parameters) */
-                              size_t *apdu_offset_out)
+                              size_t *apdu_offset_out,
+                              bool *simulation_out)
 {
     size_t offset = 0;
     uint16_t et;
@@ -162,7 +164,11 @@ int iec61850_eth_frame_parse(const uint8_t *frame_buf, size_t frame_len,
                  (uint16_t)frame_buf[offset + 1U];
     offset += 2U;
 
-    /* Skip Reserved1 + Reserved2 */
+    /* Reserved1: Ed.2 simulation bit (LSB of the first octet);
+     * Reserved2 is skipped. */
+    if (simulation_out != NULL) {
+        *simulation_out = (frame_buf[offset] & 0x01U) != 0U;
+    }
     offset += 4U;
 
     /* APDU starts here */

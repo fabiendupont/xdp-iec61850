@@ -59,17 +59,17 @@ static void test_sv_gap_detection(void)
 
     /* smpCnt=0 */
     asdu.smpCnt = 0;
-    iec61850_sv_subscriber_process(&sub, &asdu, 1000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 1000000, false);
     ASSERT_TRUE(!sv_last_msg.has_gap);
 
     /* smpCnt=1 (sequential, no gap) */
     asdu.smpCnt = 1;
-    iec61850_sv_subscriber_process(&sub, &asdu, 2000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 2000000, false);
     ASSERT_TRUE(!sv_last_msg.has_gap);
 
     /* smpCnt=5 (gap of 3: missed 2,3,4) */
     asdu.smpCnt = 5;
-    iec61850_sv_subscriber_process(&sub, &asdu, 3000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 3000000, false);
     ASSERT_TRUE(sv_last_msg.has_gap);
     ASSERT_EQ((int)sv_last_msg.gap_count, 3);
 
@@ -92,11 +92,11 @@ static void test_sv_duplicate_detection(void)
     sv_set_svid(&asdu, "SV_PUB_1");
     asdu.smpCnt = 10;
 
-    iec61850_sv_subscriber_process(&sub, &asdu, 1000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 1000000, false);
     ASSERT_EQ(sv_cb_count, 1);
 
     /* Same smpCnt = duplicate */
-    bool accepted = iec61850_sv_subscriber_process(&sub, &asdu, 2000000);
+    bool accepted = iec61850_sv_subscriber_process(&sub, &asdu, 2000000, false);
     ASSERT_TRUE(!accepted);
     ASSERT_EQ(sv_cb_count, 1);  /* callback not invoked for duplicate */
     ASSERT_EQ((int)sub.total_duplicates, 1);
@@ -122,13 +122,13 @@ static void test_goose_multi_publisher(void)
     goose_set_gocbref(&apdu, "IED1LD0/LLN0$GO$gcb01");
     apdu.stNum = 1;
     apdu.sqNum = 0;
-    iec61850_goose_subscriber_process(&sub, &apdu, 1000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 1000000, false);
 
     /* Publisher 2 */
     goose_set_gocbref(&apdu, "IED2LD0/LLN0$GO$gcb01");
     apdu.stNum = 1;
     apdu.sqNum = 0;
-    iec61850_goose_subscriber_process(&sub, &apdu, 2000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 2000000, false);
 
     ASSERT_EQ((int)sub.publisher_count, 2);
 
@@ -176,14 +176,14 @@ static void test_goose_out_of_order_stnum(void)
     /* stNum=5 first */
     apdu.stNum = 5;
     apdu.sqNum = 0;
-    iec61850_goose_subscriber_process(&sub, &apdu, 1000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 1000000, false);
     ASSERT_EQ(goose_cb_count, 1);
 
     /* stNum=3 (out of order, lower) — must be discarded per IEC 61850
      * to prevent state regression */
     apdu.stNum = 3;
     apdu.sqNum = 0;
-    bool accepted = iec61850_goose_subscriber_process(&sub, &apdu, 2000000);
+    bool accepted = iec61850_goose_subscriber_process(&sub, &apdu, 2000000, false);
     ASSERT_TRUE(!accepted);  /* Old stNum: silently discarded */
 
     iec61850_goose_subscriber_destroy(&sub);
@@ -209,13 +209,13 @@ static void test_goose_retransmission(void)
     /* Initial: stNum=1, sqNum=0 */
     apdu.stNum = 1;
     apdu.sqNum = 0;
-    iec61850_goose_subscriber_process(&sub, &apdu, 1000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 1000000, false);
     ASSERT_TRUE(goose_last_msg.is_new_state);
     ASSERT_TRUE(!goose_last_msg.is_retransmission);
 
     /* Retransmission: stNum=1, sqNum=1 */
     apdu.sqNum = 1;
-    iec61850_goose_subscriber_process(&sub, &apdu, 2000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 2000000, false);
     ASSERT_TRUE(goose_last_msg.is_retransmission);
     ASSERT_TRUE(!goose_last_msg.is_new_state);
 
@@ -242,7 +242,7 @@ static void test_sv_timeout(void)
     sv_set_svid(&asdu, "SV_PUB_1");
     asdu.smpCnt = 0;
 
-    iec61850_sv_subscriber_process(&sub, &asdu, 1000000ULL);
+    iec61850_sv_subscriber_process(&sub, &asdu, 1000000ULL, false);
 
     /* Check at 100ms (well past 1ms timeout) */
     iec61850_sv_subscriber_check_timeouts(&sub, 100000000ULL);
@@ -272,11 +272,11 @@ static void test_sv_multi_publisher(void)
 
     sv_set_svid(&asdu, "SV_PUB_1");
     asdu.smpCnt = 0;
-    iec61850_sv_subscriber_process(&sub, &asdu, 1000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 1000000, false);
 
     sv_set_svid(&asdu, "SV_PUB_2");
     asdu.smpCnt = 0;
-    iec61850_sv_subscriber_process(&sub, &asdu, 2000000);
+    iec61850_sv_subscriber_process(&sub, &asdu, 2000000, false);
 
     ASSERT_EQ((int)sub.publisher_count, 2);
 
@@ -307,11 +307,11 @@ static void test_goose_subscriber_stats(void)
 
     /* Send 3 unique messages */
     apdu.stNum = 1; apdu.sqNum = 0;
-    iec61850_goose_subscriber_process(&sub, &apdu, 1000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 1000000, false);
     apdu.stNum = 1; apdu.sqNum = 1;
-    iec61850_goose_subscriber_process(&sub, &apdu, 2000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 2000000, false);
     apdu.stNum = 1; apdu.sqNum = 1;  /* duplicate */
-    iec61850_goose_subscriber_process(&sub, &apdu, 3000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 3000000, false);
 
     ASSERT_EQ((int)sub.total_messages, 3);
     ASSERT_EQ((int)sub.total_duplicates, 1);
@@ -340,12 +340,12 @@ static void test_sv_filter(void)
     /* Matching svID */
     sv_set_svid(&asdu, "SV_PUB_1");
     asdu.smpCnt = 0;
-    ASSERT_TRUE(iec61850_sv_subscriber_process(&sub, &asdu, 1000000));
+    ASSERT_TRUE(iec61850_sv_subscriber_process(&sub, &asdu, 1000000, false));
 
     /* Non-matching svID */
     sv_set_svid(&asdu, "SV_PUB_2");
     asdu.smpCnt = 0;
-    ASSERT_TRUE(!iec61850_sv_subscriber_process(&sub, &asdu, 2000000));
+    ASSERT_TRUE(!iec61850_sv_subscriber_process(&sub, &asdu, 2000000, false));
 
     iec61850_sv_subscriber_destroy(&sub);
     PASS();
@@ -371,14 +371,14 @@ static void test_goose_max_publishers(void)
         char ref[GOOSE_MAX_GOCBREF_LEN];
         snprintf(ref, sizeof(ref), "IED%d/LLN0$GO$gcb%02d", i, i);
         goose_set_gocbref(&apdu, ref);
-        ASSERT_TRUE(iec61850_goose_subscriber_process(&sub, &apdu, (uint64_t)(i * 1000000)));
+        ASSERT_TRUE(iec61850_goose_subscriber_process(&sub, &apdu, (uint64_t)(i * 1000000), false));
     }
 
     ASSERT_EQ((int)sub.publisher_count, IEC61850_GOOSE_MAX_PUBLISHERS);
 
     /* Next one should fail */
     goose_set_gocbref(&apdu, "IED_OVERFLOW/LLN0$GO$gcb99");
-    ASSERT_TRUE(!iec61850_goose_subscriber_process(&sub, &apdu, 99000000ULL));
+    ASSERT_TRUE(!iec61850_goose_subscriber_process(&sub, &apdu, 99000000ULL, false));
 
     iec61850_goose_subscriber_destroy(&sub);
     PASS();

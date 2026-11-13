@@ -22,6 +22,8 @@ void iec61850_sv_sub_config_init(iec61850_sv_sub_config_t *cfg)
     if (cfg == NULL) { return; }
     (void)memset(cfg, 0, sizeof(*cfg));
     cfg->timeout_ms = 1000;
+    cfg->reject_simulation = true;   /* Ed.2: simulated data must
+                                      * not be processed as real */
 }
 
 void iec61850_sv_subscriber_init(iec61850_sv_subscriber_t *sub,
@@ -77,7 +79,8 @@ static iec61850_sv_pub_state_t *find_or_create_pub(
 
 bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
                                      const sv_asdu_t *asdu,
-                                     uint64_t recv_time_ns)
+                                     uint64_t recv_time_ns,
+                                     bool simulation)
 {
     iec61850_sv_pub_state_t *ps;
     iec61850_sv_message_t msg;
@@ -93,6 +96,11 @@ bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
         }
     }
 
+    /* Ed.2 conformance filter. */
+    if (simulation && sub->config.reject_simulation) {
+        return false;
+    }
+
     ps = find_or_create_pub(sub, asdu->svID);
     if (ps == NULL) {
         return false;
@@ -105,6 +113,7 @@ bool iec61850_sv_subscriber_process(iec61850_sv_subscriber_t *sub,
     msg.is_duplicate = false;
     msg.has_gap = false;
     msg.gap_count = 0;
+    msg.simulation = simulation;
 
     if (ps->message_count == 0U) {
         msg.is_new_sample = true;
@@ -377,6 +386,7 @@ int iec61850_sv_subscriber_process_frame(
     const uint8_t *apdu_data = NULL;
     size_t apdu_len = 0;
     size_t apdu_offset = 0;
+    bool simulation = false;
     sv_apdu_t apdu;
     int ret;
 #ifdef IEC61850_SECURITY_ENABLED
@@ -390,7 +400,8 @@ int iec61850_sv_subscriber_process_frame(
     /* Parse Ethernet frame */
     ret = iec61850_eth_frame_parse(frame_data, frame_len,
                                     &ethertype, &app_id, &vlan_id,
-                                    &apdu_data, &apdu_len, &apdu_offset);
+                                    &apdu_data, &apdu_len, &apdu_offset,
+                                    &simulation);
     if (ret != 0) {
         return 0;
     }
@@ -447,7 +458,8 @@ int iec61850_sv_subscriber_process_frame(
 
     /* Process ALL ASDUs */
     for (uint8_t i = 0; i < apdu.noASDU; i++) {
-        (void)iec61850_sv_subscriber_process(sub, &apdu.asdu[i], recv_time_ns);
+        (void)iec61850_sv_subscriber_process(sub, &apdu.asdu[i],
+                                              recv_time_ns, simulation);
     }
 
     return (apdu.noASDU > 0U) ? 1 : 0;

@@ -32,6 +32,9 @@ typedef struct {
 
 typedef struct {
     uint16_t app_id;
+    bool simulation;         /* Ed.2 frame-level simulation bit */
+    bool test;               /* Ed.2 PDU test bit ([7]) */
+    uint8_t time_quality;    /* Ed.2 TimeQuality of the t timestamp */
     char goose_id[GOOSE_MAX_GOID_LEN];
     char gocb_ref[GOOSE_MAX_GOCBREF_LEN];
     char dataset[GOOSE_MAX_DATSET_LEN];
@@ -96,6 +99,14 @@ int iec61850_goose_publisher_set_btime6(iec61850_goose_publisher_t *pub,
                                          size_t index,
                                          uint32_t ms_since_midnight,
                                          uint16_t days);
+
+/* Ed.2 conformance flags. */
+void iec61850_goose_publisher_set_test(iec61850_goose_publisher_t *pub,
+                                       bool test);
+void iec61850_goose_publisher_set_simulation(
+    iec61850_goose_publisher_t *pub, bool simulation);
+void iec61850_goose_publisher_set_time_quality(
+    iec61850_goose_publisher_t *pub, uint8_t time_quality);
 
 /**
  * Prepare a GOOSE APDU into a buffer (encode only, no networking).

@@ -150,7 +150,7 @@ static void test_subscriber_process(void)
     apdu.stNum = 1;
     apdu.sqNum = 0;
 
-    bool accepted = iec61850_goose_subscriber_process(&sub, &apdu, 1000000);
+    bool accepted = iec61850_goose_subscriber_process(&sub, &apdu, 1000000, false);
     ASSERT_TRUE(accepted);
     ASSERT_EQ(g_callback_count, 1);
     ASSERT_TRUE(g_last_msg.is_new_state);
@@ -173,9 +173,9 @@ static void test_subscriber_duplicate(void)
     apdu.stNum = 1;
     apdu.sqNum = 0;
 
-    iec61850_goose_subscriber_process(&sub, &apdu, 1000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 1000000, false);
     /* Same stNum/sqNum = duplicate */
-    bool accepted = iec61850_goose_subscriber_process(&sub, &apdu, 2000000);
+    bool accepted = iec61850_goose_subscriber_process(&sub, &apdu, 2000000, false);
     ASSERT_TRUE(!accepted);
     ASSERT_EQ(g_callback_count, 1);  /* Duplicate not delivered */
     ASSERT_EQ((int)sub.total_duplicates, 1);
@@ -197,12 +197,12 @@ static void test_subscriber_state_change(void)
     goose_set_gocbref(&apdu, "IED1LD0/LLN0$GO$gcb01");
     apdu.stNum = 1;
     apdu.sqNum = 0;
-    iec61850_goose_subscriber_process(&sub, &apdu, 1000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 1000000, false);
 
     /* New state */
     apdu.stNum = 2;
     apdu.sqNum = 0;
-    iec61850_goose_subscriber_process(&sub, &apdu, 2000000);
+    iec61850_goose_subscriber_process(&sub, &apdu, 2000000, false);
     ASSERT_EQ(g_callback_count, 2);
     ASSERT_TRUE(g_last_msg.is_new_state);
 
@@ -227,12 +227,12 @@ static void test_subscriber_filtering(void)
     /* Matching gocbRef */
     goose_set_gocbref(&apdu, "IED1LD0/LLN0$GO$gcb01");
     apdu.stNum = 1;
-    ASSERT_TRUE(iec61850_goose_subscriber_process(&sub, &apdu, 1000));
+    ASSERT_TRUE(iec61850_goose_subscriber_process(&sub, &apdu, 1000, false));
 
     /* Non-matching gocbRef */
     goose_set_gocbref(&apdu, "IED2LD0/LLN0$GO$gcb02");
     apdu.stNum = 1;
-    ASSERT_TRUE(!iec61850_goose_subscriber_process(&sub, &apdu, 2000));
+    ASSERT_TRUE(!iec61850_goose_subscriber_process(&sub, &apdu, 2000, false));
 
     iec61850_goose_subscriber_destroy(&sub);
     PASS();
@@ -254,7 +254,7 @@ static void test_subscriber_timeout(void)
     apdu.stNum = 1;
 
     /* Process at time=1ms */
-    iec61850_goose_subscriber_process(&sub, &apdu, 1000000ULL);
+    iec61850_goose_subscriber_process(&sub, &apdu, 1000000ULL, false);
 
     /* Check timeout at time=100ms (well past 1ms timeout) */
     iec61850_goose_subscriber_check_timeouts(&sub, 100000000ULL);

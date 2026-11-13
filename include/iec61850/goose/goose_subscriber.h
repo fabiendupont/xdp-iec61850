@@ -32,6 +32,7 @@ typedef struct {
     bool is_new_state;
     bool is_duplicate;
     bool is_retransmission;
+    bool simulation;   /* Ed.2 frame-level simulation bit */
 } iec61850_goose_message_t;
 
 typedef struct {
@@ -50,6 +51,12 @@ typedef struct {
     uint16_t filter_appid;
     uint16_t filter_vlan;
     uint32_t timeout_ms;
+    /* Ed.2 conformance filters. Simulated frames must not be
+     * processed as real data (IEC 61850-8-1): reject by default.
+     * Test-mode frames carry the PDU test bit and are flagged,
+     * not rejected, unless configured otherwise. */
+    bool reject_simulation;   /* default: true */
+    bool reject_test;         /* default: false */
 } iec61850_goose_sub_config_t;
 
 typedef void (*iec61850_goose_callback_t)(const iec61850_goose_message_t *msg,
@@ -92,11 +99,14 @@ void iec61850_goose_subscriber_set_callback(iec61850_goose_subscriber_t *sub,
  * @param sub   Subscriber
  * @param apdu  Decoded GOOSE APDU
  * @param recv_time_ns Reception timestamp (nanoseconds)
+ * @param simulation Ed.2 frame-level simulation bit (reserved1
+ *        LSB, from iec61850_eth_frame_parse)
  * @return true if message was accepted (not filtered/duplicate)
  */
 bool iec61850_goose_subscriber_process(iec61850_goose_subscriber_t *sub,
                                         const goose_apdu_t *apdu,
-                                        uint64_t recv_time_ns);
+                                        uint64_t recv_time_ns,
+                                        bool simulation);
 
 /**
  * Check for publisher timeouts.

@@ -39,7 +39,7 @@ static void prop_goose_gocbref_filter(void)
         /* Matching gocbRef: always accepted */
         goose_set_gocbref(&apdu, "IED1LD0/LLN0$GO$gcb01");
         bool accepted = iec61850_goose_subscriber_process(&sub, &apdu,
-                                                            (uint64_t)(unsigned)_prop_i * 1000000ULL);
+                                                            (uint64_t)(unsigned)_prop_i * 1000000ULL, false);
         PROPERTY_ASSERT(accepted, "matching gocbRef was rejected");
 
         /* Non-matching gocbRef: always rejected */
@@ -49,7 +49,7 @@ static void prop_goose_gocbref_filter(void)
         goose_set_gocbref(&apdu, bad_ref);
         apdu.stNum++;
         accepted = iec61850_goose_subscriber_process(&sub, &apdu,
-                                                       (uint64_t)(unsigned)(_prop_i + 10000) * 1000000ULL);
+                                                       (uint64_t)(unsigned)(_prop_i + 10000) * 1000000ULL, false);
         PROPERTY_ASSERT(!accepted, "non-matching gocbRef was accepted");
 
         iec61850_goose_subscriber_destroy(&sub);
@@ -75,7 +75,7 @@ static void prop_sv_svid_filter(void)
         /* Matching svID: accepted */
         sv_set_svid(&asdu, "SV_PUB_1");
         bool accepted = iec61850_sv_subscriber_process(&sub, &asdu,
-                                                         (uint64_t)(unsigned)_prop_i * 1000000ULL);
+                                                         (uint64_t)(unsigned)_prop_i * 1000000ULL, false);
         PROPERTY_ASSERT(accepted, "matching svID was rejected");
 
         /* Non-matching svID: rejected */
@@ -84,7 +84,7 @@ static void prop_sv_svid_filter(void)
         sv_set_svid(&asdu, bad_id);
         asdu.smpCnt++;
         accepted = iec61850_sv_subscriber_process(&sub, &asdu,
-                                                    (uint64_t)(unsigned)(_prop_i + 10000) * 1000000ULL);
+                                                    (uint64_t)(unsigned)(_prop_i + 10000) * 1000000ULL, false);
         PROPERTY_ASSERT(!accepted, "non-matching svID was accepted");
 
         iec61850_sv_subscriber_destroy(&sub);
@@ -109,7 +109,7 @@ static void prop_no_filter_accepts_all(void)
         apdu.sqNum = 0;
 
         bool accepted = iec61850_goose_subscriber_process(&sub, &apdu,
-                                                            (uint64_t)(unsigned)_prop_i * 1000000ULL);
+                                                            (uint64_t)(unsigned)_prop_i * 1000000ULL, false);
         PROPERTY_ASSERT(accepted, "unfiltered subscriber rejected message");
 
         iec61850_goose_subscriber_destroy(&sub);
