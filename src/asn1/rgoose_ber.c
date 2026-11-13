@@ -73,22 +73,27 @@
  * H = 14 (plain, LI=12) or 26 (secured, LI=24). Plain total =
  * 24 + N; secured total = 38 + N + S.
  *
- * Mapping onto the frozen r_profile.h contract (flagged for review):
- *   - hdr->spdu_length     <- total SPDU byte count (= consumed).
+ * Mapping onto the frozen r_profile.h contract (revised WP-S4):
+ *   - hdr->spdu_length          <- total SPDU byte count (= consumed).
  *     The wire SPDU Length field counts SPDU Number..end-of-
  *     signature, i.e. (total - 8); the decoder cross-validates it.
- *   - hdr->session_id      <- APPID (u16). The wire has no other
- *     per-session identifier that fits; the encoder emits 0 because
- *     the frozen API has no APPID input.
- *   - security.key_id      <- low 16 bits of the wire 4-byte Key ID
- *     (frozen struct is u16; wire field is u32 — change requested).
- *   - security.time_of_day <- Time of Current Key (u32 seconds
- *     since epoch). The frozen field name suggests time-of-day
- *     semantics; the wire field is epoch seconds — flagged.
- *   - Time to Next Key and Security Algorithms are emitted as 0
- *     and not extracted (no frozen fields — change requested).
- *   - SPDU Number is sourced from the GOOSE sqNum (same duplicate-
- *     detection role); the frozen API has no explicit input.
+ *   - hdr->spdu_number          <- SPDU Number (u32), taken from the
+ *     explicit encode parameter (duplicate/out-of-order detection).
+ *   - hdr->appid                <- APPID (u16), explicit encode
+ *     parameter.
+ *   - security.key_id           <- full 4-octet wire Key ID.
+ *   - security.time_of_current_key <- Time of Current Key (u32,
+ *     epoch seconds).
+ *   - security.time_to_next_key <- Time to Next Key (u16, minutes).
+ *     Caller-zeroed emission: 0 = no scheduled key rotation
+ *     indicated (the TR gives no distinguished meaning to zero
+ *     beyond "not indicated").
+ *   - security.security_algos   <- Security Algorithms (u16
+ *     encryption|HMAC bits). Caller-zeroed emission: 0 = MACNone /
+ *     no algorithm indicated (the TR's testing option).
+ *   - All security fields are passed through verbatim on encode and
+ *     extracted fully on decode; the codec assigns no semantics
+ *     beyond placement.
  *   - sec == NULL (or !sec->present) omits the security extension
  *     entirely (plain profile, no 0x85 TLV). The TR's MACNone test
  *     mode (security block present, zero-length signature) is
@@ -165,7 +170,8 @@ static uint32_t rgoose_get_be32(const uint8_t *p)
     return v;
 }
 
-int iec61850_rgoose_encode(const goose_apdu_t *apdu,
+int iec61850_rgoose_encode(const goose_apdu_t *apdu, uint16_t appid,
+                            uint32_t spdu_number,
                             const iec61850_r_security_t *sec,
                             uint8_t *buf, size_t buflen)
 {
@@ -177,7 +183,6 @@ int iec61850_rgoose_encode(const goose_apdu_t *apdu,
     size_t sig_total;
     size_t total;
     size_t spdu_len_field;
-    uint32_t spdu_number;
     int ret;
     bool secured;
 
@@ -230,22 +235,20 @@ int iec61850_rgoose_encode(const goose_apdu_t *apdu,
     buf[2] = R_PI_COMMON_HEADER;
     buf[3] = (uint8_t)(secured ? R_COMMON_LEN_SECURED : R_COMMON_LEN_PLAIN);
     rgoose_put_be32(&buf[4], (uint32_t)spdu_len_field);
-    /* SPDU Number <- GOOSE sqNum (documented mapping, see header) */
-    spdu_number = apdu->sqNum;
     rgoose_put_be32(&buf[8], spdu_number);
     rgoose_put_be16(&buf[12], (uint16_t)R_VERSION);
     if (secured) {
-        rgoose_put_be32(&buf[14], sec->time_of_day);
-        rgoose_put_be16(&buf[18], 0U); /* Time to Next Key (no frozen field) */
-        rgoose_put_be16(&buf[20], 0U); /* Security Algorithms (no frozen field) */
-        rgoose_put_be32(&buf[22], (uint32_t)sec->key_id);
+        rgoose_put_be32(&buf[14], sec->time_of_current_key);
+        rgoose_put_be16(&buf[18], sec->time_to_next_key);
+        rgoose_put_be16(&buf[20], sec->security_algos);
+        rgoose_put_be32(&buf[22], sec->key_id);
     }
 
     /* Session user information */
     rgoose_put_be32(&buf[hdr_len], (uint32_t)pay_len);
     buf[hdr_len + 4U] = RGOOSE_PAYLOAD_TYPE;
     buf[hdr_len + 5U] = 0U; /* Simulation: false */
-    rgoose_put_be16(&buf[hdr_len + 6U], 0U); /* APPID (no frozen input) */
+    rgoose_put_be16(&buf[hdr_len + 6U], appid);
     rgoose_put_be16(&buf[hdr_len + 8U], (uint16_t)apdu_len_field);
 
     /* Signature (secured only; MACNone => zero length) */
@@ -327,16 +330,19 @@ int iec61850_rgoose_decode(const uint8_t *buf, size_t buflen,
     /* Security-extension metadata (reads bounded: buflen >= hdr_len) */
     if (hdr != NULL) {
         hdr->spdu_length = 0U;
-        hdr->session_id = 0U;
+        hdr->spdu_number = 0U;
+        hdr->appid = 0U;
         hdr->security.present = secured;
         hdr->security.key_id = 0U;
-        hdr->security.time_of_day = 0U;
+        hdr->security.time_of_current_key = 0U;
+        hdr->security.time_to_next_key = 0U;
+        hdr->security.security_algos = 0U;
         hdr->security.signature_len = 0U;
         if (secured) {
-            hdr->security.time_of_day = rgoose_get_be32(&buf[14]);
-            /* Wire Key ID is 4 bytes; frozen struct is u16 (flagged). */
-            hdr->security.key_id =
-                (uint16_t)(rgoose_get_be32(&buf[22]) & 0xFFFFU);
+            hdr->security.time_of_current_key = rgoose_get_be32(&buf[14]);
+            hdr->security.time_to_next_key = rgoose_get_be16(&buf[18]);
+            hdr->security.security_algos = rgoose_get_be16(&buf[20]);
+            hdr->security.key_id = rgoose_get_be32(&buf[22]);
         }
     }
 
@@ -414,7 +420,8 @@ int iec61850_rgoose_decode(const uint8_t *buf, size_t buflen,
 
     if (hdr != NULL) {
         hdr->spdu_length = spdu_end; /* total SPDU byte count */
-        hdr->session_id = appid;
+        hdr->spdu_number = rgoose_get_be32(&buf[8]);
+        hdr->appid = appid;
     }
 
     return (int)spdu_end;

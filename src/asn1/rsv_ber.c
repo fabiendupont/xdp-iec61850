@@ -29,30 +29,37 @@
  *      field sizes, length coverage rules, 0x85 signature tag).
  *
  * Byte-offset table and the mapping onto the frozen r_profile.h
- * contract (flags included): see the header comment of rgoose_ber.c.
- * SPDU Number is sourced from the first ASDU's smpCnt (duplicate/
- * out-of-order detection role); the frozen API has no explicit
- * input for it.
+ * contract (revised WP-S4): see the header comment of rgoose_ber.c.
+ * SPDU Number and APPID are explicit encode parameters; the
+ * security extension (key_id, time_of_current_key,
+ * time_to_next_key, security_algos, signature) is passed through
+ * verbatim on encode and extracted fully on decode. Caller-zeroed
+ * time_to_next_key / security_algos mean "no rotation indicated" /
+ * "MACNone" respectively (documented in rgoose_ber.c).
  *
  * 90-5 replay window
  * ==================
- * The frozen contract requires a time-of-day comparison "allowing a
- * tolerance" with midnight wraparound. The public literature ([S1],
- * [S2], PAC World [S3]) describes 90-5 replay protection in terms of
- * the Time of Current Key and SPDU Number but does not state a
- * numeric acceptance window, and the owned TR was not available in
- * this environment. This implementation therefore:
+ * The frozen contract requires a wraparound-safe circular
+ * comparison, correct in both the time-of-day and epoch-second
+ * domains. The public literature ([S1], [S2], PAC World [S3])
+ * describes 90-5 replay protection in terms of the Time of Current
+ * Key and SPDU Number but does not state a numeric acceptance
+ * window, and the owned TR was not available in this environment.
+ * This implementation therefore:
  *
- *   - treats the timestamps as IEC 61850 time-of-day values in
- *     milliseconds since midnight (domain 86,400,000 ms, wrapping
- *     at midnight — matching the frozen u32 field and the
- *     wraparound requirement);
- *   - accepts a received timestamp iff its circular distance from
- *     the last accepted one on the 24-hour circle is at most
- *     IEC61850_R_REPLAY_WINDOW_MS (symmetric tolerance, covering
- *     both replayed-old messages and forward clock skew).
+ *   - computes the circular distance between the two timestamps on
+ *     a 86,400,000-unit ring (the ms-per-day modulus; any true
+ *     difference below half the ring is recovered exactly, which
+ *     makes the comparison domain-agnostic: identical behaviour
+ *     for ms-since-midnight values wrapping at midnight and for
+ *     epoch-second values crossing a ring multiple);
+ *   - accepts a received timestamp iff that circular distance is
+ *     at most R_REPLAY_WINDOW_MS units (symmetric tolerance,
+ *     covering both replayed-old messages and forward clock
+ *     skew). The tolerance is expressed in the caller's units:
+ *     10,000 ms (10 s) in the ms-since-midnight domain.
  *
- * The 10-second window default is a WP-4a choice, flagged for
+ * The 10,000-unit window default is a WP-4a choice, flagged for
  * conformance review against the owned TR 61850-90-5.
  *
  * Implemented against the frozen interface in
@@ -127,7 +134,8 @@ static uint32_t rsv_get_be32(const uint8_t *p)
     return v;
 }
 
-int iec61850_rsv_encode(const sv_apdu_t *apdu,
+int iec61850_rsv_encode(const sv_apdu_t *apdu, uint16_t appid,
+                         uint32_t spdu_number,
                          const iec61850_r_security_t *sec,
                          uint8_t *buf, size_t buflen)
 {
@@ -139,7 +147,6 @@ int iec61850_rsv_encode(const sv_apdu_t *apdu,
     size_t sig_total;
     size_t total;
     size_t spdu_len_field;
-    uint32_t spdu_number;
     int ret;
     bool secured;
 
@@ -192,24 +199,20 @@ int iec61850_rsv_encode(const sv_apdu_t *apdu,
     buf[2] = R_PI_COMMON_HEADER;
     buf[3] = (uint8_t)(secured ? R_COMMON_LEN_SECURED : R_COMMON_LEN_PLAIN);
     rsv_put_be32(&buf[4], (uint32_t)spdu_len_field);
-    /* SPDU Number <- first ASDU's smpCnt (documented mapping) */
-    spdu_number = (apdu->noASDU > 0U)
-                      ? (uint32_t)apdu->asdu[0].smpCnt
-                      : 0U;
     rsv_put_be32(&buf[8], spdu_number);
     rsv_put_be16(&buf[12], (uint16_t)R_VERSION);
     if (secured) {
-        rsv_put_be32(&buf[14], sec->time_of_day);
-        rsv_put_be16(&buf[18], 0U); /* Time to Next Key (no frozen field) */
-        rsv_put_be16(&buf[20], 0U); /* Security Algorithms (no frozen field) */
-        rsv_put_be32(&buf[22], (uint32_t)sec->key_id);
+        rsv_put_be32(&buf[14], sec->time_of_current_key);
+        rsv_put_be16(&buf[18], sec->time_to_next_key);
+        rsv_put_be16(&buf[20], sec->security_algos);
+        rsv_put_be32(&buf[22], sec->key_id);
     }
 
     /* Session user information */
     rsv_put_be32(&buf[hdr_len], (uint32_t)pay_len);
     buf[hdr_len + 4U] = RSV_PAYLOAD_TYPE;
     buf[hdr_len + 5U] = 0U; /* Simulation: false */
-    rsv_put_be16(&buf[hdr_len + 6U], 0U); /* APPID (no frozen input) */
+    rsv_put_be16(&buf[hdr_len + 6U], appid);
     rsv_put_be16(&buf[hdr_len + 8U], (uint16_t)apdu_len_field);
 
     /* Signature (secured only; MACNone => zero length) */
@@ -290,16 +293,19 @@ int iec61850_rsv_decode(const uint8_t *buf, size_t buflen,
     /* Security-extension metadata (reads bounded: buflen >= hdr_len) */
     if (hdr != NULL) {
         hdr->spdu_length = 0U;
-        hdr->session_id = 0U;
+        hdr->spdu_number = 0U;
+        hdr->appid = 0U;
         hdr->security.present = secured;
         hdr->security.key_id = 0U;
-        hdr->security.time_of_day = 0U;
+        hdr->security.time_of_current_key = 0U;
+        hdr->security.time_to_next_key = 0U;
+        hdr->security.security_algos = 0U;
         hdr->security.signature_len = 0U;
         if (secured) {
-            hdr->security.time_of_day = rsv_get_be32(&buf[14]);
-            /* Wire Key ID is 4 bytes; frozen struct is u16 (flagged). */
-            hdr->security.key_id =
-                (uint16_t)(rsv_get_be32(&buf[22]) & 0xFFFFU);
+            hdr->security.time_of_current_key = rsv_get_be32(&buf[14]);
+            hdr->security.time_to_next_key = rsv_get_be16(&buf[18]);
+            hdr->security.security_algos = rsv_get_be16(&buf[20]);
+            hdr->security.key_id = rsv_get_be32(&buf[22]);
         }
     }
 
@@ -389,7 +395,8 @@ int iec61850_rsv_decode(const uint8_t *buf, size_t buflen,
 
     if (hdr != NULL) {
         hdr->spdu_length = spdu_end; /* total SPDU byte count */
-        hdr->session_id = appid;
+        hdr->spdu_number = rsv_get_be32(&buf[8]);
+        hdr->appid = appid;
     }
 
     return (int)spdu_end;
