@@ -965,6 +965,20 @@ sv_wire_pub = executable('sv_wire_pub',
     link_with: [iec61850_lib] + mms_lib,
     dependencies: [thread_dep],
 )
+if get_option('enable_mms')
+    mms_report_wire = executable('mms_report_wire',
+        'interop/wire/mms_report_wire.c',
+        include_directories: [inc_dirs],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    mms_control_wire = executable('mms_control_wire',
+        'interop/wire/mms_control_wire.c',
+        include_directories: [inc_dirs],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+endif
 
 # Wire capture tests (shell scripts, require root + tshark)
 wire_test_scripts = [
