@@ -32,6 +32,7 @@ static int tests_run, tests_passed, tests_failed;
 static const uint8_t MASTER_ID[8] = {0x00, 0x1B, 0x19, 0xFF, 0xFE, 0x11, 0x22, 0x33};
 static const uint8_t SLAVE_ID[8]  = {0x00, 0x1B, 0x19, 0xFF, 0xFE, 0xAA, 0xBB, 0xCC};
 static const uint8_t BETTER_ID[8] = {0x00, 0x1B, 0x19, 0xFF, 0xFE, 0x00, 0x00, 0x01};
+static const uint8_t FOREIGN_ID[8] = {0x00, 0x1B, 0x19, 0xFF, 0xFE, 0xDD, 0xEE, 0xFF};
 
 static void wr16(uint8_t *p, uint16_t v)
 {
@@ -160,6 +161,19 @@ static void test_codec(void)
     if ((ann_short != -EINVAL) || (dr_short != -EINVAL) ||
         (too_long != -EINVAL) || (sync_short != -EINVAL)) {
         NO("short body accepted");
+    } else {
+        OK();
+    }
+
+    TEST("negative correctionField round-trips (unsigned shift + cast)");
+    /* correctionField is signed on the wire (ns * 2^16); the decode
+     * shifts in the unsigned domain and casts once, so a negative
+     * correction must survive the round-trip exactly. */
+    n = ptp_build(buf, sizeof(buf), PTP_MSG_FOLLOW_UP, 0, 0, -1000,
+                   &src, 11, 0, NULL, NULL, &ts, NULL);
+    t = ptp_parse(buf, (size_t)n, &h2, NULL, NULL, &fu, NULL);
+    if ((t != PTP_MSG_FOLLOW_UP) || (h2.correction_ns != -1000)) {
+        NO("negative correctionField wrong");
     } else {
         OK();
     }
@@ -443,6 +457,61 @@ static void test_slave(void)
     ptp_slave_tick(&s, 8000 + 2000 * 4 + 1);
     if ((s.state != PTP_SLAVE_LISTENING) || s.have_master) {
         NO("timeout did not reset state");
+    } else {
+        OK();
+    }
+
+    TEST("foreign worse announces do not refresh the timeout");
+    /* Receipt-timeout fidelity: a worse master's same-domain traffic
+     * must not keep a dead current master alive. Adopt at t=1000;
+     * a foreign port (worse dataset) chatters through t=9000; the
+     * window is 2000*(3+1)=8000 ms from the last CURRENT-master
+     * announce, so the port must time out despite the chatter. */
+    (void)ptp_slave_init(&s, 0, SLAVE_ID, 1);
+    n = ptp_build(buf, sizeof(buf), PTP_MSG_ANNOUNCE, 0, 0, 0, &msrc,
+                  1, 1, &ann, NULL, NULL, NULL);
+    (void)ptp_parse(buf, (size_t)n, &h, &a, NULL, NULL, NULL);
+    (void)ptp_slave_on_announce(&s, &h, &a, 1000);
+    {
+        ptp_port_identity_t fsrc = {.port_number = 7};
+        ptp_announce_t foreign = ann;
+        bool chatter_ok = true;
+
+        memcpy(fsrc.clock_identity, FOREIGN_ID, 8);
+        foreign.grandmaster_priority1 = 200;
+        for (uint64_t t = 3000; t <= 9000; t += 2000) {
+            n = ptp_build(buf, sizeof(buf), PTP_MSG_ANNOUNCE, 0, 0, 0,
+                          &fsrc, 20, 1, &foreign, NULL, NULL, NULL);
+            (void)ptp_parse(buf, (size_t)n, &h, &a, NULL, NULL, NULL);
+            if (ptp_slave_on_announce(&s, &h, &a, t) != 0) {
+                chatter_ok = false;
+            }
+        }
+        ptp_slave_tick(&s, 9100);
+        if (!chatter_ok) {
+            NO("foreign master took over");
+        } else if ((s.state != PTP_SLAVE_LISTENING) || s.have_master) {
+            NO("foreign chatter kept the dead master alive");
+        } else {
+            OK();
+        }
+    }
+
+    TEST("current-master chatter does refresh the timeout");
+    /* The positive counterpart: the SAME master's traffic within the
+     * window keeps the port calibrated. */
+    (void)ptp_slave_init(&s, 0, SLAVE_ID, 1);
+    n = ptp_build(buf, sizeof(buf), PTP_MSG_ANNOUNCE, 0, 0, 0, &msrc,
+                  1, 1, &ann, NULL, NULL, NULL);
+    (void)ptp_parse(buf, (size_t)n, &h, &a, NULL, NULL, NULL);
+    (void)ptp_slave_on_announce(&s, &h, &a, 1000);
+    n = ptp_build(buf, sizeof(buf), PTP_MSG_ANNOUNCE, 0, 0, 0, &msrc,
+                  2, 1, &ann, NULL, NULL, NULL);
+    (void)ptp_parse(buf, (size_t)n, &h, &a, NULL, NULL, NULL);
+    (void)ptp_slave_on_announce(&s, &h, &a, 7000);
+    ptp_slave_tick(&s, 7000 + 1000);
+    if ((s.state == PTP_SLAVE_LISTENING) || !s.have_master) {
+        NO("current-master refresh rejected");
     } else {
         OK();
     }

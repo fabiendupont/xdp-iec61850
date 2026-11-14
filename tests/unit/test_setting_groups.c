@@ -486,6 +486,102 @@ int main(void)
         /* lmodel leaked: process exits */
     }
 
+    /* --- WP-C3 follow-up: the server's recv-timeout tick drives the
+     * SGCB ResvTms expiry — an edit reservation expires server-side
+     * with NO client action (the client stays connected but idle;
+     * only the session loop's tick fires iec61850_sg_tick). --- */
+    tests_run++;
+    {
+        iec61850_ied_model_t *lmodel = calloc(1, sizeof(*lmodel));
+        iec61850_logical_device_t *lld =
+            iec61850_ld_create("LD0");
+        iec61850_logical_node_t *lln =
+            iec61850_ln_create("LLN0", "");
+        iec61850_data_object_t *ldo =
+            iec61850_do_create("Mod", IEC61850_CDC_DPC);
+        (void)iec61850_do_add_attribute(ldo, "setVal",
+                                        IEC61850_FC_SE,
+                                        IEC61850_BTYPE_INT32);
+        (void)iec61850_do_add_attribute(ldo, "stVal",
+                                        IEC61850_FC_MX,
+                                        IEC61850_BTYPE_INT32);
+        (void)iec61850_ln_add_data_object(lln, ldo);
+        (void)iec61850_ld_add_logical_node(lld, lln);
+        (void)iec61850_ied_model_add_ld(lmodel, lld);
+
+        iec61850_mms_data_store_t ds;
+        iec61850_mms_ds_init(&ds);
+        iec61850_sg_manager_t *smgr = NULL;
+        /* ResvTms = 1 s: the expiry must come from the server's
+         * 5 s recv-timeout tick (first tick starts the countdown,
+         * the second releases it), never from a client request. */
+        if (iec61850_sg_manager_init(&smgr, lmodel, 2, 1, 1) != 0) {
+            NO("tick loop: sg manager init");
+        } else {
+            iec61850_mms_server_config_t scfg;
+            iec61850_mms_server_config_init(&scfg);
+            scfg.port = 48323;
+            iec61850_mms_server_t srv;
+            iec61850_mms_server_init(&srv, &scfg, &ds);
+            if (iec61850_mms_server_set_sg_manager(&srv, smgr) != 0) {
+                NO("tick loop: set_sg_manager");
+            } else if (iec61850_mms_server_start(&srv) != 0) {
+                NO("tick loop: server start");
+            } else {
+                usleep(200000);
+
+                mms_value_t sel_val;
+                (void)memset(&sel_val, 0, sizeof(sel_val));
+                sel_val.type = MMS_TYPE_UNSIGNED;
+                sel_val.value.unsigned_val = 1;
+
+                iec61850_mms_client_t a;
+                iec61850_mms_client_init(&a);
+                int ret = iec61850_mms_client_connect(&a, "127.0.0.1",
+                                                        48323, 5000);
+                if (ret != IEC61850_MMS_CLIENT_OK) {
+                    NO("tick loop: client connect");
+                } else if (iec61850_mms_client_write(&a, "LD0",
+                         "LLN0$SP$SGCB$EditSG", &sel_val) !=
+                         IEC61850_MMS_CLIENT_OK) {
+                    NO("tick loop: client select failed");
+                } else {
+                    /* Idle: no request for 12 s. The server's session
+                     * loop hits its 5 s recv timeout twice, driving
+                     * iec61850_sg_tick server-side; the 1 s ResvTms
+                     * window closes with no client involvement. */
+                    usleep(12000000);
+
+                    mms_value_t chk;
+                    (void)memset(&chk, 0, sizeof(chk));
+                    if (iec61850_mms_client_read(&a, "LD0",
+                             "LLN0$SP$SGCB$EditSG", &chk) !=
+                             IEC61850_MMS_CLIENT_OK) {
+                        NO("tick loop: EditSG read failed");
+                    } else if ((chk.type != MMS_TYPE_UNSIGNED) ||
+                               (chk.value.unsigned_val != 0U)) {
+                        NO("tick loop: reservation did not expire "
+                           "server-side");
+                    } else if (iec61850_mms_client_read(&a, "LD0",
+                                "LLN0$SP$SGCB$ResvTms", &chk) !=
+                                IEC61850_MMS_CLIENT_OK) {
+                        NO("tick loop: ResvTms read failed");
+                    } else if ((chk.type != MMS_TYPE_UNSIGNED) ||
+                               (chk.value.unsigned_val != 0U)) {
+                        NO("tick loop: ResvTms not released");
+                    } else {
+                        OK();
+                    }
+                    (void)iec61850_mms_client_disconnect(&a);
+                }
+                (void)iec61850_mms_server_stop(&srv);
+            }
+            iec61850_sg_manager_destroy(smgr);
+        }
+        iec61850_mms_ds_destroy(&ds);
+        /* lmodel leaked: process exits */
+    }
+
     printf("---\n%d run, %d passed, %d failed\n",
            tests_run, tests_passed, tests_failed);
     return tests_failed ? 1 : 0;

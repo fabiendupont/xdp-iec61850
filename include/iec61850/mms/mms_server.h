@@ -127,6 +127,18 @@ typedef struct iec61850_mms_control_reg_s {
      * CommandTermination PDU send (captured at wiring time). */
     iec61850_control_termination_cb_t app_termination_cb;
     void *app_termination_user_data;
+    /* WP-C3: deferred CommandTermination. 8-1 servers send the CT
+     * AFTER the operate Write-Response, not before it, so the
+     * termination callback records the event here and the post-
+     * response hook (or the recv-timeout tick, for operTm commands
+     * fired by control_process) builds and sends the PDU, then
+     * chains the application callback. Guarded by the server's
+     * control_bridge_mutex like the other mutable fields. */
+    bool pending_termination;
+    bool pending_success;
+    iec61850_control_addcause_t pending_addcause;
+    uint32_t pending_selection_id;
+    uint64_t pending_timestamp_ms;
 } iec61850_mms_control_reg_t;
 
 /* Per-session state */

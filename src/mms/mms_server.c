@@ -31,14 +31,22 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
-/* ISO 9506-2 DataAccessError codes carried in the Write-Response
- * failure CHOICE — the IEC 61850-8-1 mapping this repo's WP-1c/1f
- * client decodes for rejected RCB component writes. Code 2 is what
- * the reference server was wire-observed to return for a Resv write
- * on a URCB held by another client (WP-1f, BUG-R3). */
-#define MMS_DATAACCESS_TEMPORARILY_UNAVAILABLE 2
-#define MMS_DATAACCESS_TYPE_INCONSISTENT       7
+/* ISO 9506-2 DataAccessError codes for the in-band Write-Response
+ * failure CHOICE live in asn1/mms_ber.h (MMS_DATAACCESS_*, hoisted
+ * from locals in WP-C3 — the IEC 61850-8-1 mapping this repo's
+ * WP-1c/1f client decodes for rejected RCB/SGCB/control writes). */
+
+/* Monotonic clock for the SGCB ResvTms tick (same base the control
+ * manager uses for its timeouts — WP-C3). */
+static uint64_t srv_now_ms(void)
+{
+    struct timespec ts;
+    (void)clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ((uint64_t)ts.tv_sec * 1000ULL) +
+           ((uint64_t)ts.tv_nsec / 1000000ULL);
+}
 
 void iec61850_mms_server_config_init(iec61850_mms_server_config_t *cfg)
 {
@@ -562,8 +570,16 @@ static size_t cw_build_command_termination(const char *domain,
 /*
  * Bridge command-termination callback (installed per bridged control
  * object; chains the application callback captured at wiring time).
- * Sends the CommandTermination InformationReport to the association
- * that owns the command's selection.
+ * WP-C3: records the termination as pending on the object's
+ * registration instead of sending immediately — the termination
+ * fires synchronously inside iec61850_control_operate_ed2() /
+ * _cancel() / _process(), i.e. BEFORE the Write-Response the client
+ * is waiting for, while 8-1 servers send the CommandTermination
+ * after it. The post-response hook (or the recv-timeout tick for
+ * operTm commands fired by control_process) flushes it:
+ * cw_flush_pending_ct() sends the InformationReport to the
+ * association that owns the command's selection and then chains the
+ * application callback.
  */
 static void cw_termination_cb(const char *domain, const char *item_id,
                                uint32_t selection_id, bool success,
@@ -572,11 +588,6 @@ static void cw_termination_cb(const char *domain, const char *item_id,
 {
     /* MISRA 11.5: callback context is the server, deviation Cat. 3 */
     iec61850_mms_server_t *server = (iec61850_mms_server_t *)user_data;
-    iec61850_mms_session_t *owner = NULL;
-    iec61850_control_termination_cb_t app_cb = NULL;
-    void *app_data = NULL;
-    uint8_t echo[MMS_MAX_STRING_LENGTH];
-    size_t echo_len = 0U;
     uint32_t i;
 
     if (server == NULL) { return; }
@@ -587,6 +598,52 @@ static void cw_termination_cb(const char *domain, const char *item_id,
 
         if ((strcmp(reg->domain, domain) == 0) &&
             (strcmp(reg->item_id, item_id) == 0)) {
+            reg->pending_termination = true;
+            reg->pending_selection_id = selection_id;
+            reg->pending_success = success;
+            reg->pending_addcause = addcause;
+            reg->pending_timestamp_ms = timestamp_ms;
+            break;
+        }
+    }
+    (void)pthread_mutex_unlock(&server->control_bridge_mutex);
+}
+
+/*
+ * WP-C3: flush deferred CommandTerminations. Sends the
+ * InformationReport PDU for every pending termination (to the
+ * association that owns the command's selection) and chains the
+ * application termination callback after the send — the 8-1
+ * ordering: Write-Response first, CommandTermination after. The
+ * pending flag is claimed under the mutex, so exactly one session
+ * thread flushes a given termination even when the post-response
+ * hooks of concurrent sessions race.
+ */
+static void cw_flush_pending_ct(iec61850_mms_server_t *server)
+{
+    uint32_t i;
+
+    if (server == NULL) { return; }
+
+    for (i = 0U; i < server->control_reg_count; i++) {
+        iec61850_mms_control_reg_t *reg = &server->control_regs[i];
+        iec61850_mms_session_t *owner = NULL;
+        iec61850_control_termination_cb_t app_cb = NULL;
+        void *app_data = NULL;
+        uint8_t echo[MMS_MAX_STRING_LENGTH];
+        size_t echo_len = 0U;
+        bool pending = false;
+        bool success = false;
+        iec61850_control_addcause_t addcause = IEC61850_ADDCAUSE_UNKNOWN;
+        uint32_t selection_id = 0U;
+        uint64_t timestamp_ms = 0ULL;
+
+        (void)memset(echo, 0, sizeof(echo));
+
+        (void)pthread_mutex_lock(&server->control_bridge_mutex);
+        if (reg->pending_termination) {
+            pending = true;
+            reg->pending_termination = false;
             owner = (iec61850_mms_session_t *)reg->owner_session;
             echo_len = reg->oper_echo_len;
             if (echo_len > sizeof(echo)) { echo_len = 0U; }
@@ -595,27 +652,32 @@ static void cw_termination_cb(const char *domain, const char *item_id,
             }
             app_cb = reg->app_termination_cb;
             app_data = reg->app_termination_user_data;
-            break;
+            selection_id = reg->pending_selection_id;
+            success = reg->pending_success;
+            addcause = reg->pending_addcause;
+            timestamp_ms = reg->pending_timestamp_ms;
         }
-    }
-    (void)pthread_mutex_unlock(&server->control_bridge_mutex);
+        (void)pthread_mutex_unlock(&server->control_bridge_mutex);
 
-    if ((owner != NULL) && (echo_len > 0U) &&
-        atomic_load(&owner->active)) {
-        uint8_t pdu[MMS_MAX_STRING_LENGTH + MMS_MAX_VARIABLE_NAME +
-                    MMS_MAX_DOMAIN_NAME + 32];
-        size_t len = cw_build_command_termination(domain, item_id, echo,
-                                                   echo_len, pdu,
-                                                   sizeof(pdu));
+        if (!pending) { continue; }
 
-        if (len > 0U) {
-            (void)iec61850_iso_send(&owner->iso, pdu, len);
+        if ((owner != NULL) && (echo_len > 0U) &&
+            atomic_load(&owner->active)) {
+            uint8_t pdu[MMS_MAX_STRING_LENGTH + MMS_MAX_VARIABLE_NAME +
+                        MMS_MAX_DOMAIN_NAME + 32];
+            size_t len = cw_build_command_termination(
+                reg->domain, reg->item_id, echo, echo_len, pdu,
+                sizeof(pdu));
+
+            if (len > 0U) {
+                (void)iec61850_iso_send(&owner->iso, pdu, len);
+            }
         }
-    }
 
-    if (app_cb != NULL) {
-        app_cb(domain, item_id, selection_id, success, addcause,
-               timestamp_ms, app_data);
+        if (app_cb != NULL) {
+            app_cb(reg->domain, reg->item_id, selection_id, success,
+                   addcause, timestamp_ms, app_data);
+        }
     }
 }
 
@@ -739,8 +801,9 @@ static int cw_bridge_operate(iec61850_mms_session_t *session,
         selection_id = reg->selection_id;
     }
     /* Record the echo BEFORE the operate: the termination callback
-     * (and its CommandTermination PDU) fires synchronously inside
-     * iec61850_control_operate_ed2(). */
+     * (WP-C3: deferred — see cw_termination_cb / cw_flush_pending_ct)
+     * fires synchronously inside iec61850_control_operate_ed2() and
+     * must find the echo in place for the post-response flush. */
     if ((value->value.octet_string.len > 0U) &&
         (value->value.octet_string.len <= sizeof(reg->oper_echo))) {
         reg->oper_echo_len = value->value.octet_string.len;
@@ -1734,9 +1797,20 @@ static void *session_thread(void *arg)
             }
             /* WP-2w: periodic control processing (selection-timeout
              * cleanup, time-activated operate firing) — the same
-             * tick, thread-free. */
+             * tick, thread-free. WP-C3: the flush sends the
+             * CommandTermination of any operTm command that just
+             * fired (no response is in flight on this path). */
             if (session->control_reg_count > 0U) {
                 iec61850_control_process(session->control_manager);
+                cw_flush_pending_ct(session->server);
+            }
+            /* WP-C3: SGCB ResvTms expiry is host-driven only — the
+             * same tick drives it, so an edit reservation expires
+             * server-side with no client action (hosts wiring the
+             * manager without the server still call
+             * iec61850_sg_tick themselves). */
+            if (session->sg_manager != NULL) {
+                iec61850_sg_tick(session->sg_manager, srv_now_ms());
             }
             continue;
         }
@@ -1799,9 +1873,15 @@ static void *session_thread(void *arg)
                 /* WP-2w: post-response control processing — an armed
                  * time-activated operate (operTm) that came due fires
                  * here while the association is hot, without waiting
-                 * for the recv-timeout tick. */
+                 * for the recv-timeout tick. WP-C3: the deferred
+                 * CommandTermination flush runs here too — the
+                 * response is on the wire, so the 8-1 ordering
+                 * (Write-Response first, CT after) holds for both the
+                 * operate just serviced and any operTm command that
+                 * fired above. */
                 if (session->control_reg_count > 0U) {
                     iec61850_control_process(session->control_manager);
+                    cw_flush_pending_ct(session->server);
                 }
                 if (session->after_response != NULL) {
                     session->after_response(session, cb_domain, cb_item,
@@ -1864,6 +1944,10 @@ done:
                 selection_id = reg->selection_id;
                 reg->selection_id = 0U;
                 reg->owner_session = NULL;
+                /* WP-C3: the association is going away — drop any
+                 * deferred CommandTermination with the ownership so
+                 * a later flush cannot fire it at a new owner. */
+                reg->pending_termination = false;
                 owned = true;
             }
             (void)pthread_mutex_unlock(
@@ -2130,6 +2214,13 @@ int iec61850_mms_server_set_control_manager(
         server->control_regs[i].oper_echo_len = 0U;
         server->control_regs[i].app_termination_cb = NULL;
         server->control_regs[i].app_termination_user_data = NULL;
+        /* WP-C3: no deferred CommandTermination outstanding. */
+        server->control_regs[i].pending_termination = false;
+        server->control_regs[i].pending_success = false;
+        server->control_regs[i].pending_addcause =
+            IEC61850_ADDCAUSE_UNKNOWN;
+        server->control_regs[i].pending_selection_id = 0U;
+        server->control_regs[i].pending_timestamp_ms = 0ULL;
     }
     (void)pthread_mutex_unlock(&mgr->mutex);
 

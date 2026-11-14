@@ -82,7 +82,8 @@ int main(int argc, char *argv[])
      * publish and receive GOOSE messages on different interfaces,
      * measuring the time delta between send and receive timestamps. */
 
-    IEC61850_LOG_INFO_MSG("LATENCY", "Tool ready (requires packet_io)");
+    iec61850_logger_log(IEC61850_LOG_INFO, "LATENCY",
+                        "Tool ready (requires packet_io)");
 
     while (running) {
         usleep(100000);
