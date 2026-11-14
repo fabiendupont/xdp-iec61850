@@ -393,6 +393,153 @@ static void test_cdc_create_del3(void)
     PASS();
 }
 
+/* 20. APC: mxVal STRUCT, q, t, ctlVal STRUCT, ctlModel, sboClass */
+static void test_cdc_create_apc(void)
+{
+    TEST("cdc_create_apc");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_apc("AoutSet");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_APC);
+    ASSERT_EQ((int)dobj->attr_count, 6);
+    ASSERT_TRUE(find_attr_check(dobj, "mxVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "sboClass", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 21. ENC: stVal ENUMERATED, q, t, ctlVal ENUMERATED, ctlModel */
+static void test_cdc_create_enc(void)
+{
+    TEST("cdc_create_enc");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_enc("AutoRecMod");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_ENC);
+    ASSERT_EQ((int)dobj->attr_count, 5);
+    ASSERT_TRUE(find_attr_check(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_ENUMERATED) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_ENUMERATED) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 22. ISC: stVal INT32, q, t, ctlVal INT32, ctlModel */
+static void test_cdc_create_isc(void)
+{
+    TEST("cdc_create_isc");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_isc("IntStCtl1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_ISC);
+    ASSERT_EQ((int)dobj->attr_count, 5);
+    ASSERT_TRUE(find_attr_check(dobj, "stVal", IEC61850_FC_ST, IEC61850_BTYPE_INT32) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "ctlVal", IEC61850_FC_CO, IEC61850_BTYPE_INT32) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "ctlModel", IEC61850_FC_CF, IEC61850_BTYPE_ENUMERATED) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 23. CURS: crvPts STRUCT (SG), xUnits/yUnits (CF) */
+static void test_cdc_create_curs(void)
+{
+    TEST("cdc_create_curs");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_curs("Crv1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_CURS);
+    ASSERT_EQ((int)dobj->attr_count, 3);
+    ASSERT_TRUE(find_attr_check(dobj, "crvPts", IEC61850_FC_SG, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "xUnits", IEC61850_FC_CF, IEC61850_BTYPE_VISIBLE_STRING) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "yUnits", IEC61850_FC_CF, IEC61850_BTYPE_VISIBLE_STRING) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 24. CSD: setVal STRUCT (SG) */
+static void test_cdc_create_csd(void)
+{
+    TEST("cdc_create_csd");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_csd("CusSet1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_CSD);
+    ASSERT_EQ((int)dobj->attr_count, 1);
+    ASSERT_TRUE(find_attr_check(dobj, "setVal", IEC61850_FC_SG, IEC61850_BTYPE_STRUCT) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 25. SEQ: seqVal STRUCT, q, t */
+static void test_cdc_create_seq(void)
+{
+    TEST("cdc_create_seq");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_seq("Seq1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_SEQ);
+    ASSERT_EQ((int)dobj->attr_count, 3);
+    ASSERT_TRUE(find_attr_check(dobj, "seqVal", IEC61850_FC_ST, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "q", IEC61850_FC_ST, IEC61850_BTYPE_QUALITY) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "t", IEC61850_FC_ST, IEC61850_BTYPE_TIMESTAMP) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 26. HMV: numHrv INT32U (CF), hVal STRUCT, q, t */
+static void test_cdc_create_hmv(void)
+{
+    TEST("cdc_create_hmv");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_hmv("Hrm1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_HMV);
+    ASSERT_EQ((int)dobj->attr_count, 4);
+    ASSERT_TRUE(find_attr_check(dobj, "numHrv", IEC61850_FC_CF, IEC61850_BTYPE_INT32U) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "hVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 27. HWYE: numHrv, phsA/B/C.hVal, q, t (6 attrs) */
+static void test_cdc_create_hwye(void)
+{
+    TEST("cdc_create_hwye");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_hwye("HrmPhV");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_HWYE);
+    ASSERT_EQ((int)dobj->attr_count, 6);
+    ASSERT_TRUE(find_attr_check(dobj, "numHrv", IEC61850_FC_CF, IEC61850_BTYPE_INT32U) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "phsA.hVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "phsB.hVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "phsC.hVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 28. HDEL: numHrv, phsAB/BC/CA.hVal, q, t (6 attrs) */
+static void test_cdc_create_hdel(void)
+{
+    TEST("cdc_create_hdel");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_hdel("HrmPPV");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_HDEL);
+    ASSERT_EQ((int)dobj->attr_count, 6);
+    ASSERT_TRUE(find_attr_check(dobj, "numHrv", IEC61850_FC_CF, IEC61850_BTYPE_INT32U) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "phsAB.hVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "phsBC.hVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "phsCA.hVal", IEC61850_FC_MX, IEC61850_BTYPE_STRUCT) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "q", IEC61850_FC_MX, IEC61850_BTYPE_QUALITY) != NULL);
+    ASSERT_TRUE(find_attr_check(dobj, "t", IEC61850_FC_MX, IEC61850_BTYPE_TIMESTAMP) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
 int main(void)
 {
     printf("=== CDC All Factory Tests ===\n");
@@ -417,6 +564,15 @@ int main(void)
     test_cdc_create_mx3();
     test_cdc_create_del3();
     test_fc_string_roundtrip();
+    test_cdc_create_apc();
+    test_cdc_create_enc();
+    test_cdc_create_isc();
+    test_cdc_create_curs();
+    test_cdc_create_csd();
+    test_cdc_create_seq();
+    test_cdc_create_hmv();
+    test_cdc_create_hwye();
+    test_cdc_create_hdel();
 
     printf("\n%d tests: %d passed, %d failed\n",
            tests_run, tests_passed, tests_failed);

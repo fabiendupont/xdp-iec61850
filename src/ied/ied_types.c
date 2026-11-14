@@ -106,6 +106,15 @@ const char *iec61850_cdc_to_string(iec61850_cdc_t cdc)
         case IEC61850_CDC_BCR:  return "BCR";
         case IEC61850_CDC_MX3:  return "MX3";
         case IEC61850_CDC_DEL3: return "DEL3";
+        case IEC61850_CDC_APC:  return "APC";
+        case IEC61850_CDC_ENC:  return "ENC";
+        case IEC61850_CDC_ISC:  return "ISC";
+        case IEC61850_CDC_CURS: return "CURS";
+        case IEC61850_CDC_CSD:  return "CSD";
+        case IEC61850_CDC_SEQ:  return "SEQ";
+        case IEC61850_CDC_HMV:  return "HMV";
+        case IEC61850_CDC_HWYE: return "HWYE";
+        case IEC61850_CDC_HDEL: return "HDEL";
         default:               return "UNKNOWN";
     }
 }
