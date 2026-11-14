@@ -559,9 +559,13 @@ static void test_template_driven_construction(void)
     ASSERT_TRUE(da != NULL);
     ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_ENUMERATED);
 
-    /* NOTE: deep dotted lookups go through the DO attribute table
-     * (or the MMS '$' names below); iec61850_ln_find_attribute
-     * supports only DO.DA / DO.SubDO.DA shapes. */
+    /* Deep dotted lookups now also resolve through
+     * iec61850_ln_find_attribute() (WP-C2 flat-name fallback),
+     * matching the DO attribute table used above. */
+    da = iec61850_ln_find_attribute(xcbr, "Pos.origin.orCat",
+                                     IEC61850_FC_CO);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_ENUMERATED);
 
     /* MMXU: SDO flattening and nested struct expansion */
     iec61850_logical_node_t *mmxu = find_ln_by_class(ld, "MMXU");
@@ -579,6 +583,12 @@ static void test_template_driven_construction(void)
 
     da = iec61850_do_find_attribute(phv, "phsC.cVal.ang.f", IEC61850_FC_MX);
     ASSERT_TRUE(da != NULL);
+
+    /* Same deep path through the LN walker (WP-C2) */
+    da = iec61850_ln_find_attribute(mmxu, "PhV.phsA.cVal.mag.f",
+                                     IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_FLOAT32);
 
     /* TotW (MV with Struct mag): flattened to mag.f */
     iec61850_data_object_t *totw = iec61850_ln_find_do(mmxu, "TotW");
@@ -720,9 +730,11 @@ static struct packet_io mock_io = {
 
 /* Creation callbacks: embed the publishers in static storage (the
  * application owns publisher lifetime) and capture the prepared
- * configs for verification. */
+ * configs for verification. Tests that create several publishers
+ * (e.g. the whole-SDO SV pipeline) get one slot per call. */
 static iec61850_goose_publisher_t g_goose_pub;
-static iec61850_sv_publisher_t g_sv_pub;
+static iec61850_sv_publisher_t g_sv_pubs[4];
+static iec61850_sv_config_t g_sv_cfgs[4];
 static iec61850_goose_config_t g_last_goose_cfg;
 static iec61850_sv_config_t g_last_sv_cfg;
 static int g_goose_create_calls;
@@ -748,13 +760,18 @@ static int test_sv_create(const iec61850_scl_sv_cb_t *cb,
                            iec61850_sv_publisher_t **out,
                            void *user_data)
 {
+    unsigned idx;
+
     (void)cb;
     (void)user_data;
+    /* Bounded static storage: at most 4 SV publishers per test. */
+    idx = (unsigned)g_sv_create_calls % 4U;
     g_sv_create_calls++;
     g_last_sv_cfg = *cfg;
-    iec61850_sv_publisher_init(&g_sv_pub, cfg);
-    iec61850_sv_publisher_set_io(&g_sv_pub, &mock_io);
-    *out = &g_sv_pub;
+    g_sv_cfgs[idx] = *cfg;
+    iec61850_sv_publisher_init(&g_sv_pubs[idx], cfg);
+    iec61850_sv_publisher_set_io(&g_sv_pubs[idx], &mock_io);
+    *out = &g_sv_pubs[idx];
     return 0;
 }
 
@@ -1063,9 +1080,9 @@ static void test_configure_publishers_whole_do(void)
  * mixes a whole-DO FCDA (Amp — a flat SAV whose MX leaves are
  * svMag and q; the Timestamp leaf is excluded for SV) and a
  * leaf-DA FCDA (TotW mag). A second control block references a
- * whole-SDO dataset (PhV phsA): every leaf under the SDO is a
- * flattened dotted name the binding cannot watch, so that block
- * is skipped (documented WP-6f limitation). */
+ * whole-SDO dataset (PhV phsA): its leaves are flattened dotted
+ * names ("phsA.cVal.mag.f"), which the WP-C2 path-walker fallback
+ * resolves — that block now binds too (whole-SDO unlock). */
 static void build_sv_doc(iec61850_scl_doc_t *doc)
 {
     iec61850_scl_do_type_t *mv;
@@ -1203,7 +1220,7 @@ static void build_sv_doc(iec61850_scl_doc_t *doc)
                   sizeof(ds->members[1].da_name) - 1);
     (void)strncpy(ds->members[1].fc, "MX", sizeof(ds->members[1].fc) - 1);
 
-    /* Whole-SDO dataset: not bindable (flattened dotted leaves) */
+    /* Whole-SDO dataset: flattened dotted leaves (WP-C2 bindable) */
     ds = &doc->datasets[1];
     (void)strncpy(ds->name, "DS_SDOW", sizeof(ds->name) - 1);
     ds->member_count = 1;
@@ -1258,8 +1275,10 @@ static void test_configure_publishers_sv_pipeline(void)
     iec61850_logical_device_t *ld;
     iec61850_logical_node_t *mmxu;
     iec61850_data_object_t *amp;
+    iec61850_data_object_t *phv;
     iec61850_data_attribute_t *mag;
     iec61850_data_attribute_t *qual;
+    iec61850_data_attribute_t *deep_mag;
     const uint8_t quality_bad[2] = { 0xC0, 0x80 };
 
     TEST("configure_publishers_sv_pipeline");
@@ -1274,19 +1293,20 @@ static void test_configure_publishers_sv_pipeline(void)
     ops.create_sv = test_sv_create;
     g_frames_sent = 0U;
 
-    /* MSVCBW binds; MSVCB_SDO (whole-SDO dataset) is skipped */
-    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 1);
-    ASSERT_EQ((int)res.sv_configured, 1);
-    ASSERT_EQ((int)res.skipped, 1);
-    ASSERT_EQ(g_sv_create_calls, 1);  /* MSVCB_SDO declines pre-create */
+    /* WP-C2 unlock: both MSVCBW and the previously skipped
+     * MSVCB_SDO (whole-SDO dataset) bind. */
+    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 2);
+    ASSERT_EQ((int)res.sv_configured, 2);
+    ASSERT_EQ((int)res.skipped, 0);
+    ASSERT_EQ(g_sv_create_calls, 2);
 
-    /* SV configuration from the SCL control block */
-    ASSERT_EQ((int)g_last_sv_cfg.app_id, 4000);
-    ASSERT_EQ((int)g_last_sv_cfg.smp_rate, 80);
-    ASSERT_EQ((int)g_last_sv_cfg.conf_rev, 5);
-    ASSERT_EQ((int)g_last_sv_cfg.num_channels, 3);
-    ASSERT_TRUE(strcmp(g_last_sv_cfg.sv_id, "SV_W") == 0);
-    ASSERT_EQ((int)g_sv_pub.config.dst_mac[3], 0x04);
+    /* SV configuration from the SCL control block (first CB) */
+    ASSERT_EQ((int)g_sv_cfgs[0].app_id, 4000);
+    ASSERT_EQ((int)g_sv_cfgs[0].smp_rate, 80);
+    ASSERT_EQ((int)g_sv_cfgs[0].conf_rev, 5);
+    ASSERT_EQ((int)g_sv_cfgs[0].num_channels, 3);
+    ASSERT_TRUE(strcmp(g_sv_cfgs[0].sv_id, "SV_W") == 0);
+    ASSERT_EQ((int)g_sv_pubs[0].config.dst_mac[3], 0x04);
 
     /* Whole-DO Amp expanded to the SV-mappable leaves (the
      * Timestamp leaf is excluded), then the leaf-DA member. */
@@ -1296,7 +1316,22 @@ static void test_configure_publishers_sv_pipeline(void)
     ASSERT_TRUE(strcmp(b.publishers[0].refs[1].da_name, "q") == 0);
     ASSERT_TRUE(strcmp(b.publishers[0].refs[2].do_name, "TotW") == 0);
     ASSERT_TRUE(strcmp(b.publishers[0].refs[2].da_name, "mag") == 0);
-    ASSERT_EQ((int)b.watch_count, 3);
+
+    /* Whole-SDO expansion (MSVCB_SDO, slot 1): the flattened
+     * dotted leaves under the phsA prefix, SV-mappable only (the
+     * Timestamp leaf "phsA.t" is excluded). */
+    ASSERT_EQ((int)b.publishers[1].ref_count, 3);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[0].do_name, "PhV") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[0].da_name,
+                       "phsA.cVal.mag.f") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[1].da_name,
+                       "phsA.cVal.ang.f") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[2].da_name, "phsA.q") == 0);
+    ASSERT_EQ((int)b.publishers[1].refs[2].fc, (int)IEC61850_FC_MX);
+    ASSERT_TRUE(b.publishers[1].pub == (void *)&g_sv_pubs[1]);
+    /* 3 + 3 unique watched DAs across the two publishers */
+    ASSERT_EQ((int)b.watch_count, 6);
+    ASSERT_EQ((int)g_sv_cfgs[1].num_channels, 3);
 
     /* Write the sample magnitude and quality through the model */
     ld = iec61850_ied_model_find_ld(&model, "LD0");
@@ -1313,15 +1348,160 @@ static void test_configure_publishers_sv_pipeline(void)
     wr_float(mag, 220.5f);
     wr_bitstring(qual, quality_bad, 13U);
     ASSERT_TRUE(b.publishers[0].dirty);
+    ASSERT_TRUE(!b.publishers[1].dirty);  /* different DAs */
 
     /* Fan out: one SV frame; channels follow the ref order */
     ASSERT_EQ(iec61850_model_binding_process(&b), 1);
     ASSERT_EQ(g_frames_sent, 1U);
-    ASSERT_EQ((int)g_sv_pub.sample_count, 3);
-    ASSERT_EQ(g_sv_pub.samples[0], 220);   /* Amp.svMag */
-    ASSERT_EQ(iec61850_sv_publisher_get_smp_cnt(&g_sv_pub), 1U);
-    ASSERT_EQ((int)g_sv_pub.quality[1].validity, 3);  /* Amp.q */
-    ASSERT_EQ((int)g_sv_pub.quality[1].inconsistent, 1);
+    ASSERT_EQ((int)g_sv_pubs[0].sample_count, 3);
+    ASSERT_EQ(g_sv_pubs[0].samples[0], 220);   /* Amp.svMag */
+    ASSERT_EQ(iec61850_sv_publisher_get_smp_cnt(&g_sv_pubs[0]), 1U);
+    ASSERT_EQ((int)g_sv_pubs[0].quality[1].validity, 3);  /* Amp.q */
+    ASSERT_EQ((int)g_sv_pubs[0].quality[1].inconsistent, 1);
+
+    /* WP-C2 verification: write a DEEP leaf DA of the whole-SDO
+     * dataset (PhV phsA.cVal.mag.f) — previously unwatchable — and
+     * process: the whole-SDO publisher fans out. */
+    phv = iec61850_ln_find_do(mmxu, "PhV");
+    ASSERT_TRUE(phv != NULL);
+    deep_mag = iec61850_do_find_attribute(phv, "phsA.cVal.mag.f",
+                                           IEC61850_FC_MX);
+    ASSERT_TRUE(deep_mag != NULL);
+
+    wr_float(deep_mag, 6350.25f);
+    ASSERT_TRUE(b.publishers[1].dirty);
+    ASSERT_TRUE(!b.publishers[0].dirty);
+
+    ASSERT_EQ(iec61850_model_binding_process(&b), 1);
+    ASSERT_EQ(g_frames_sent, 2U);
+    ASSERT_EQ((int)g_sv_pubs[1].sample_count, 3);
+    ASSERT_EQ(g_sv_pubs[1].samples[0], 6350);  /* phsA.cVal.mag.f */
+    ASSERT_EQ(iec61850_sv_publisher_get_smp_cnt(&g_sv_pubs[1]), 1U);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* WP-C2 unlock on the test.scd whole-SDO shape: DS_SV's whole-SDO
+ * FCDAs (PhV phsA/phsB/phsC) expand against the built model's
+ * flattened dotted leaves and bind. MSVCB01 itself remains skipped
+ * in test_configure_publishers_pipeline() because DS_SV's 4th FCDA
+ * (MMXU "A") names a DO that MMXUType does not define — a
+ * parser-level -ENOENT under the all-or-nothing dataset contract,
+ * unrelated to the deep-path gap. Here the dataset is derived from
+ * the parsed test.scd with only that unresolvable FCDA dropped. */
+static void test_configure_publishers_scd_whole_sdo(void)
+{
+    iec61850_scl_doc_t doc;
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_scl_publisher_result_t res;
+    iec61850_scl_publisher_ops_t ops;
+    iec61850_logical_device_t *ld;
+    iec61850_logical_node_t *mmxu;
+    iec61850_data_object_t *phv;
+    iec61850_data_attribute_t *deep_mag;
+    const iec61850_scl_dataset_t *src = NULL;
+    iec61850_scl_dataset_t *ds;
+    size_t src_idx = 0;
+    int n;
+
+    TEST("configure_publishers_scd_whole_sdo");
+    load_test_doc();
+    ASSERT_TRUE(g_doc_loaded);
+
+    /* Locate DS_SV in the parsed document */
+    for (size_t i = 0; i < g_doc.dataset_count; i++) {
+        if (strcmp(g_doc.datasets[i].name, "DS_SV") == 0) {
+            src = &g_doc.datasets[i];
+            src_idx = i;
+            break;
+        }
+    }
+    ASSERT_TRUE(src != NULL);
+    ASSERT_TRUE(src->member_count >= 3U);
+
+    /* Derive: struct copy of the parsed document, keep the three
+     * whole-SDO FCDAs, drop the unresolvable "A" FCDA, and repoint
+     * MSVCB01 at the derived dataset. */
+    doc = g_doc;
+    ds = &doc.datasets[doc.dataset_count];
+    (void)memset(ds, 0, sizeof(*ds));
+    (void)strncpy(ds->name, "DS_SV_C2", sizeof(ds->name) - 1);
+    ds->member_count = 3;
+    for (size_t m = 0; m < 3U; m++) {
+        ds->members[m] = g_doc.datasets[src_idx].members[m];
+    }
+    doc.dataset_count++;
+
+    for (size_t i = 0; i < doc.sv_cb_count; i++) {
+        if (strcmp(doc.sv_cbs[i].cb_name, "MSVCB01") == 0) {
+            (void)strncpy(doc.sv_cbs[i].dataset, "DS_SV_C2",
+                          sizeof(doc.sv_cbs[i].dataset) - 1);
+        }
+    }
+
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    (void)memset(&ops, 0, sizeof(ops));
+    ops.create_goose = test_goose_create;
+    ops.create_sv = test_sv_create;
+    g_goose_create_calls = 0;
+    g_sv_create_calls = 0;
+    g_frames_sent = 0U;
+
+    /* gcb01 (DS1) binds as before; MSVCB01 over the whole-SDO
+     * dataset now binds too (previously skipped: every leaf under
+     * the SDO was a flattened dotted name). */
+    n = iec61850_scl_configure_publishers(&doc, &b, &ops, &res);
+    printf("(configured=%d goose=%d sv=%d skipped=%d) ",
+           n, (int)res.goose_configured, (int)res.sv_configured,
+           (int)res.skipped);
+    ASSERT_EQ(n, 2);
+    ASSERT_EQ((int)res.goose_configured, 1);
+    ASSERT_EQ((int)res.sv_configured, 1);
+    ASSERT_EQ((int)res.skipped, 0);
+    ASSERT_EQ(g_sv_create_calls, 1);
+
+    /* Whole-SDO expansion: 3 FCDAs x (cVal.mag.f, cVal.ang.f, q);
+     * the Timestamp leaves are excluded for SV. */
+    ASSERT_EQ((int)b.publishers[1].ref_count, 9);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[0].do_name, "PhV") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[0].da_name,
+                       "phsA.cVal.mag.f") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[2].da_name, "phsA.q") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[3].da_name,
+                       "phsB.cVal.mag.f") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[1].refs[8].da_name, "phsC.q") == 0);
+    ASSERT_EQ((int)b.publishers[1].refs[0].fc, (int)IEC61850_FC_MX);
+    /* gcb01's 2 refs + 9 whole-SDO leaves, all unique DAs */
+    ASSERT_EQ((int)b.watch_count, 11);
+    ASSERT_EQ((int)g_sv_cfgs[0].num_channels, 9);
+
+    /* Write a deep leaf DA of the whole-SDO dataset and process:
+     * fan-out through the whole-SDO publisher. */
+    ld = iec61850_ied_model_find_ld(&model, "LD0");
+    ASSERT_TRUE(ld != NULL);
+    mmxu = find_ln_by_class(ld, "MMXU");
+    ASSERT_TRUE(mmxu != NULL);
+    phv = iec61850_ln_find_do(mmxu, "PhV");
+    ASSERT_TRUE(phv != NULL);
+    deep_mag = iec61850_do_find_attribute(phv, "phsB.cVal.mag.f",
+                                           IEC61850_FC_MX);
+    ASSERT_TRUE(deep_mag != NULL);
+
+    wr_float(deep_mag, 7200.5f);
+    ASSERT_TRUE(b.publishers[1].dirty);
+    ASSERT_TRUE(!b.publishers[0].dirty);
+
+    ASSERT_EQ(iec61850_model_binding_process(&b), 1);
+    ASSERT_EQ(g_frames_sent, 1U);
+    ASSERT_EQ((int)g_sv_pubs[0].sample_count, 9);
+    ASSERT_EQ(g_sv_pubs[0].samples[3], 7200);  /* phsB.cVal.mag.f */
+    ASSERT_EQ(iec61850_sv_publisher_get_smp_cnt(&g_sv_pubs[0]), 1U);
 
     iec61850_model_binding_destroy(&b);
     iec61850_ied_model_destroy(&model);
@@ -1572,6 +1752,7 @@ int main(void)
     test_configure_publishers_pipeline();
     test_configure_publishers_whole_do();
     test_configure_publishers_sv_pipeline();
+    test_configure_publishers_scd_whole_sdo();
     test_configure_publishers_skip_tolerance();
     test_configure_publishers_null_args();
     test_configure_publishers_expansion_bounds();

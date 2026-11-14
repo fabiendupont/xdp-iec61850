@@ -156,6 +156,133 @@ static void test_path_based_lookup(void)
 }
 
 /* ========================================================================
+ * Deep-Path Attribute Lookup (WP-C2)
+ *
+ * Template-flattened builders (scl_ied_builder, the CDC factories)
+ * store deep leaves as dotted names inside one DataObject's
+ * attribute table ("phsA.cVal.mag.f") with no sub-data-objects.
+ * The walker resolves them after the sub-object-first walk misses
+ * (flat-name fallback matching the full remaining dotted path),
+ * while plain DO.DA and DO.SubDO.DA shapes keep resolving as
+ * before.
+ * ======================================================================== */
+
+static void test_deep_path_flat_dotted_lookup(void)
+{
+    TEST("deep_path_flat_dotted_lookup");
+    iec61850_logical_node_t *ln = iec61850_ln_create("MMXU", "1");
+    iec61850_data_attribute_t *da;
+
+    ASSERT_TRUE(ln != NULL);
+    ASSERT_EQ(iec61850_ln_add_data_object(ln, iec61850_cdc_create_wye("PhV")), 0);
+
+    /* Flat-dotted leaves under the DO (WYE factory flattens SDOs
+     * into dotted DA names) resolve through the full path. */
+    da = iec61850_ln_find_attribute(ln, "PhV.phsA.cVal.mag.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_TRUE(strcmp(da->name, "phsA.cVal.mag.f") == 0);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_FLOAT32);
+
+    da = iec61850_ln_find_attribute(ln, "PhV.phsB.cVal.ang.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+
+    /* Two-level flattening (CMV: "cVal.mag.f") */
+    ASSERT_EQ(iec61850_ln_add_data_object(ln, iec61850_cdc_create_cmv("Vol")), 0);
+    da = iec61850_ln_find_attribute(ln, "Vol.cVal.mag.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_TRUE(strcmp(da->name, "cVal.mag.f") == 0);
+
+    /* Plain leaf under the same DO still resolves (final segment,
+     * no dots: unchanged existing behavior). */
+    da = iec61850_ln_find_attribute(ln, "PhV.q", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_TRUE(strcmp(da->name, "q") == 0);
+
+    /* Misses remain misses: wrong FC, wrong leaf, wrong phase */
+    ASSERT_TRUE(iec61850_ln_find_attribute(ln, "PhV.phsA.cVal.mag.f",
+                                            IEC61850_FC_ST) == NULL);
+    ASSERT_TRUE(iec61850_ln_find_attribute(ln, "PhV.phsA.cVal.mag.x",
+                                            IEC61850_FC_MX) == NULL);
+    ASSERT_TRUE(iec61850_ln_find_attribute(ln, "PhV.phsD.cVal.mag.f",
+                                            IEC61850_FC_MX) == NULL);
+
+    iec61850_ln_destroy(ln);
+    PASS();
+}
+
+static void test_deep_path_sub_object_shapes(void)
+{
+    TEST("deep_path_sub_object_shapes");
+    iec61850_logical_node_t *ln = iec61850_ln_create("MMXU", "1");
+    iec61850_data_object_t *cmv;
+    iec61850_data_object_t *cval;
+    iec61850_data_attribute_t *da;
+
+    ASSERT_TRUE(ln != NULL);
+
+    /* Class-library shape: real sub-data-objects. */
+    cmv = iec61850_do_create("Vol", IEC61850_CDC_CMV);
+    cval = iec61850_do_create("cVal", IEC61850_CDC_CMV);
+    ASSERT_TRUE((cmv != NULL) && (cval != NULL));
+    ASSERT_EQ(iec61850_do_add_attribute(cval, "f", IEC61850_FC_MX,
+                                         IEC61850_BTYPE_FLOAT32), 0);
+    ASSERT_EQ(iec61850_do_add_sub_object(cmv, cval), 0);
+    ASSERT_EQ(iec61850_ln_add_data_object(ln, cmv), 0);
+
+    /* DO.SubDA.leaf (sub-object-first walk) */
+    da = iec61850_ln_find_attribute(ln, "Vol.cVal.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_TRUE(strcmp(da->name, "f") == 0);
+
+    /* Mixed shape: a real sub-object whose table carries a
+     * flat-dotted leaf — the walker descends into the sub-object,
+     * then matches the remaining dotted path against its table. */
+    ASSERT_EQ(iec61850_do_add_attribute(cval, "ang.f", IEC61850_FC_MX,
+                                         IEC61850_BTYPE_FLOAT32), 0);
+    da = iec61850_ln_find_attribute(ln, "Vol.cVal.ang.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_TRUE(strcmp(da->name, "ang.f") == 0);
+
+    /* Segment that matches neither a sub-object nor an attribute */
+    ASSERT_TRUE(iec61850_ln_find_attribute(ln, "Vol.cVal.nosuch",
+                                            IEC61850_FC_MX) == NULL);
+
+    iec61850_ln_destroy(ln);
+    PASS();
+}
+
+static void test_deep_path_full_model_lookup(void)
+{
+    TEST("deep_path_full_model_lookup");
+    iec61850_ied_model_t model;
+    iec61850_logical_device_t *ld;
+    iec61850_logical_node_t *ln;
+    iec61850_data_attribute_t *da;
+
+    iec61850_ied_model_init(&model, "IED1");
+    ld = iec61850_ld_create("LD0");
+    ln = iec61850_ln_create("MMXU", "1");
+    ASSERT_TRUE((ld != NULL) && (ln != NULL));
+    ASSERT_EQ(iec61850_ln_add_data_object(ln, iec61850_cdc_create_wye("PhV")), 0);
+    ASSERT_EQ(iec61850_ld_add_logical_node(ld, ln), 0);
+    ASSERT_EQ(iec61850_ied_model_add_ld(&model, ld), 0);
+
+    /* Full path through LD/LN to a flat-dotted leaf */
+    da = iec61850_ied_model_find_attribute(&model,
+                                            "LD0/MMXU1.PhV.phsA.cVal.mag.f",
+                                            IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_TRUE(strcmp(da->name, "phsA.cVal.mag.f") == 0);
+
+    /* Deep miss through the full-path walker */
+    ASSERT_TRUE(iec61850_ied_model_find_attribute(&model,
+                "LD0/MMXU1.PhV.phsA.cVal.mag.x", IEC61850_FC_MX) == NULL);
+
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* ========================================================================
  * CDC Factory
  * ======================================================================== */
 
@@ -451,6 +578,11 @@ int main(void)
 
     printf("\n=== Path-Based Lookup ===\n");
     test_path_based_lookup();
+
+    printf("\n=== Deep-Path Attribute Lookup (WP-C2) ===\n");
+    test_deep_path_flat_dotted_lookup();
+    test_deep_path_sub_object_shapes();
+    test_deep_path_full_model_lookup();
 
     printf("\n=== CDC Factory ===\n");
     test_cdc_spc();
