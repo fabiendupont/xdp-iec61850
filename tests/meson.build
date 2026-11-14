@@ -378,7 +378,8 @@ if mms_enabled
         link_with: [iec61850_lib] + mms_lib,
         dependencies: core_deps,
     )
-    test('rcb_e2e', test_rcb_e2e, suite: 'integration')
+    test('rcb_e2e', test_rcb_e2e, suite: 'integration',
+         workdir: meson.project_source_root())
 
     # Unit test — MMS Client (error paths + init)
     test_mms_client = executable('test_mms_client',

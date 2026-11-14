@@ -2,7 +2,7 @@
 # xdp-iec61850 — IEC 61850 GOOSE + SV + MMS on XDP
 
 project('xdp-iec61850', 'c',
-    version: '0.1.0',
+    version: '0.2.0',
     license: 'BSD-2-Clause',
     default_options: [
         'c_std=c11',

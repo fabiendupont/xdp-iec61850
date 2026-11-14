@@ -1331,6 +1331,14 @@ int mms_decode_cancel_response(const uint8_t* buffer, size_t buflen,
 
 /**
  * @brief Encode MMS CommandTermination
+ *
+ * @deprecated House-encoded form — its output is not BER-conformant
+ * (wire-verified: tshark flags it malformed). The conformant IEC
+ * 61850-8-1 form is the server control bridge's unsolicited
+ * InformationReport on <obj>$Oper echoing the operated structure
+ * (see the WP-2w bridge in src/mms/mms_server.c); clients receive
+ * it through the client core's unsolicited dispatch. Retained for
+ * API compatibility and as a fuzz decode target only.
  */
 int mms_encode_command_termination(const mms_command_termination_t* termination,
                                    uint8_t* buffer, size_t buflen);
