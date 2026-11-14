@@ -165,7 +165,9 @@ static void test_registered_dport(struct rxdp_ctx *ctx)
     TEST("xdp registered dport redirected to AF_XDP");
     if (!is_root) { SKIP("not root"); }
 
+    printf("PHASE rx1-drain\n");
     (void)xsk_drain(ctx->xsk, 200); /* start from a quiet ring */
+    printf("PHASE rx1-send-loop\n");
 
     for (int i = 0; i < 5; i++) {
         if (build_rgoose_wire_frame(&ctx->pub, ctx->tx_ip, ctx->rx_ip,
@@ -179,9 +181,11 @@ static void test_registered_dport(struct rxdp_ctx *ctx)
         usleep(20000);
     }
 
+    printf("PHASE rx1-recv\n");
     got = xsk_drain(ctx->xsk, 2000);
     ASSERT_TRUE(got >= 5);
 
+    printf("PHASE rx1-stats\n");
     /* The UDP filter node must have forwarded (TX count) and the
      * parse node seen them too. */
     if (egl_stats_read(xgl_graph_get_egl(ctx->g), ctx->indices.udp_filter,
@@ -304,6 +308,7 @@ int main(int argc, char **argv)
     tx_ip = argv[4];
     is_root = (geteuid() == 0);
 
+    setbuf(stdout, NULL); /* crash-safe: no lost output */
     printf("=== IEC 61850-90-5 XDP Datapath Scenario ===\n");
     if (!is_root) {
         printf("  (not running as root — all tests will skip)\n");
@@ -421,6 +426,7 @@ int main(int argc, char **argv)
         xgl_graph_destroy(ctx.g);
         return 1;
     }
+    printf("PHASE xsk-open\n");
     ret = packet_io_open(ctx.xsk, rx_iface, 0);
     if (ret != 0) {
         printf("SKIP: XSK open(%s) failed (%d: %s)\n", rx_iface, ret,
@@ -429,6 +435,7 @@ int main(int argc, char **argv)
         xgl_graph_destroy(ctx.g);
         return 77;
     }
+    printf("PHASE graph-attach\n");
     ret = xgl_graph_attach(ctx.g, rx_iface);
     if (ret != 0) {
         printf("SKIP: XDP attach to %s failed (%d: %s)\n", rx_iface, ret,
@@ -456,6 +463,7 @@ int main(int argc, char **argv)
         }
     }
 
+    printf("PHASE raw-open\n");
     ret = packet_io_open(ctx.raw_tx, tx_iface, 0);
     if (ret != 0) {
         printf("SKIP: raw open(%s) failed (%d: %s)\n", tx_iface, ret,
