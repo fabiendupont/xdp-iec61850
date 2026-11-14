@@ -18,6 +18,7 @@
 
 
 #include "iec61850_graph.h"
+#include "transport/eth_frame.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -110,6 +111,140 @@ static void test_dispatch_ethtype_for_role(void)
     /* Bogus roles rejected */
     ASSERT_TRUE(iec61850_graph_dispatch_ethtype(-1) < 0);
     ASSERT_TRUE(iec61850_graph_dispatch_ethtype(99) < 0);
+    PASS();
+}
+
+/* ===== WP-5b: QinQ tag-stack contract — userspace ↔ XDP parity ===== */
+
+/*
+ * The GOOSE/SV XDP filter nodes (WP-5b) and the userspace frame
+ * parser must accept exactly the same L2 tag stacks.  This test
+ * locks the contract from the unprivileged side; the root-gated
+ * veth scenario (tests/vm/test_qinq.sh) proves the BPF side on
+ * real wire traffic.
+ */
+
+/* Craft [dst(6)][src(6)][tag...][0x88B8][8-byte PDU header] with
+ * the given TPID stack (one 4-byte tag per entry: TPID + TCI). */
+static size_t craft_tagged_goose_frame(uint8_t *frame, size_t cap,
+                                       const uint16_t *tpids, int n_tags)
+{
+    size_t off = 12;
+
+    (void)memset(frame, 0, cap);
+    (void)memset(frame, 0x02, 12);          /* dst + src MACs */
+    for (int i = 0; i < n_tags; i++) {
+        frame[off++] = (uint8_t)(tpids[i] >> 8);
+        frame[off++] = (uint8_t)(tpids[i] & 0xFFU);
+        frame[off++] = 0x00;                 /* TCI: VID 0, prio 0 */
+        frame[off++] = 0x01;
+    }
+    frame[off++] = 0x88;                     /* EtherType 0x88B8 (GOOSE) */
+    frame[off++] = 0xB8;
+    frame[off++] = 0x12;                     /* APPID 0x1234 */
+    frame[off++] = 0x34;
+    frame[off++] = 0x00;                     /* PDU length 8 (hdr only) */
+    frame[off++] = 0x08;
+    /* Reserved1/Reserved2 stay zero (4 bytes, already cleared) */
+    off += 4;
+    return off;
+}
+
+static void test_qinq_tag_stack_parity(void)
+{
+    static const uint16_t stack_qinq_q[]  = { 0x88A8, 0x8100 };
+    static const uint16_t stack_qinq_ad[] = { 0x88A8, 0x88A8 };
+    static const uint16_t stack_bare_svc[] = { 0x88A8 };
+    static const uint16_t stack_double_q[] = { 0x8100, 0x8100 };
+    static const uint16_t stack_triple[]   = { 0x88A8, 0x8100, 0x8100 };
+    uint8_t frame[128];
+    size_t frame_len;
+    uint16_t et, ai, vi, sv;
+    const uint8_t *apdu;
+    size_t apdu_len;
+
+    TEST("qinq_tag_stack_parity");
+
+    /* Accepted stacks: untagged, one 802.1Q tag, QinQ with a
+     * 0x8100 or 0x88A8 customer tag (at most two tags total) */
+    frame_len = craft_tagged_goose_frame(frame, sizeof(frame), NULL, 0);
+    ASSERT_EQ(iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai,
+                                             &vi, &sv, &apdu, &apdu_len,
+                                             NULL, NULL), 0);
+    ASSERT_EQ((int)vi, 0);
+    ASSERT_EQ((int)sv, 0);
+
+    /* One 802.1Q tag (0x8100) — the pre-WP-5b single-tag case */
+    frame_len = craft_tagged_goose_frame(frame, sizeof(frame),
+                                         &stack_qinq_q[1], 1);
+    ASSERT_EQ(iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai,
+                                             &vi, &sv, &apdu, &apdu_len,
+                                             NULL, NULL), 0);
+    ASSERT_EQ((int)et, (int)0x88B8);
+    ASSERT_EQ((int)ai, 0x1234);
+    ASSERT_EQ((int)sv, 0);
+
+    frame_len = craft_tagged_goose_frame(frame, sizeof(frame),
+                                         stack_qinq_q, 2);
+    ASSERT_EQ(iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai,
+                                             &vi, &sv, &apdu, &apdu_len,
+                                             NULL, NULL), 0);
+    /* Crafted tags carry VID 1 in both TCI slots: service VLAN from
+     * the outer tag, customer VLAN from the inner tag. */
+    ASSERT_EQ((int)vi, 1);
+    ASSERT_EQ((int)sv, 1);
+    ASSERT_EQ(apdu_len, 0U);
+
+    frame_len = craft_tagged_goose_frame(frame, sizeof(frame),
+                                         stack_qinq_ad, 2);
+    ASSERT_EQ(iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai,
+                                             &vi, &sv, &apdu, &apdu_len,
+                                             NULL, NULL), 0);
+
+    /* Rejected stacks: bare service tag (no customer tag), stacked
+     * 0x8100 tags, and three or more tags.  The XDP filters drop
+     * these; the userspace parser must refuse them too. */
+    frame_len = craft_tagged_goose_frame(frame, sizeof(frame),
+                                         stack_bare_svc, 1);
+    ASSERT_TRUE(iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai,
+                                              &vi, &sv, &apdu, &apdu_len,
+                                              NULL, NULL) != 0);
+
+    frame_len = craft_tagged_goose_frame(frame, sizeof(frame),
+                                         stack_double_q, 2);
+    ASSERT_TRUE(iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai,
+                                              &vi, &sv, &apdu, &apdu_len,
+                                              NULL, NULL) != 0);
+
+    frame_len = craft_tagged_goose_frame(frame, sizeof(frame),
+                                         stack_triple, 3);
+    ASSERT_TRUE(iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai,
+                                              &vi, &sv, &apdu, &apdu_len,
+                                              NULL, NULL) != 0);
+
+    /* The builder emits exactly the accepted QinQ shape and the
+     * parser reads it back (round-trip through the shared stack). */
+    {
+        iec61850_eth_frame_config_t fcfg;
+
+        (void)memset(&fcfg, 0, sizeof(fcfg));
+        fcfg.dst_mac[0] = 0x01;
+        fcfg.src_mac[0] = 0x02;
+        fcfg.ethertype = IEC61850_ETHERTYPE_GOOSE;
+        fcfg.app_id = 0x1234;
+        fcfg.vlan_id = 100;
+        fcfg.qinq_svlan_id = 200;
+        frame_len = 0;
+        ASSERT_EQ(iec61850_eth_frame_build(frame, sizeof(frame), &fcfg,
+                                           (const uint8_t *)"", 0,
+                                           &frame_len), 0);
+        ASSERT_EQ(iec61850_eth_frame_parse_qinq(frame, frame_len, &et,
+                                                 &ai, &vi, &sv, &apdu,
+                                                 &apdu_len, NULL, NULL), 0);
+        ASSERT_EQ((int)vi, 100);
+        ASSERT_EQ((int)sv, 200);
+    }
+
     PASS();
 }
 
@@ -593,6 +728,7 @@ int main(void)
     test_dispatch_null_args();
     test_dispatch_ethtype_for_role();
     test_ratelimit_invalid_args();
+    test_qinq_tag_stack_parity();
     test_graph_register_nodes();
     test_graph_register_bad_dir();
     test_setup_dispatch_map();
