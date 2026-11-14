@@ -138,65 +138,8 @@ static const iec61850_ln_do_def_t cilo_dos[] = {
     { "NamPlt", IEC61850_CDC_LPL, true  },
 };
 
-/* ------------------------------------------------------------------
- * MHAI — Harmonic analysis (WP-6c)
- *
- * Judgment calls:
- *  - Group assignment: 7-4 lists MHAI with the measurement /
- *    power-quality classes; this repo's group 3 holds only the
- *    pilot pair (MMXU, MMTR) and the WP-6c brief assigns the
- *    remaining measurement classes to group 1. Flagged for TR.
- *  - Ha (HMV): phase-A harmonic content. DO name and CDC are
- *    from fragmentary 7-4 knowledge; listed O (likely M in 7-4)
- *    so the conservative table cannot break instantiation.
- *    Flagged.
- *  - The remaining harmonic DOs (three-phase HWYE / HDEL forms,
- *    interharmonics) are deferred — 7-4 names not reconstructible
- *    from clean-room knowledge. Flagged.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t mhai_dos[] = {
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Ha",     IEC61850_CDC_HMV, false },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-};
 
-/* ------------------------------------------------------------------
- * MFLK — Flicker measurement (WP-6c)
- *
- * Judgment calls:
- *  - Group assignment: as MHAI above (measurement / power quality
- *    in 7-4; group 1 here per the WP-6c brief). Flagged for TR.
- *  - Pst / Plt (MV): short- and long-term flicker severity (IEC
- *    61000-4-15 quantities), commonly associated with MFLK; typed
- *    MV and listed O (conservative; likely M in 7-4). Flagged.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t mflk_dos[] = {
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-    { "Plt",    IEC61850_CDC_MV,  false },
-    { "Pst",    IEC61850_CDC_MV,  false },
-};
 
-/* ------------------------------------------------------------------
- * MSQI — Sequence and imbalance measurement (WP-6c)
- *
- * Judgment calls:
- *  - Group assignment: as MHAI above. Flagged for TR.
- *  - The class-specific DO set (sequence components, imbalance
- *    quantities) could not be reconstructed with confidence from
- *    clean-room 7-4 knowledge, so only the LN-common DOs are
- *    registered and the rest are deferred. Flagged for TR.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t msqi_dos[] = {
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-};
 
 /* ------------------------------------------------------------------
  * YLTC — Load tap changer supervision (WP-6c)
@@ -276,9 +219,6 @@ const iec61850_ln_class_def_t ln_group1_classes[LN_GROUP1_CLASS_COUNT] = {
     { "CSWI", cswi_dos, 5U },
     { "LLN0", lln0_dos, 4U },
     { "LPHD", lphd_dos, 7U },
-    { "MHAI", mhai_dos, 5U },
-    { "MFLK", mflk_dos, 6U },
-    { "MSQI", msqi_dos, 4U },
     { "XCBR", xcbr_dos, 8U },
     { "XSWI", xswi_dos, 7U },
     { "YLTC", yltc_dos, 5U },

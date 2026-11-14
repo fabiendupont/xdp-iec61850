@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 /* Group 1 — common / substation (ln_tables_group1.c) */
-#define LN_GROUP1_CLASS_COUNT 13U
+#define LN_GROUP1_CLASS_COUNT 10U
 extern const iec61850_ln_class_def_t ln_group1_classes[LN_GROUP1_CLASS_COUNT];
 
 /* Group 2 — protection (ln_tables_group2.c) */
@@ -39,7 +39,7 @@ extern const iec61850_ln_class_def_t ln_group3_classes[LN_GROUP3_CLASS_COUNT];
 
 /* Group 4 — interfacing / archiving / power-related, generic
  * (ln_tables_group4.c) */
-#define LN_GROUP4_CLASS_COUNT 8U
+#define LN_GROUP4_CLASS_COUNT 5U
 extern const iec61850_ln_class_def_t ln_group4_classes[LN_GROUP4_CLASS_COUNT];
 
 #ifdef __cplusplus

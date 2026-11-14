@@ -438,6 +438,6 @@ const iec61850_ln_class_def_t ln_group2_classes[LN_GROUP2_CLASS_COUNT] = {
     { "RDRE", rdre_dos, 5U },
     { "RFLO", rflo_dos, 4U },
     /* instrument transformers */
-    { "TCTR", tctr_dos, 5U },
-    { "TVTR", tvtr_dos, 5U },
+    { "TCTR", tctr_dos, 6U },
+    { "TVTR", tvtr_dos, 6U },
 };

@@ -118,54 +118,7 @@ static const iec61850_ln_do_def_t ihmi_dos[] = {
     { "NamPlt", IEC61850_CDC_LPL, true  },
 };
 
-/* ------------------------------------------------------------------
- * TCTR — Current transformer (7-4, T family)
- *
- * AmpSv (SAV) is the sampled current value (merging-unit /
- * sampled-value contexts). Grouping judgment call (flagged): the
- * T-family (instrument transformer) LNs were not assigned in the
- * WP-6c briefs; TCTR/TVTR are placed here per the group-4
- * "interfacing/power-related" scope.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t tctr_dos[] = {
-    { "AmpSv",  IEC61850_CDC_SAV, false },
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-};
 
-/* ------------------------------------------------------------------
- * TVTR — Voltage transformer (7-4, T family)
- *
- * VolSv (SAV) is the sampled voltage value (merging-unit /
- * sampled-value contexts). Same grouping judgment call and flag
- * as TCTR above.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t tvtr_dos[] = {
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-    { "VolSv",  IEC61850_CDC_SAV, false },
-};
-
-/* ------------------------------------------------------------------
- * YLTC — Load tap changer (7-4, Y family)
- *
- * TapPos (ISC) is the tap position — the classic integer status
- * control use. Judgment calls (flagged): DO name/CDC per best
- * clean-room recall, TR to confirm; Y-family placement in group 4
- * follows the brief's "power-related" scope, as with the
- * companion control ATCC above.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t yltc_dos[] = {
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-    { "TapPos", IEC61850_CDC_ISC, false },
-};
 
 const iec61850_ln_class_def_t ln_group4_classes[LN_GROUP4_CLASS_COUNT] = {
     { "ACDR", acdr_dos, 4U  },
@@ -173,7 +126,4 @@ const iec61850_ln_class_def_t ln_group4_classes[LN_GROUP4_CLASS_COUNT] = {
     { "GAPC", gapc_dos, 5U  },
     { "GGIO", ggio_dos, 10U },
     { "IHMI", ihmi_dos, 4U  },
-    { "TCTR", tctr_dos, 5U  },
-    { "TVTR", tvtr_dos, 5U  },
-    { "YLTC", yltc_dos, 5U  },
 };
