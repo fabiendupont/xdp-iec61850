@@ -219,7 +219,9 @@ static void test_lookup(void)
     PASS();
 
     TEST("class_count");
-    ASSERT_EQ((int)iec61850_ln_class_count(), (int)PILOT_CLASS_COUNT);
+    /* Floor, not exact: WP-6c bulk generation appends classes; the
+     * generic sweep verifies every one of them. */
+    ASSERT_TRUE(iec61850_ln_class_count() >= PILOT_CLASS_COUNT);
     PASS();
 }
 
