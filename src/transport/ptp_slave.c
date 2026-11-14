@@ -74,7 +74,7 @@ int ptp_slave_on_announce(ptp_slave_t *s, const ptp_header_t *hdr,
             ann->grandmaster_priority2, ann->grandmaster_identity,
             ann->steps_removed,
             s->gm_priority1, &s->gm_quality, s->gm_priority2,
-            s->gm_identity, 0U);
+            s->gm_identity, s->gm_steps_removed);
         if (c >= 0) {
             return 0;   /* refresh only */
         }
@@ -86,6 +86,7 @@ int ptp_slave_on_announce(ptp_slave_t *s, const ptp_header_t *hdr,
     s->gm_priority2 = ann->grandmaster_priority2;
     memcpy(s->gm_identity, ann->grandmaster_identity,
            PTP_CLOCK_IDENTITY_LEN);
+    s->gm_steps_removed = ann->steps_removed;
     s->master_port = hdr->source_port_identity;
     s->master_announce_seq = hdr->sequence_id;
     ptp_slave_set_announce_interval(s, hdr->log_message_interval);
@@ -105,12 +106,16 @@ int ptp_slave_on_sync(ptp_slave_t *s, const ptp_header_t *hdr,
     if ((s == NULL) || (hdr == NULL) || (sync == NULL)) {
         return -EINVAL;
     }
+    if (hdr->domain_number != s->domain_number) {
+        return 0;   /* other domain: ignore silently */
+    }
     if (!from_master(s, hdr)) {
         return 0;
     }
 
     s->t4_ns = t4_ns;
     s->have_t4 = true;
+    s->sync_seq = hdr->sequence_id;
 
     if ((hdr->flag_field & PTP_FLAG_TWO_STEP) != 0U) {
         /* t3 arrives with the Follow_Up. */
@@ -130,7 +135,16 @@ int ptp_slave_on_follow_up(ptp_slave_t *s, const ptp_header_t *hdr,
     if ((s == NULL) || (hdr == NULL) || (fu == NULL)) {
         return -EINVAL;
     }
+    if (hdr->domain_number != s->domain_number) {
+        return 0;   /* other domain: ignore silently */
+    }
     if (!from_master(s, hdr) || !s->have_t4) {
+        return 0;
+    }
+    /* A Follow_Up pairs only with the Sync that carries its
+     * sequenceId — a stale Follow_Up from an earlier (e.g. lost)
+     * Sync must not corrupt t3 (wire data, untrusted). */
+    if (hdr->sequence_id != s->sync_seq) {
         return 0;
     }
 
@@ -145,6 +159,9 @@ int ptp_slave_on_delay_resp(ptp_slave_t *s, const ptp_header_t *hdr,
 {
     if ((s == NULL) || (hdr == NULL) || (dr == NULL)) {
         return -EINVAL;
+    }
+    if (hdr->domain_number != s->domain_number) {
+        return 0;   /* other domain: ignore silently */
     }
     if (!s->have_master || !s->have_t4 || !s->have_t3) {
         return 0;
