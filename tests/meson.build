@@ -416,6 +416,14 @@ if mms_enabled
     )
     test('ln_library', test_ln_library, suite: 'unit')
 
+    test_model_binding = executable('test_model_binding',
+        'unit/test_model_binding.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('model_binding', test_model_binding, suite: 'unit')
+
     test_setting_groups = executable('test_setting_groups',
         'unit/test_setting_groups.c',
         include_directories: [inc_dirs, test_inc],

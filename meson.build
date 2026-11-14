@@ -100,6 +100,7 @@ core_sources = files(
     'src/ied/ln/ln_tables_group2.c',
     'src/ied/ln/ln_tables_group3.c',
     'src/ied/ln/ln_tables_group4.c',
+    'src/ied/model_binding.c',
     # Phase 7: Config + Monitoring (always built)
     'src/config/config_manager.c',
     'src/monitoring/system_monitor.c',
