@@ -17,12 +17,24 @@
  * are lock-free by the same convention as the rest of the server:
  * the manager is configured before the server starts. */
 
-static void build_item(char *out, size_t outsz,
-                       const iec61850_logical_node_t *ln,
-                       const char *path)
+/* Bounds discipline (house style): a name that does not fit is a
+ * configuration error, never a silent truncation — a truncated
+ * "$SE$" item could collide with another entry and divert writes
+ * to the wrong group copy. */
+static int join_into(char *out, size_t outsz, const char *a,
+                     const char *b)
 {
-    (void)snprintf(out, outsz, "%s%s$SE$%s", ln->ln_class, ln->ln_inst,
-                   path);
+    int n = snprintf(out, outsz, "%s$%s", a, b);
+    return ((n < 0) || ((size_t)n >= outsz)) ? -ENAMETOOLONG : 0;
+}
+
+static int build_item(char *out, size_t outsz,
+                      const iec61850_logical_node_t *ln,
+                      const char *path)
+{
+    int n = snprintf(out, outsz, "%s%s$SE$%s", ln->ln_class, ln->ln_inst,
+                     path);
+    return ((n < 0) || ((size_t)n >= outsz)) ? -ENAMETOOLONG : 0;
 }
 
 /* Recursive model walk: register every FC=SE attribute, building
@@ -43,9 +55,15 @@ static int register_do(iec61850_sg_manager_t *mgr,
         }
         char item[IEC61850_SG_MAX_ITEM_LEN];
         char full_path[IEC61850_SG_MAX_ITEM_LEN];
-        (void)snprintf(full_path, sizeof(full_path), "%s$%s", path,
-                       da->name);
-        build_item(item, sizeof(item), ln, full_path);
+        int ret = join_into(full_path, sizeof(full_path), path,
+                            da->name);
+        if (ret != 0) {
+            return ret;
+        }
+        ret = build_item(item, sizeof(item), ln, full_path);
+        if (ret != 0) {
+            return ret;
+        }
 
         size_t e = mgr->entry_count;
         (void)snprintf(mgr->entries[e].ld, sizeof(mgr->entries[e].ld),
@@ -62,10 +80,13 @@ static int register_do(iec61850_sg_manager_t *mgr,
 
     for (size_t s = 0; s < dobj->sub_count; s++) {
         char sub[IEC61850_SG_MAX_ITEM_LEN];
-        (void)snprintf(sub, sizeof(sub), "%s$%s", path,
-                       dobj->sub_objects[s]->name);
-        int ret = register_do(mgr, ld_inst, ln, dobj->sub_objects[s],
-                              sub);
+        int ret = join_into(sub, sizeof(sub), path,
+                            dobj->sub_objects[s]->name);
+        if (ret != 0) {
+            return ret;
+        }
+        ret = register_do(mgr, ld_inst, ln, dobj->sub_objects[s],
+                          sub);
         if (ret != 0) {
             return ret;
         }
@@ -152,10 +173,40 @@ int iec61850_sg_activate(iec61850_sg_manager_t *mgr, uint8_t sg)
 
 /* --- bridge helpers ------------------------------------------------ */
 
+/* SGCB attributes follow the IEC 61850-8-1 MMS mapping observed on
+ * the reference stack (libiec61850 server_example_setting_groups,
+ * black-box wire probe): the SGCB is a component object of LLN0
+ * under FC SP, i.e. "LLN0$SP$SGCB$<attr>". The pre-review code
+ * used the non-conformant "LLN0$SG$<attr>" — a real client could
+ * not discover the SGCB. */
+#define SGCB_PREFIX "LLN0$SP$SGCB$"
+
 static int is_sgcb_attr(const char *item, const char *attr)
 {
-    return (strncmp(item, "LLN0$SG$", 8U) == 0) &&
-           (strcmp(item + 8U, attr) == 0);
+    return (strncmp(item, SGCB_PREFIX, sizeof(SGCB_PREFIX) - 1U) == 0) &&
+           (strcmp(item + sizeof(SGCB_PREFIX) - 1U, attr) == 0);
+}
+
+/* Translate a "$SG$" read view ("<LN>$SG$<path>", the read-only
+ * active-group values per 7-2) into the registered "$SE$" item
+ * name. The FC separator is the segment between the FIRST TWO
+ * '$' characters — an "$SG$" deeper in the path (a sub-object
+ * literally named SG) is NOT the FC and must not be translated. */
+static int sg_to_se_item(const char *item, char *out, size_t outsz)
+{
+    const char *fc = strchr(item, '$');
+    if ((fc == NULL) || (fc == item)) {
+        return -1;
+    }
+    if (strncmp(fc, "$SG$", 4U) != 0) {
+        return -1;
+    }
+    if (fc[4] == '\0') {
+        return -1;   /* no path after the FC separator */
+    }
+    int n = snprintf(out, outsz, "%.*s$SE$%s", (int)(fc - item), item,
+                     fc + 4U);
+    return ((n < 0) || ((size_t)n >= outsz)) ? -1 : 0;
 }
 
 static int find_entry(const iec61850_sg_manager_t *mgr,
@@ -283,13 +334,29 @@ int iec61850_sg_bridge_read(iec61850_sg_manager_t *mgr,
         return 0;
     }
 
+    /* "$SG$" view: read-only values of the ACTIVE group (7-2). */
+    char translated[IEC61850_SG_MAX_ITEM_LEN];
+    if (sg_to_se_item(item, translated, sizeof(translated)) == 0) {
+        int e = find_entry(mgr, domain, translated);
+        if (e < 0) {
+            return -ENOENT;
+        }
+        *value = mgr->entries[e].groups[mgr->act_sg - 1U];
+        return 0;
+    }
+
     int e = find_entry(mgr, domain, item);
     if (e < 0) {
         return -ENOENT;
     }
-    /* Edit group when selected, otherwise the active group. */
-    uint8_t g = (mgr->edit_sg != 0U) ? mgr->edit_sg : mgr->act_sg;
-    *value = mgr->entries[e].groups[g - 1U];
+    /* SE values are the EDIT-session view: without a selected edit
+     * group they are not visible (matches the reference stack — SE
+     * reads outside an edit session come back as object errors).
+     * Fall through so the store produces the error. */
+    if (mgr->edit_sg == 0U) {
+        return -ENOENT;
+    }
+    *value = mgr->entries[e].groups[mgr->edit_sg - 1U];
     return 0;
 }
 

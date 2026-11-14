@@ -67,6 +67,7 @@ typedef struct {
     ptp_clock_quality_t gm_quality;
     uint8_t gm_priority2;
     uint8_t gm_identity[PTP_CLOCK_IDENTITY_LEN];
+    uint16_t gm_steps_removed;   /* current master's stepsRemoved */
     ptp_port_identity_t master_port;
     uint16_t master_announce_seq;
 
@@ -79,6 +80,9 @@ typedef struct {
     bool have_delay;
     int64_t t4_ns;                /* Sync ingress (local clock) */
     int64_t t3_ns;                /* preciseOriginTimestamp (master) */
+    uint16_t sync_seq;            /* sequenceId of the Sync that
+                                   * supplied t4 (a Follow_Up only
+                                   * pairs with its own Sync) */
     uint16_t delay_req_seq;       /* sequence for the next Delay_Req */
     int64_t mean_path_delay_ns;
     int64_t offset_from_master_ns;

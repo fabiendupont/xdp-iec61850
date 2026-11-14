@@ -15,9 +15,12 @@
 #include "mms/mms_client.h"
 #include "mms/mms_control.h"
 #include "mms/mms_data_store.h"
+#include "mms/mms_setting_groups.h"
+#include "ied/ied_data_model.h"
 #include "asn1/mms_ber.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -905,6 +908,82 @@ static void test_ms15_oracle_client_controls_our_server(void)
     INTEROP_PASS();
 }
 
+/*
+ * MS-16 (WP-6x): the libiec61850 client (mms_utility) reads our
+ * SGCB — the 8-1 object naming (LLN0$SP$SGCB$<attr>) verified
+ * against the reference stack from the client side.
+ */
+static void test_ms16_oracle_client_reads_sgcb(void)
+{
+    iec61850_mms_data_store_t ds;
+    iec61850_ied_model_t *model;
+    iec61850_sg_manager_t *mgr;
+    iec61850_mms_server_t srv;
+    iec61850_mms_server_config_t cfg;
+    iec61850_logical_device_t *ld;
+    iec61850_logical_node_t *ln;
+    iec61850_data_object_t *dobj;
+    iec61850_data_attribute_t *setval;
+    char output[4096];
+    const char *args[4];
+    int rc;
+
+    INTEROP_TEST("MS-16: mms_utility reads our SGCB (WP-6x)");
+    if (!interop_check_prerequisites()) INTEROP_SKIP("libiec61850 not found");
+
+    iec61850_mms_ds_init(&ds);
+    (void)iec61850_mms_ds_create_domain(&ds, "LD0");
+
+    model = calloc(1, sizeof(*model));
+    ld = iec61850_ld_create("LD0");
+    ln = iec61850_ln_create("PTOC", "1");
+    dobj = iec61850_do_create("Mod", IEC61850_CDC_DPC);
+    (void)iec61850_do_add_attribute(dobj, "setVal", IEC61850_FC_SE,
+                                    IEC61850_BTYPE_INT32);
+    (void)iec61850_ln_add_data_object(ln, dobj);
+    (void)iec61850_ld_add_logical_node(ld, ln);
+    (void)iec61850_ied_model_add_ld(model, ld);
+    setval = iec61850_ln_find_attribute(ln, "Mod.setVal", IEC61850_FC_SE);
+    setval->value.type = MMS_TYPE_INTEGER;
+    setval->value.value.integer = 100;
+
+    if (iec61850_sg_manager_init(&mgr, model, 3, 1, 30) != 0) {
+        INTEROP_FAIL("sg manager init failed");
+    }
+
+    iec61850_mms_server_config_init(&cfg);
+    cfg.port = g_port;
+    iec61850_mms_server_init(&srv, &cfg, &ds);
+    if (iec61850_mms_server_set_sg_manager(&srv, mgr) != 0) {
+        iec61850_sg_manager_destroy(mgr);
+        iec61850_mms_ds_destroy(&ds);
+        INTEROP_FAIL("set_sg_manager failed");
+    }
+    if (iec61850_mms_server_start(&srv) != IEC61850_MMS_SERVER_OK) {
+        iec61850_sg_manager_destroy(mgr);
+        iec61850_mms_ds_destroy(&ds);
+        INTEROP_FAIL("server start failed");
+    }
+    usleep(200000);
+
+    /* Read the SGCB attribute with the reference client. */
+    args[0] = "-a";
+    args[1] = "LD0";
+    args[2] = "-r";
+    args[3] = "LLN0$SP$SGCB$NumOfSG";
+    rc = run_mms_utility(args, 4, output, sizeof(output));
+
+    (void)iec61850_mms_server_stop(&srv);
+    iec61850_sg_manager_destroy(mgr);
+    iec61850_mms_ds_destroy(&ds);
+    g_port++;
+
+    INTEROP_ASSERT(rc == 0);
+    INTEROP_ASSERT(strstr(output, "Read SUCCESS") != NULL);
+    INTEROP_ASSERT(strstr(output, "\n3\n") != NULL);
+    INTEROP_PASS();
+}
+
 int main(void)
 {
     printf("\n=== MMS Interop Tests: libiec61850 client → xdp server ===\n");
@@ -925,6 +1004,7 @@ int main(void)
     test_ms13_conclude();
     test_ms14_control_via_oracle_server();
     test_ms15_oracle_client_controls_our_server();
+    test_ms16_oracle_client_reads_sgcb();
 
     INTEROP_SUMMARY();
     return interop_tests_failed > 0 ? 1 : 0;
