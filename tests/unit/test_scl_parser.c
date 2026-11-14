@@ -4,13 +4,16 @@
  *
  * Tests: load SCD file, extract GOOSE CB, extract SV CB,
  * extract RCB (URCB/BRCB), extract DataSet/FCDA,
- * query by name, nonexistent IED, communication section.
+ * query by name, nonexistent IED, communication section,
+ * IID/CID variant acceptance, root/version validation,
+ * oversized-name rejection, FCDA -> DA path resolution.
  *
  * License: BSD-2-Clause
  */
 
 #include "scl/scl_parser.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -387,6 +390,407 @@ static void test_type_cross_references(void)
     PASS();
 }
 
+/* ======================================================================
+ * Input variants (SCD / ICD / IID / CID) — WP-6e
+ * ====================================================================== */
+
+static void test_iid_acceptance(void)
+{
+    TEST("iid_acceptance");
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, "IEDA", &doc);
+    ASSERT_EQ(ret, 0);
+
+    /* Sniffed variant: single IED, no Communication, Header history */
+    ASSERT_EQ((int)doc.profile, (int)IEC61850_SCL_PROFILE_IID);
+    ASSERT_TRUE(strcmp(iec61850_scl_profile_name(doc.profile), "IID") == 0);
+    ASSERT_TRUE(strcmp(doc.version, "2007B2") == 0);
+    ASSERT_TRUE(strcmp(doc.ied_name, "IEDA") == 0);
+
+    /* Structure parses even without a Communication section */
+    ASSERT_TRUE(doc.ld_count == 1);
+    ASSERT_TRUE(doc.dataset_count >= 5);
+
+    /* GOOSE CB present but unaddressed (no Communication section) */
+    const iec61850_scl_goose_cb_t *gcb = iec61850_scl_find_goose_cb(&doc, "gcbA");
+    ASSERT_TRUE(gcb != NULL);
+    ASSERT_TRUE(strcmp(gcb->dataset, "DS_LEAF") == 0);
+    ASSERT_TRUE(gcb->mac_address[0] == '\0');
+    ASSERT_EQ((int)gcb->app_id, 0);
+
+    /* RCB present */
+    ASSERT_TRUE(iec61850_scl_find_rcb(&doc, "URCB_A") != NULL);
+
+    PASS();
+}
+
+static void test_cid_acceptance(void)
+{
+    TEST("cid_acceptance");
+    char path[512];
+    build_path(path, sizeof(path), "test.cid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, "IED1", &doc);
+    ASSERT_EQ(ret, 0);
+
+    /* Sniffed variant: single IED with configured Communication */
+    ASSERT_EQ((int)doc.profile, (int)IEC61850_SCL_PROFILE_CID);
+    ASSERT_TRUE(strcmp(iec61850_scl_profile_name(doc.profile), "CID") == 0);
+
+    /* Communication addresses populated from the ConnectedAP */
+    const iec61850_scl_goose_cb_t *gcb = iec61850_scl_find_goose_cb(&doc, "gcb01");
+    ASSERT_TRUE(gcb != NULL);
+    ASSERT_TRUE(strcmp(gcb->mac_address, "01-0C-CD-01-00-01") == 0);
+    ASSERT_EQ((int)gcb->vlan_id, 100);
+
+    PASS();
+}
+
+static void test_scd_profile_reported(void)
+{
+    TEST("scd_profile_reported");
+    char path[512];
+    build_path(path, sizeof(path), "test.scd");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, "IED1", &doc);
+    ASSERT_EQ(ret, 0);
+
+    /* test.scd holds a single IED with a Communication section and
+     * no Header: structurally a configured IED description. (A
+     * single-IED SCD is content-indistinguishable from a CID and
+     * is reported as CID.) */
+    ASSERT_EQ((int)doc.profile, (int)IEC61850_SCL_PROFILE_CID);
+    ASSERT_TRUE(strcmp(iec61850_scl_profile_name(doc.profile), "CID") == 0);
+
+    /* Unknown profile name is reported as UNKNOWN */
+    ASSERT_TRUE(strcmp(iec61850_scl_profile_name(IEC61850_SCL_PROFILE_UNKNOWN),
+                       "UNKNOWN") == 0);
+
+    PASS();
+}
+
+/* ======================================================================
+ * Root / version validation and bounds discipline — WP-6e
+ * ====================================================================== */
+
+static void test_bad_root_rejected(void)
+{
+    TEST("bad_root_rejected");
+    char path[512];
+    build_path(path, sizeof(path), "bad_root.scl");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, NULL, &doc);
+    ASSERT_EQ(ret, -EINVAL);
+    PASS();
+}
+
+static void test_bad_version_rejected(void)
+{
+    TEST("bad_version_rejected");
+    char path[512];
+    build_path(path, sizeof(path), "bad_version.scd");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, NULL, &doc);
+    ASSERT_EQ(ret, -EINVAL);
+    PASS();
+}
+
+static void test_oversized_name_rejected(void)
+{
+    TEST("oversized_name_rejected");
+    char path[512];
+    build_path(path, sizeof(path), "bad_oversized_name.scd");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, NULL, &doc);
+    ASSERT_EQ(ret, -ENAMETOOLONG);
+    PASS();
+}
+
+static void test_missing_ied_rejected(void)
+{
+    TEST("missing_ied_rejected");
+    char path[512];
+    build_path(path, sizeof(path), "test.scd");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, "NOSUCH", &doc);
+    ASSERT_EQ(ret, -ENOENT);
+    PASS();
+}
+
+/* ======================================================================
+ * SDO marker and EnumType labels
+ * ====================================================================== */
+
+static void test_sdo_marker(void)
+{
+    TEST("sdo_marker");
+    char path[512];
+    build_path(path, sizeof(path), "test.scd");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    iec61850_scl_parse_file(path, "IED1", &doc);
+
+    /* WYE_1 members are SDOs (type -> DOType) */
+    const iec61850_scl_do_type_t *wye = iec61850_scl_find_do_type(&doc, "WYE_1");
+    ASSERT_TRUE(wye != NULL);
+    ASSERT_EQ((int)wye->da_count, 3);
+    ASSERT_TRUE(wye->das[0].is_sdo);
+    ASSERT_TRUE(wye->das[1].is_sdo);
+    ASSERT_TRUE(wye->das[2].is_sdo);
+
+    /* DPC_1 members are DAs */
+    const iec61850_scl_do_type_t *dpc = iec61850_scl_find_do_type(&doc, "DPC_1");
+    ASSERT_TRUE(dpc != NULL);
+    for (size_t i = 0; i < dpc->da_count; i++) {
+        ASSERT_TRUE(!dpc->das[i].is_sdo);
+    }
+
+    PASS();
+}
+
+static void test_enum_label(void)
+{
+    TEST("enum_label");
+    char path[512];
+    build_path(path, sizeof(path), "test.scd");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    iec61850_scl_parse_file(path, "IED1", &doc);
+
+    const iec61850_scl_enum_type_t *ctl = iec61850_scl_find_enum_type(&doc, "CtlModels");
+    ASSERT_TRUE(ctl != NULL);
+    ASSERT_TRUE(strcmp(iec61850_scl_enum_label(ctl, 0), "status-only") == 0);
+    ASSERT_TRUE(strcmp(iec61850_scl_enum_label(ctl, 1),
+                       "direct-with-normal-security") == 0);
+    ASSERT_TRUE(strcmp(iec61850_scl_enum_label(ctl, 4),
+                       "sbo-with-enhanced-security") == 0);
+    ASSERT_TRUE(iec61850_scl_enum_label(ctl, 99) == NULL);
+    ASSERT_TRUE(iec61850_scl_enum_label(NULL, 0) == NULL);
+
+    PASS();
+}
+
+/* ======================================================================
+ * FCDA -> DA reference resolution — WP-6e
+ * ====================================================================== */
+
+static void test_fcda_resolution_leaf(void)
+{
+    TEST("fcda_resolution_leaf");
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    ASSERT_EQ(iec61850_scl_parse_file(path, "IEDA", &doc), 0);
+
+    const iec61850_scl_dataset_t *ds = iec61850_scl_find_dataset(&doc, "DS_LEAF");
+    ASSERT_TRUE(ds != NULL);
+    ASSERT_EQ((int)ds->member_count, 1);
+
+    iec61850_scl_da_path_t da_path;
+    int ret = iec61850_scl_resolve_fcda(&doc, ds, 0, &da_path);
+    ASSERT_EQ(ret, 0);
+
+    ASSERT_TRUE(strcmp(da_path.ld_inst, "LD0") == 0);
+    ASSERT_TRUE(strcmp(da_path.ln_name, "XCBR1") == 0);
+    ASSERT_TRUE(strcmp(da_path.path, "Pos.stVal") == 0);
+    ASSERT_TRUE(strcmp(da_path.fc, "ST") == 0);
+    ASSERT_TRUE(!da_path.whole_do);
+    ASSERT_TRUE(strcmp(da_path.btype, "Dbpos") == 0);
+    ASSERT_TRUE(da_path.do_type != NULL);
+    ASSERT_TRUE(da_path.do_type == iec61850_scl_find_do_type(&doc, "DPC_1"));
+    ASSERT_TRUE(da_path.enum_type == NULL);
+    ASSERT_TRUE(da_path.struct_type == NULL);
+
+    PASS();
+}
+
+static void test_fcda_resolution_deep(void)
+{
+    TEST("fcda_resolution_deep");
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    ASSERT_EQ(iec61850_scl_parse_file(path, "IEDA", &doc), 0);
+
+    /* PhV.phsA.cVal.mag.f: DO -> SDO -> Struct DA -> Struct BDA -> leaf */
+    const iec61850_scl_dataset_t *ds = iec61850_scl_find_dataset(&doc, "DS_DEEP");
+    ASSERT_TRUE(ds != NULL);
+
+    iec61850_scl_da_path_t da_path;
+    int ret = iec61850_scl_resolve_fcda(&doc, ds, 0, &da_path);
+    ASSERT_EQ(ret, 0);
+
+    ASSERT_TRUE(strcmp(da_path.ln_name, "MMXU1") == 0);
+    ASSERT_TRUE(strcmp(da_path.path, "PhV.phsA.cVal.mag.f") == 0);
+    ASSERT_TRUE(strcmp(da_path.fc, "MX") == 0);
+    ASSERT_TRUE(!da_path.whole_do);
+    ASSERT_TRUE(strcmp(da_path.btype, "FLOAT32") == 0);
+    /* DO type of the reference is the SDO's DOType (CMV_1) */
+    ASSERT_TRUE(da_path.do_type == iec61850_scl_find_do_type(&doc, "CMV_1"));
+
+    PASS();
+}
+
+static void test_fcda_resolution_whole_do(void)
+{
+    TEST("fcda_resolution_whole_do");
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    ASSERT_EQ(iec61850_scl_parse_file(path, "IEDA", &doc), 0);
+
+    const iec61850_scl_dataset_t *ds = iec61850_scl_find_dataset(&doc, "DS_WHOLE");
+    ASSERT_TRUE(ds != NULL);
+
+    iec61850_scl_da_path_t da_path;
+    int ret = iec61850_scl_resolve_fcda(&doc, ds, 0, &da_path);
+    ASSERT_EQ(ret, 0);
+
+    ASSERT_TRUE(da_path.whole_do);
+    ASSERT_TRUE(strcmp(da_path.path, "Pos") == 0);
+    ASSERT_TRUE(strcmp(da_path.fc, "ST") == 0);
+    ASSERT_TRUE(da_path.do_type == iec61850_scl_find_do_type(&doc, "DPC_1"));
+    ASSERT_TRUE(da_path.btype[0] == '\0');  /* no leaf metadata */
+
+    /* Whole-SDO reference (daName is an SDO name, DS_SV in test.scd) */
+    char scd_path[512];
+    build_path(scd_path, sizeof(scd_path), "test.scd");
+    iec61850_scl_doc_t scd;
+    iec61850_scl_doc_init(&scd);
+    ASSERT_EQ(iec61850_scl_parse_file(scd_path, "IED1", &scd), 0);
+
+    const iec61850_scl_dataset_t *ds_sv = iec61850_scl_find_dataset(&scd, "DS_SV");
+    ASSERT_TRUE(ds_sv != NULL);
+    ret = iec61850_scl_resolve_fcda(&scd, ds_sv, 0, &da_path);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(da_path.whole_do);
+    ASSERT_TRUE(strcmp(da_path.path, "PhV.phsA") == 0);
+    ASSERT_TRUE(da_path.do_type == iec61850_scl_find_do_type(&scd, "CMV_1"));
+
+    PASS();
+}
+
+static void test_fcda_resolution_struct_and_enum(void)
+{
+    TEST("fcda_resolution_struct_and_enum");
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    ASSERT_EQ(iec61850_scl_parse_file(path, "IEDA", &doc), 0);
+
+    /* Struct-DA leaf: Pos.origin (CO) -> Originator_1 */
+    const iec61850_scl_dataset_t *ds_struct =
+        iec61850_scl_find_dataset(&doc, "DS_STRUCT");
+    ASSERT_TRUE(ds_struct != NULL);
+
+    iec61850_scl_da_path_t da_path;
+    int ret = iec61850_scl_resolve_fcda(&doc, ds_struct, 0, &da_path);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(!da_path.whole_do);
+    ASSERT_TRUE(strcmp(da_path.path, "Pos.origin") == 0);
+    ASSERT_TRUE(da_path.leaf_struct);
+    ASSERT_TRUE(strcmp(da_path.btype, "Struct") == 0);
+    ASSERT_TRUE(da_path.struct_type == iec61850_scl_find_da_type(&doc, "Originator_1"));
+
+    /* Enum-DA leaf: Pos.ctlModel (CF) -> CtlModels */
+    const iec61850_scl_dataset_t *ds_enum =
+        iec61850_scl_find_dataset(&doc, "DS_ENUM");
+    ASSERT_TRUE(ds_enum != NULL);
+
+    ret = iec61850_scl_resolve_fcda(&doc, ds_enum, 0, &da_path);
+    ASSERT_EQ(ret, 0);
+    ASSERT_TRUE(!da_path.whole_do);
+    ASSERT_TRUE(strcmp(da_path.path, "Pos.ctlModel") == 0);
+    ASSERT_TRUE(strcmp(da_path.btype, "Enum") == 0);
+    ASSERT_TRUE(da_path.enum_type == iec61850_scl_find_enum_type(&doc, "CtlModels"));
+    ASSERT_TRUE(strcmp(iec61850_scl_enum_label(da_path.enum_type, 1),
+                       "direct-with-normal-security") == 0);
+
+    PASS();
+}
+
+static void test_fcda_resolution_errors(void)
+{
+    TEST("fcda_resolution_errors");
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    ASSERT_EQ(iec61850_scl_parse_file(path, "IEDA", &doc), 0);
+
+    const iec61850_scl_dataset_t *ds = iec61850_scl_find_dataset(&doc, "DS_LEAF");
+    ASSERT_TRUE(ds != NULL);
+
+    iec61850_scl_da_path_t da_path;
+
+    /* NULL arguments */
+    ASSERT_EQ(iec61850_scl_resolve_fcda(NULL, ds, 0, &da_path), -EINVAL);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, NULL, 0, &da_path), -EINVAL);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, ds, 0, NULL), -EINVAL);
+
+    /* Index out of range */
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, ds, 1, &da_path), -EINVAL);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, ds, (size_t)-1, &da_path), -EINVAL);
+
+    /* Unresolvable references: mutate a copy of a valid dataset */
+    iec61850_scl_dataset_t bad = *ds;
+
+    (void)strncpy(bad.members[0].do_name, "Nope", sizeof(bad.members[0].do_name) - 1);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, &bad, 0, &da_path), -ENOENT);
+
+    (void)strncpy(bad.members[0].do_name, "Pos", sizeof(bad.members[0].do_name) - 1);
+    (void)strncpy(bad.members[0].da_name, "nope", sizeof(bad.members[0].da_name) - 1);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, &bad, 0, &da_path), -ENOENT);
+
+    /* Wrong functional constraint for the leaf DA */
+    (void)strncpy(bad.members[0].da_name, "stVal", sizeof(bad.members[0].da_name) - 1);
+    (void)strncpy(bad.members[0].fc, "MX", sizeof(bad.members[0].fc) - 1);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, &bad, 0, &da_path), -ENOENT);
+
+    /* Unknown Logical Node class */
+    (void)strncpy(bad.members[0].fc, "ST", sizeof(bad.members[0].fc) - 1);
+    (void)strncpy(bad.members[0].ln_class, "ZZZZ", sizeof(bad.members[0].ln_class) - 1);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, &bad, 0, &da_path), -ENOENT);
+
+    /* Unknown Logical Device */
+    (void)strncpy(bad.members[0].ln_class, "XCBR", sizeof(bad.members[0].ln_class) - 1);
+    (void)strncpy(bad.members[0].ld_inst, "LD9", sizeof(bad.members[0].ld_inst) - 1);
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, &bad, 0, &da_path), -ENOENT);
+
+    /* Empty doName is not a valid FCDA */
+    bad.members[0].do_name[0] = '\0';
+    ASSERT_EQ(iec61850_scl_resolve_fcda(&doc, &bad, 0, &da_path), -ENOENT);
+
+    PASS();
+}
+
 int main(void)
 {
     printf("\n=== SCL Parser Tests ===\n");
@@ -405,6 +809,28 @@ int main(void)
     test_da_type_extraction();
     test_enum_type_extraction();
     test_type_cross_references();
+
+    printf("\n--- Input Variants (SCD/ICD/IID/CID) ---\n");
+    test_iid_acceptance();
+    test_cid_acceptance();
+    test_scd_profile_reported();
+
+    printf("\n--- Validation & Bounds Discipline ---\n");
+    test_bad_root_rejected();
+    test_bad_version_rejected();
+    test_oversized_name_rejected();
+    test_missing_ied_rejected();
+
+    printf("\n--- SDO Marker & Enum Labels ---\n");
+    test_sdo_marker();
+    test_enum_label();
+
+    printf("\n--- FCDA -> DA Resolution ---\n");
+    test_fcda_resolution_leaf();
+    test_fcda_resolution_deep();
+    test_fcda_resolution_whole_do();
+    test_fcda_resolution_struct_and_enum();
+    test_fcda_resolution_errors();
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);

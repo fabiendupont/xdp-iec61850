@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Negative fixture — WP-6e root-element validation.
+  The root element is not <SCL>; the parser must reject the document
+  with -EINVAL.
+-->
+<NotSCL version="2007">
+  <IED name="IED1"/>
+</NotSCL>
