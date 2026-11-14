@@ -47,6 +47,16 @@ struct {
     __type(value, __u32);     /* action: 0=drop, 1=accept */
 } r_filter SEC(".maps");
 
+/* EtherType dispatch: protocol EtherType (host byte order) -> filter
+ * node's PROG_ARRAY index. Populated from userspace by
+ * iec61850_graph_setup_dispatch(); consumed by node_dispatch. */
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 16);
+    __type(key, __u16);       /* EtherType (host byte order) */
+    __type(value, __u32);     /* PROG_ARRAY index of the filter node */
+} iec61850_dispatch SEC(".maps");
+
 /* GOOSE state tracking: APPID -> {stNum, sqNum} for change detection */
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -365,6 +375,7 @@ iec61850_rl_evaluate(void *rl_map, void *cfg_map, __u32 family,
 #define IEC61850_905_SPDU_LEN_MIN        6
 
 /* Logical roles (not PROG_ARRAY indices — indices are dynamic) */
+#define IEC61850_ROLE_DISPATCH      7  /* WP-C4: our root dispatcher */
 #define IEC61850_ROLE_GOOSE_FILTER   0
 #define IEC61850_ROLE_GOOSE_PARSE    1
 #define IEC61850_ROLE_SV_FILTER      2
@@ -372,7 +383,7 @@ iec61850_rl_evaluate(void *rl_map, void *cfg_map, __u32 family,
 #define IEC61850_ROLE_UDP_FILTER     4  /* WP-S4: 90-5 IPv4/UDP dispatch */
 #define IEC61850_ROLE_RGOOSE_PARSE   5  /* WP-S4: 90-5 R-GOOSE parse */
 #define IEC61850_ROLE_RSV_PARSE      6  /* WP-S4: 90-5 R-SV parse */
-#define IEC61850_ROLE_COUNT          7
+#define IEC61850_ROLE_COUNT          8
 
 /* Config map: role → PROG_ARRAY index (populated by userspace) */
 struct {

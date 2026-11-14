@@ -143,10 +143,35 @@ int iec61850_graph_register(struct xgl_graph *g, const char *bpf_dir,
         }
     }
 
+    /* Root dispatcher at PROG_ARRAY index 0 (attach() attaches the
+     * program at index 0). Replaces the shipped xgl_dispatch, which
+     * self-loops when inserted at index 0 (it tail-calls slot 0).
+     * node_dispatch allocates the XGL metadata our nodes require and
+     * tail-calls the filter node registered for the packet's
+     * EtherType via the iec61850_dispatch map. */
+    (void)snprintf(path, sizeof(path), "%s/node_dispatch.bpf.o", bpf_dir);
+    ret = xgl_graph_add_node(g, 0, path, "node_dispatch");
+    if (ret != 0) {
+        return ret;
+    }
+
     /* Populate config map so BPF programs know their PROG_ARRAY indices */
     ret = populate_config_map(g, indices);
     if (ret != 0) {
         return ret;
+    }
+
+    /* The root dispatcher's own index (role DISPATCH -> 0) */
+    {
+        int config_fd = xgl_graph_get_map_fd(g, "iec61850_node_config");
+        __u32 role = IEC61850_ROLE_DISPATCH;
+        __u32 idx = 0U;
+        if (config_fd < 0) {
+            return config_fd;
+        }
+        if (bpf_map_update_elem(config_fd, &role, &idx, BPF_ANY) != 0) {
+            return -errno;
+        }
     }
 
     /* Seed the rate-limit family defaults (WP-5a) */

@@ -18,6 +18,7 @@ extern "C" {
 struct xgl_graph;
 
 /* Logical roles matching BPF-side IEC61850_ROLE_* constants */
+#define IEC61850_ROLE_DISPATCH     7
 #define IEC61850_ROLE_GOOSE_FILTER  0
 #define IEC61850_ROLE_GOOSE_PARSE   1
 #define IEC61850_ROLE_SV_FILTER     2

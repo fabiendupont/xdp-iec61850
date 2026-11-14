@@ -221,7 +221,7 @@ if clang.found() and libbpf_dep.found() and xgl_dep.found()
                   '-I' + egl_inc_dir]
     bpf_cflags += bpf_inc
 
-    bpf_nodes = ['node_goose_filter', 'node_goose_parse',
+    bpf_nodes = ['node_dispatch', 'node_goose_filter', 'node_goose_parse',
                  'node_sv_filter', 'node_sv_parse',
                  'node_udp_filter', 'node_rgoose_parse',
                  'node_rsv_parse']

@@ -369,10 +369,7 @@ static void test_setup_dispatch_map(void)
     ASSERT_EQ(ret, 0);
 
     /* Get dispatch map fd */
-    int dispatch_fd = xgl_graph_get_map_fd(g, "xgl_ext_dispatch");
-    if (dispatch_fd < 0) {
-        dispatch_fd = xgl_graph_get_map_fd(g, "ext_dispatch");
-    }
+    int dispatch_fd = xgl_graph_get_map_fd(g, "iec61850_dispatch");
     ASSERT_GE(dispatch_fd, 0);
 
     /* Set up dispatch with allocated indices */
@@ -665,10 +662,7 @@ static void test_full_pipeline(void)
     ASSERT_EQ(ret, 0);
 
     /* Get dispatch map and set up EtherType routing */
-    int dispatch_fd = xgl_graph_get_map_fd(g, "xgl_ext_dispatch");
-    if (dispatch_fd < 0) {
-        dispatch_fd = xgl_graph_get_map_fd(g, "ext_dispatch");
-    }
+    int dispatch_fd = xgl_graph_get_map_fd(g, "iec61850_dispatch");
     if (dispatch_fd >= 0) {
         ret = iec61850_graph_setup_dispatch(dispatch_fd, &indices);
         ASSERT_EQ(ret, 0);

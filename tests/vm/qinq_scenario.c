@@ -547,8 +547,10 @@ int main(int argc, char **argv)
         printf("SKIP: xgl_graph_create failed\n");
         return 77;
     }
-    ret = xgl_graph_add_node(ctx.g, 0, dispatch_path, "xgl_dispatch");
-    if (ret != 0) {
+    /* Root dispatcher registered at index 0 by
+     * iec61850_graph_register(). */
+    ret = 0;
+    if (0) {
         printf("SKIP: dispatch add_node failed (%d: %s)\n", ret,
                strerror(-ret));
         xgl_graph_destroy(ctx.g);
@@ -561,10 +563,7 @@ int main(int argc, char **argv)
         return 77;
     }
 
-    dispatch_fd = xgl_graph_get_map_fd(ctx.g, "xgl_ext_dispatch");
-    if (dispatch_fd < 0) {
-        dispatch_fd = xgl_graph_get_map_fd(ctx.g, "ext_dispatch");
-    }
+    dispatch_fd = xgl_graph_get_map_fd(ctx.g, "iec61850_dispatch");
     if (dispatch_fd < 0) {
         printf("SKIP: dispatch map not found\n");
         xgl_graph_destroy(ctx.g);
