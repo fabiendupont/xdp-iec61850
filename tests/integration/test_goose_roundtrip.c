@@ -345,6 +345,153 @@ static void test_sv_smpcnt_sequence(void)
 }
 
 /* ========================================================================
+ * QinQ (802.1ad) Frame Build/Parse Round-Trip — WP-5b
+ * ======================================================================== */
+
+static void test_qinq_frame_roundtrip(void)
+{
+    TEST("qinq_frame_roundtrip");
+
+    iec61850_goose_publisher_t pub;
+    iec61850_goose_publisher_init(&pub, NULL);
+    iec61850_goose_publisher_set_boolean(&pub, 0, true);
+
+    uint8_t apdu_buf[GOOSE_MAX_APDU_SIZE];
+    size_t apdu_len;
+    int ret = iec61850_goose_publisher_prepare(&pub, apdu_buf,
+                                                sizeof(apdu_buf), &apdu_len);
+    ASSERT_EQ(ret, 0);
+
+    /* Build a double-tagged frame: 802.1ad service tag 200 (prio 5)
+     * in front of the 802.1Q customer tag 100 (prio 3). */
+    uint8_t frame[IEC61850_MAX_FRAME_SIZE];
+    size_t frame_len = 0;
+    iec61850_eth_frame_config_t fcfg;
+    memset(&fcfg, 0, sizeof(fcfg));
+    fcfg.dst_mac[0] = 0x01; fcfg.dst_mac[1] = 0x0C; fcfg.dst_mac[2] = 0xCD;
+    fcfg.dst_mac[3] = 0x01; fcfg.dst_mac[4] = 0x00; fcfg.dst_mac[5] = 0x01;
+    fcfg.src_mac[0] = 0x02; fcfg.src_mac[5] = 0x01;
+    fcfg.ethertype = IEC61850_ETHERTYPE_GOOSE;
+    fcfg.app_id = 0x0009;
+    fcfg.vlan_id = 100;
+    fcfg.vlan_priority = 3;
+    fcfg.qinq_svlan_id = 200;
+    fcfg.qinq_svlan_priority = 5;
+    fcfg.simulation = true;
+
+    ret = iec61850_eth_frame_build(frame, sizeof(frame), &fcfg,
+                                    apdu_buf, apdu_len, &frame_len);
+    ASSERT_EQ(ret, 0);
+    /* 14 (Eth) + 8 (two tags) + 8 (PDU hdr) + APDU */
+    ASSERT_EQ(frame_len, 30U + apdu_len);
+    /* Wire layout: outer TPID 0x88A8, service TCI prio 5 | VID 200 */
+    ASSERT_EQ(frame[12], 0x88);
+    ASSERT_EQ(frame[13], 0xA8);
+    ASSERT_EQ(frame[14], (uint8_t)((5U << 13) >> 8) | 0x00);
+    ASSERT_EQ(frame[15], (uint8_t)(200U & 0xFFU));
+    /* Customer TPID 0x8100, TCI prio 3 | VID 100 */
+    ASSERT_EQ(frame[16], 0x81);
+    ASSERT_EQ(frame[17], 0x00);
+    ASSERT_EQ(frame[18], (uint8_t)((3U << 13) >> 8) | 0x00);
+    ASSERT_EQ(frame[19], (uint8_t)(100U & 0xFFU));
+    /* Protocol EtherType */
+    ASSERT_EQ(frame[20], 0x88);
+    ASSERT_EQ(frame[21], 0xB8);
+
+    /* Parse with the QinQ-aware parser */
+    uint16_t et = 0, ai = 0, vi = 0, sv = 0;
+    const uint8_t *apdu_out = NULL;
+    size_t apdu_out_len = 0, apdu_off = 0;
+    bool sim = false;
+    ret = iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai, &vi,
+                                         &sv, &apdu_out, &apdu_out_len,
+                                         &apdu_off, &sim);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ((int)et, (int)IEC61850_ETHERTYPE_GOOSE);
+    ASSERT_EQ((int)ai, 0x0009);
+    ASSERT_EQ((int)vi, 100);      /* customer VLAN */
+    ASSERT_EQ((int)sv, 200);      /* service VLAN */
+    ASSERT_EQ(apdu_off, 30U);     /* APDU behind the double stack */
+    ASSERT_EQ(apdu_out_len, apdu_len);
+    ASSERT_TRUE(sim);             /* simulation bit survives the stack */
+
+    /* The legacy parser handles the same stack (svlan not reported) */
+    ret = iec61850_eth_frame_parse(frame, frame_len, &et, &ai, &vi,
+                                    &apdu_out, &apdu_out_len, NULL, NULL);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ((int)vi, 100);
+
+    /* Decode the APDU behind the double tag */
+    goose_apdu_t decoded;
+    goose_apdu_init(&decoded);
+    ret = goose_decode_apdu(apdu_out, apdu_out_len, &decoded);
+    ASSERT_EQ(ret, 0);
+    iec61850_goose_subscriber_t sub;
+    iec61850_goose_subscriber_init(&sub, NULL);
+    sub.config.reject_simulation = false;  /* frame carries the sim bit */
+    ASSERT_TRUE(iec61850_goose_subscriber_process(&sub, &decoded,
+                                                   1000000ULL, true));
+
+    iec61850_goose_publisher_destroy(&pub);
+    iec61850_goose_subscriber_destroy(&sub);
+    PASS();
+}
+
+static void test_qinq_update_pdu_length(void)
+{
+    TEST("qinq_update_pdu_length");
+
+    uint8_t frame[IEC61850_MAX_FRAME_SIZE];
+    size_t frame_len = 0;
+    iec61850_eth_frame_config_t fcfg;
+    memset(&fcfg, 0, sizeof(fcfg));
+    fcfg.dst_mac[0] = 0x01;
+    fcfg.src_mac[0] = 0x02;
+    fcfg.ethertype = IEC61850_ETHERTYPE_SV;
+    fcfg.app_id = 0x4000;
+    fcfg.vlan_id = 100;
+    fcfg.qinq_svlan_id = 200;
+
+    int ret = iec61850_eth_frame_build(frame, sizeof(frame), &fcfg,
+                                        (const uint8_t *)"APDU", 4,
+                                        &frame_len);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ(frame_len, 34U);
+
+    /* Append one byte (as the security extension does), then fix
+     * the PDU length through the double tag stack. */
+    frame[frame_len] = 0xAA;
+    frame_len += 1U;
+    ret = iec61850_eth_frame_update_pdu_length_tags(frame, frame_len,
+                                                     true, true);
+    ASSERT_EQ(ret, 0);
+    /* PDU length counts from APPID: 8 (hdr) + 4 (APDU) + 1 (ext) */
+    ASSERT_EQ(frame[24], 0x00);
+    ASSERT_EQ(frame[25], 13U);
+
+    /* The parser must accept the extended frame and report the
+     * appended byte as APDU payload. */
+    uint16_t et = 0, ai = 0, vi = 0, sv = 0;
+    const uint8_t *apdu_out = NULL;
+    size_t apdu_out_len = 0;
+    ret = iec61850_eth_frame_parse_qinq(frame, frame_len, &et, &ai, &vi,
+                                         &sv, &apdu_out, &apdu_out_len,
+                                         NULL, NULL);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ((int)sv, 200);
+    ASSERT_EQ(apdu_out_len, 5U);
+
+    /* A service tag without a customer tag is not buildable — the
+     * builder refuses, matching the XDP filter tag stack. */
+    fcfg.qinq_svlan_id = 200;
+    fcfg.vlan_id = 0;
+    ret = iec61850_eth_frame_build(frame, sizeof(frame), &fcfg,
+                                    (const uint8_t *)"APDU", 4, &frame_len);
+    ASSERT_TRUE(ret != 0);
+    PASS();
+}
+
+/* ========================================================================
  * IED Model → Data Store Integration
  * ======================================================================== */
 
@@ -393,6 +540,10 @@ int main(void)
     printf("\n=== SV Round-Trip Integration Tests ===\n");
     test_sv_frame_roundtrip();
     test_sv_smpcnt_sequence();
+
+    printf("\n=== QinQ (802.1ad) Round-Trip Tests ===\n");
+    test_qinq_frame_roundtrip();
+    test_qinq_update_pdu_length();
 
     printf("\n=== IED Model Integration ===\n");
     test_ied_model_data_roundtrip();
