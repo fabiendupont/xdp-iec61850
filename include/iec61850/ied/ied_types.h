@@ -84,7 +84,18 @@ typedef enum {
     IEC61850_CDC_DPL = 41,
     IEC61850_CDC_BCR = 50,
     IEC61850_CDC_MX3 = 60,
-    IEC61850_CDC_DEL3 = 61
+    IEC61850_CDC_DEL3 = 61,
+    /* WP-S6 extension: remaining IEC 61850-7-3 CDCs (factories
+     * implemented by WP-6a in src/ied/cdc/). */
+    IEC61850_CDC_APC = 62,   /* Analogue point control */
+    IEC61850_CDC_ENC = 63,   /* Enumerated point control */
+    IEC61850_CDC_ISC = 64,   /* Integer point control */
+    IEC61850_CDC_CURS = 65,  /* Curves */
+    IEC61850_CDC_CSD = 66,   /* Command with signature / custom */
+    IEC61850_CDC_SEQ = 67,   /* Sequence */
+    IEC61850_CDC_HMV = 68,   /* Harmonic value (non-phase) */
+    IEC61850_CDC_HWYE = 69,  /* Harmonic WYE */
+    IEC61850_CDC_HDEL = 70   /* Harmonic DELTA */
 } iec61850_cdc_t;
 
 const char *iec61850_fc_to_string(iec61850_fc_t fc);

@@ -138,6 +138,15 @@ test_ied_types = executable('test_ied_types',
 )
 test('ied_types', test_ied_types, suite: 'unit')
 
+# Unit test — LN class library (WP-S6 scaffold, extended by WP-6b/6c)
+test_ln_library = executable('test_ln_library',
+    'unit/test_ln_library.c',
+    include_directories: [inc_dirs, test_inc],
+    link_with: [iec61850_lib] + mms_lib,
+    dependencies: [thread_dep],
+)
+test('ln_library', test_ln_library, suite: 'unit')
+
 test_goose_retransmission = executable('test_goose_retransmission',
     'unit/test_goose_retransmission.c',
     include_directories: [inc_dirs, test_inc],

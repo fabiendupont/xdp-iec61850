@@ -227,6 +227,17 @@ iec61850_data_object_t *iec61850_cdc_create_vss(const char *name);
 iec61850_data_object_t *iec61850_cdc_create_mx3(const char *name);
 iec61850_data_object_t *iec61850_cdc_create_del3(const char *name);
 
+/* WP-S6 extension CDCs (implemented in src/ied/cdc/, WP-6a) */
+iec61850_data_object_t *iec61850_cdc_create_apc(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_enc(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_isc(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_curs(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_csd(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_seq(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_hmv(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_hwye(const char *name);
+iec61850_data_object_t *iec61850_cdc_create_hdel(const char *name);
+
 #ifdef __cplusplus
 }
 #endif

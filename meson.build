@@ -83,6 +83,16 @@ core_sources = files(
     # Phase 7: IED data model (always built)
     'src/ied/ied_data_model.c',
     'src/ied/ied_types.c',
+    # IEC 61850-7-3 CDC extension batches + 7-4 LN class library
+    # (WP-S6 scaffolding; implemented by WP-6a / WP-6b / WP-6c)
+    'src/ied/cdc/cdc_control.c',
+    'src/ied/cdc/cdc_analog.c',
+    'src/ied/cdc/cdc_harmonics.c',
+    'src/ied/ln/ln_runtime.c',
+    'src/ied/ln/ln_tables_group1.c',
+    'src/ied/ln/ln_tables_group2.c',
+    'src/ied/ln/ln_tables_group3.c',
+    'src/ied/ln/ln_tables_group4.c',
     # Phase 7: Config + Monitoring (always built)
     'src/config/config_manager.c',
     'src/monitoring/system_monitor.c',
