@@ -74,6 +74,17 @@ uint32_t iec61850_ln_class_count(void)
     return total;
 }
 
+const iec61850_ln_class_def_t *iec61850_ln_class_at(uint32_t index)
+{
+    for (size_t g = 0U; g < LN_GROUP_COUNT; g++) {
+        if (index < ln_groups[g].count) {
+            return &ln_groups[g].classes[index];
+        }
+        index -= ln_groups[g].count;
+    }
+    return NULL;
+}
+
 /* ========================================================================
  * CDC factory dispatch
  * ======================================================================== */
@@ -121,7 +132,17 @@ static iec61850_data_object_t *ln_cdc_create_do(iec61850_cdc_t cdc,
         case IEC61850_CDC_DPL: dobj = iec61850_cdc_create_dpl(name); break;
         case IEC61850_CDC_BCR: dobj = iec61850_cdc_create_bcr(name); break;
         case IEC61850_CDC_VSS: dobj = iec61850_cdc_create_vss(name); break;
-        /* WP-S6 stubs and unknown values: no factory -> fail */
+        /* WP-6a extension CDCs */
+        case IEC61850_CDC_APC:  dobj = iec61850_cdc_create_apc(name);  break;
+        case IEC61850_CDC_ENC:  dobj = iec61850_cdc_create_enc(name);  break;
+        case IEC61850_CDC_ISC:  dobj = iec61850_cdc_create_isc(name);  break;
+        case IEC61850_CDC_CURS: dobj = iec61850_cdc_create_curs(name); break;
+        case IEC61850_CDC_CSD:  dobj = iec61850_cdc_create_csd(name);  break;
+        case IEC61850_CDC_SEQ:  dobj = iec61850_cdc_create_seq(name);  break;
+        case IEC61850_CDC_HMV:  dobj = iec61850_cdc_create_hmv(name);  break;
+        case IEC61850_CDC_HWYE: dobj = iec61850_cdc_create_hwye(name); break;
+        case IEC61850_CDC_HDEL: dobj = iec61850_cdc_create_hdel(name); break;
+        /* Unknown values: no factory -> fail */
         default:
             dobj = NULL;
             break;

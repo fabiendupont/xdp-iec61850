@@ -29,6 +29,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int tests_run = 0;
@@ -225,6 +226,87 @@ static void test_lookup(void)
 /* ========================================================================
  * Instantiation
  * ======================================================================== */
+
+static void test_all_classes_instantiate(void)
+{
+    TEST("all_registered_classes_instantiate");
+
+    uint32_t n = iec61850_ln_class_count();
+    uint32_t built = 0U;
+    uint32_t failures = 0U;
+
+    if (n < 11U) {
+        printf("FAIL: only %u classes registered (pilot floor 11)\n",
+               (unsigned)n);
+        FAIL("class count below pilot floor");
+    }
+
+    for (uint32_t i = 0U; i < n; i++) {
+        const iec61850_ln_class_def_t *def = iec61850_ln_class_at(i);
+        iec61850_ied_model_t *model;
+        iec61850_logical_device_t *ld;
+
+        if (def == NULL) {
+            printf("FAIL: class_at(%u) returned NULL\n", (unsigned)i);
+            FAIL("enumeration hole");
+        }
+        if ((def->ln_class == NULL) || (def->ln_class[0] == '\0') ||
+            (def->do_count == 0U) || (def->dos == NULL)) {
+            printf("FAIL: %s malformed definition\n",
+                   def->ln_class ? def->ln_class : "(null)");
+            FAIL("malformed class definition");
+        }
+
+        model = calloc(1U, sizeof(*model));
+        if (model == NULL) { FAIL("model alloc"); }
+        (void)iec61850_ied_model_init(model, "IED1");
+        ld = iec61850_ld_create("LD0");
+        if ((ld == NULL) || (iec61850_ied_model_add_ld(model, ld) != 0)) {
+            FAIL("model setup");
+        }
+
+        iec61850_logical_node_t *ln = iec61850_ied_model_add_ln_class(
+            model, "LD0", def->ln_class, "1", "");
+        if (ln == NULL) {
+            printf("  %s: instantiation FAILED\n", def->ln_class);
+            failures++;
+        } else {
+            /* Every M DO must be present in the instantiated LN. */
+            for (uint32_t d = 0U; d < def->do_count; d++) {
+                const iec61850_ln_do_def_t *dd = &def->dos[d];
+                iec61850_data_object_t *dobj = NULL;
+
+                if (!dd->mandatory) { continue; }
+                for (uint32_t k = 0U; k < ln->do_count; k++) {
+                    if (strcmp(ln->data_objects[k]->name,
+                               dd->do_name) == 0) {
+                        dobj = ln->data_objects[k];
+                        break;
+                    }
+                }
+                if (dobj == NULL) {
+                    printf("  %s: M DO %s missing\n",
+                           def->ln_class, dd->do_name);
+                    failures++;
+                } else if ((dobj->attr_count == 0U) &&
+                           (dobj->sub_count == 0U)) {
+                    printf("  %s: DO %s has an empty tree\n",
+                           def->ln_class, dd->do_name);
+                    failures++;
+                }
+            }
+            built++;
+        }
+        /* model leaked: bounded by class count, process exits */
+    }
+
+    printf("  (%u classes: %u instantiated, %u failures)\n",
+           (unsigned)n, (unsigned)built, (unsigned)failures);
+    if (failures > 0U) {
+        FAIL("class instantiation failures");
+    }
+    PASS();
+}
 
 static void test_instantiate_all_classes(void)
 {
@@ -525,6 +607,9 @@ static void test_mms_closed_loop(void)
 int main(void)
 {
     printf("=== LN Class Library Unit Tests ===\n");
+
+    printf("\n--- Generic Sweep (every registered class) ---\n");
+    test_all_classes_instantiate();
 
     printf("\n--- Lookup ---\n");
     test_lookup();

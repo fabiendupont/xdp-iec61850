@@ -57,6 +57,12 @@ const iec61850_ln_class_def_t *iec61850_ln_class_lookup(
 uint32_t iec61850_ln_class_count(void);
 
 /**
+ * Enumerate compiled class definitions: index 0..count-1.
+ * @return The definition at @p index, or NULL when out of range.
+ */
+const iec61850_ln_class_def_t *iec61850_ln_class_at(uint32_t index);
+
+/**
  * Instantiate an LN of the given class into a logical device.
  *
  * Creates the LN (ld_name/ln_class/ln_inst/prefix per the model
