@@ -40,6 +40,8 @@
 #include "transport/packet_io.h"
 
 #include <bpf/bpf.h>
+#include <bpf/libbpf.h>
+#include <unistd.h>
 #include <egl/egl_stats.h>
 #include <xgl/xgl_graph.h>
 
@@ -339,8 +341,32 @@ int main(int argc, char **argv)
     }
     ret = xgl_graph_add_node(ctx.g, 0, dispatch_path, "xgl_dispatch");
     if (ret != 0) {
+        /* Pre-flight diagnostics: pinpoint the failing sub-step of
+         * the load chain (each is a silent -ENOENT candidate). */
+        struct bpf_object *dbg_obj;
+        char cwd_buf[512];
+
         printf("SKIP: dispatch add_node failed (%d: %s)\n", ret,
                strerror(-ret));
+        printf("DIAG cwd=%s\n", getcwd(cwd_buf, sizeof(cwd_buf))
+               ? cwd_buf : "?");
+        printf("DIAG path=%s\n", dispatch_path);
+        dbg_obj = bpf_object__open(dispatch_path);
+        if (dbg_obj == NULL) {
+            printf("DIAG bpf_object__open FAILED errno=%d (%s)\n",
+                   errno, strerror(errno));
+        } else {
+            struct bpf_program *dbg_prog;
+            printf("DIAG bpf_object__open OK\n");
+            dbg_prog = bpf_object__find_program_by_name(dbg_obj,
+                                                          "xgl_dispatch");
+            printf("DIAG find_program_by_name %s\n",
+                   dbg_prog ? "OK" : "FAILED (-ENOENT)");
+            bpf_object__close(dbg_obj);
+        }
+        printf("DIAG /sys/fs/bpf is %s\n",
+               (access("/sys/fs/bpf", F_OK) == 0)
+                   ? "present" : "ABSENT");
         xgl_graph_destroy(ctx.g);
         return 77;
     }

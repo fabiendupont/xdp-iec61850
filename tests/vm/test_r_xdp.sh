@@ -112,18 +112,6 @@ echo "Scenario: $SCENARIO"
 ip netns del "$NS_XDP" 2>/dev/null || true
 ip netns add "$NS_XDP"
 ip netns exec "$NS_XDP" ip link set lo up
-# The egl/xgl graph library pins shared maps under /sys/fs/bpf/egl.
-# Inside `ip netns exec` the fresh sysfs mount loses the host's
-# bpffs — mount a private instance (standard XDP-test practice).
-ip netns exec "$NS_XDP" mkdir -p /sys/fs/bpf 2>/dev/null || true
-if ! ip netns exec "$NS_XDP" mount -t bpf bpf /sys/fs/bpf 2>/dev/null; then
-    # tolerate an existing mount (EBUSY) but not a hard failure
-    if ! ip netns exec "$NS_XDP" grep -qs bpf /proc/mounts; then
-        echo "SKIP: cannot mount bpffs inside the test netns"
-        ip netns del "$NS_XDP" 2>/dev/null || true
-        exit 0
-    fi
-fi
 ip netns exec "$NS_XDP" ip link add "$VETH_RX" type veth peer name "$VETH_TX"
 ip netns exec "$NS_XDP" ip link set "$VETH_RX" up
 ip netns exec "$NS_XDP" ip link set "$VETH_TX" up
@@ -135,8 +123,15 @@ ip netns exec "$NS_XDP" sysctl -q -w "net.ipv6.conf.${VETH_TX}.disable_ipv6=1" 2
 test_start "r-xdp datapath (dport filter + AF_XDP + spdu dedup)"
 
 OUTPUT="$TMPDIR_TEST/xdp.out"
-if ip netns exec "$NS_XDP" "$SCENARIO" "$VETH_RX" "$VETH_TX" \
-        "$RX_IP" "$TX_IP" > "$OUTPUT" 2>&1; then
+# NOTE: each `ip netns exec` unshares a fresh mount namespace, so the
+# bpffs mount MUST happen in the same exec as the scenario — a mount
+# in a previous exec dies with it (the graph library pins shared maps
+# under /sys/fs/bpf/egl, and the netns's fresh sysfs has no bpffs).
+if ip netns exec "$NS_XDP" sh -c '
+        mkdir -p /sys/fs/bpf 2>/dev/null || true
+        mount -t bpf bpf /sys/fs/bpf 2>/dev/null || true
+        exec "$0" "$@"' \
+        "$SCENARIO" "$VETH_RX" "$VETH_TX" "$RX_IP" "$TX_IP" > "$OUTPUT" 2>&1; then
     if grep -q " 0 failed" "$OUTPUT"; then
         test_pass
     else
