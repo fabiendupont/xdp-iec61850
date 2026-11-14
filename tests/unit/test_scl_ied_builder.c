@@ -12,11 +12,16 @@
 #include "scl/scl_ied_builder.h"
 #include "scl/scl_parser.h"
 #include "ied/ied_data_model.h"
+#include "ied/model_binding.h"
+#include "goose/goose_publisher.h"
+#include "sv/sv_publisher.h"
+#include "transport/packet_io.h"
 #include "mms/mms_report.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -689,10 +694,847 @@ static void test_unresolvable_lntype_fallback(void)
     PASS();
 }
 
+/* ========================================================================
+ * SCL Publisher Auto-Configuration (WP-6f)
+ * ======================================================================== */
+
+/* Mock packet I/O (counts published frames) */
+static uint32_t g_frames_sent;
+
+static int mock_send(struct packet_io *io, const void *pkt, uint32_t len)
+{
+    (void)io;
+    (void)pkt;
+    (void)len;
+    g_frames_sent++;
+    return 0;
+}
+
+static const struct packet_io_ops mock_io_ops = {
+    .send = mock_send,
+};
+
+static struct packet_io mock_io = {
+    .ops = &mock_io_ops,
+};
+
+/* Creation callbacks: embed the publishers in static storage (the
+ * application owns publisher lifetime) and capture the prepared
+ * configs for verification. */
+static iec61850_goose_publisher_t g_goose_pub;
+static iec61850_sv_publisher_t g_sv_pub;
+static iec61850_goose_config_t g_last_goose_cfg;
+static iec61850_sv_config_t g_last_sv_cfg;
+static int g_goose_create_calls;
+static int g_sv_create_calls;
+
+static int test_goose_create(const iec61850_scl_goose_cb_t *cb,
+                              const iec61850_goose_config_t *cfg,
+                              iec61850_goose_publisher_t **out,
+                              void *user_data)
+{
+    (void)cb;
+    (void)user_data;
+    g_goose_create_calls++;
+    g_last_goose_cfg = *cfg;
+    iec61850_goose_publisher_init(&g_goose_pub, cfg);
+    iec61850_goose_publisher_set_io(&g_goose_pub, &mock_io);
+    *out = &g_goose_pub;
+    return 0;
+}
+
+static int test_sv_create(const iec61850_scl_sv_cb_t *cb,
+                           const iec61850_sv_config_t *cfg,
+                           iec61850_sv_publisher_t **out,
+                           void *user_data)
+{
+    (void)cb;
+    (void)user_data;
+    g_sv_create_calls++;
+    g_last_sv_cfg = *cfg;
+    iec61850_sv_publisher_init(&g_sv_pub, cfg);
+    iec61850_sv_publisher_set_io(&g_sv_pub, &mock_io);
+    *out = &g_sv_pub;
+    return 0;
+}
+
+/* Creation callback that always fails (skip path). */
+static int test_create_fail(const iec61850_scl_goose_cb_t *cb,
+                             const iec61850_goose_config_t *cfg,
+                             iec61850_goose_publisher_t **out,
+                             void *user_data)
+{
+    (void)cb;
+    (void)cfg;
+    (void)out;
+    (void)user_data;
+    return -ENOMEM;
+}
+
+static void wr_bitstring(iec61850_data_attribute_t *da,
+                          const uint8_t *data, size_t bit_count)
+{
+    mms_value_t v;
+    (void)memset(&v, 0, sizeof(v));
+    v.type = MMS_TYPE_BIT_STRING;
+    v.value.bit_string.bit_count = bit_count;
+    (void)memcpy(v.value.bit_string.data, data, (bit_count + 7U) / 8U);
+    iec61850_da_set_value(da, &v);
+}
+
+static void wr_float(iec61850_data_attribute_t *da, float value)
+{
+    mms_value_t v;
+    (void)memset(&v, 0, sizeof(v));
+    v.type = MMS_TYPE_FLOATING_POINT;
+    v.value.floating_point = value;
+    iec61850_da_set_value(da, &v);
+}
+
+/* Full pipeline from test.scd: parse -> build model -> configure
+ * publishers -> write a DA -> process -> verify the GOOSE dataset.
+ *
+ * gcb01 (DS1: XCBR1 Pos$stVal + Pos$q, Communication address
+ * present) must bind; MSVCB01 must be skipped (its dataset
+ * references the MMXU "A" data object, which the DataTypeTemplates
+ * do not define). */
+static void test_configure_publishers_pipeline(void)
+{
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_scl_publisher_result_t res;
+    iec61850_scl_publisher_ops_t ops;
+    iec61850_logical_device_t *ld;
+    iec61850_logical_node_t *xcbr;
+    iec61850_data_object_t *pos;
+    iec61850_data_attribute_t *stval;
+    iec61850_data_attribute_t *q;
+    int n;
+
+    const uint8_t dbpos_on[1] = { 0x80 };         /* bit0, 2 bits */
+    const uint8_t quality_bad[2] = { 0xC0, 0x80 };
+
+    TEST("configure_publishers_pipeline");
+    load_test_doc();
+    ASSERT_TRUE(g_doc_loaded);
+
+    ASSERT_EQ(iec61850_scl_build_ied_model(&g_doc, &model), 0);
+
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    (void)memset(&ops, 0, sizeof(ops));
+    ops.create_goose = test_goose_create;
+    ops.create_sv = test_sv_create;
+    g_goose_create_calls = 0;
+    g_sv_create_calls = 0;
+    g_frames_sent = 0U;
+
+    n = iec61850_scl_configure_publishers(&g_doc, &b, &ops, &res);
+    printf("(configured=%d goose=%d sv=%d skipped=%d) ",
+           n, (int)res.goose_configured, (int)res.sv_configured,
+           (int)res.skipped);
+    ASSERT_EQ(n, 1);
+    ASSERT_EQ((int)res.goose_configured, 1);
+    ASSERT_EQ((int)res.sv_configured, 0);
+    ASSERT_EQ((int)res.skipped, 1);
+    ASSERT_EQ(g_goose_create_calls, 1);
+
+    /* Publisher configuration from the SCL Communication section */
+    ASSERT_EQ((int)g_last_goose_cfg.app_id, 1);
+    ASSERT_EQ((int)g_last_goose_cfg.vlan_id, 100);
+    ASSERT_EQ((int)g_last_goose_cfg.vlan_priority, 4);
+    ASSERT_EQ((int)g_last_goose_cfg.time_allowed_to_live, 2000);
+    ASSERT_TRUE(strcmp(g_last_goose_cfg.goose_id, "GOOSE_ID_1") == 0);
+    ASSERT_TRUE(strcmp(g_last_goose_cfg.gocb_ref,
+                       "IED1LD0/LLN0$GO$gcb01") == 0);
+    ASSERT_TRUE(strcmp(g_last_goose_cfg.dataset,
+                       "IED1LD0/LLN0$DS1") == 0);
+    ASSERT_EQ((int)g_goose_pub.config.dst_mac[0], 0x01);
+    ASSERT_EQ((int)g_goose_pub.config.dst_mac[1], 0x0C);
+    ASSERT_EQ((int)g_goose_pub.config.dst_mac[2], 0xCD);
+    ASSERT_EQ((int)g_goose_pub.config.dst_mac[3], 0x01);
+    ASSERT_EQ((int)g_goose_pub.config.dst_mac[4], 0x00);
+    ASSERT_EQ((int)g_goose_pub.config.dst_mac[5], 0x01);
+    ASSERT_EQ((int)g_goose_pub.conf_rev, 1);
+
+    /* Dataset members bound slot-for-slot */
+    ASSERT_EQ((int)b.publisher_count, 1);
+    ASSERT_EQ((int)b.publishers[0].ref_count, 2);
+    ASSERT_EQ((int)b.watch_count, 2);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].ld, "LD0") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].ln, "XCBR1") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].do_name, "Pos") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].da_name, "stVal") == 0);
+    ASSERT_EQ((int)b.publishers[0].refs[0].fc, (int)IEC61850_FC_ST);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[1].da_name, "q") == 0);
+
+    /* Write XCBR1 Pos$stVal and Pos$q through the model */
+    ld = iec61850_ied_model_find_ld(&model, "LD0");
+    ASSERT_TRUE(ld != NULL);
+    xcbr = find_ln_by_class(ld, "XCBR");
+    ASSERT_TRUE(xcbr != NULL);
+    pos = iec61850_ln_find_do(xcbr, "Pos");
+    ASSERT_TRUE(pos != NULL);
+    stval = iec61850_do_find_attribute(pos, "stVal", IEC61850_FC_ST);
+    q = iec61850_do_find_attribute(pos, "q", IEC61850_FC_ST);
+    ASSERT_TRUE(stval != NULL);
+    ASSERT_TRUE(q != NULL);
+
+    wr_bitstring(stval, dbpos_on, 2U);
+    wr_bitstring(q, quality_bad, 13U);
+    ASSERT_TRUE(b.publishers[0].dirty);
+
+    /* Fan out: one GOOSE frame carrying the full dataset */
+    ASSERT_EQ(iec61850_model_binding_process(&b), 1);
+    ASSERT_TRUE(!b.publishers[0].dirty);
+    ASSERT_EQ(g_frames_sent, 1U);
+    ASSERT_EQ(iec61850_goose_publisher_get_st_num(&g_goose_pub), 1U);
+    ASSERT_EQ(iec61850_goose_publisher_get_sq_num(&g_goose_pub), 1U);
+    ASSERT_EQ((int)g_goose_pub.data_count, 2);
+    ASSERT_EQ((int)g_goose_pub.data[0].type, (int)GOOSE_DATA_BITSTRING);
+    ASSERT_EQ((int)g_goose_pub.byte_storage[0].data[0], 0x80);
+    ASSERT_EQ((int)g_goose_pub.data[1].type, (int)GOOSE_DATA_BITSTRING);
+    ASSERT_EQ((int)g_goose_pub.byte_storage[1].data[0], 0xC0);
+
+    /* Idempotent: no change, no publish */
+    ASSERT_EQ(iec61850_model_binding_process(&b), 0);
+    ASSERT_EQ(g_frames_sent, 1U);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* Synthetic document: one GSE control block over a whole-DO dataset
+ * (FCDA without daName). The whole DO expands to its ST leaf DAs
+ * (stVal, q, t). */
+static void build_whole_do_doc(iec61850_scl_doc_t *doc)
+{
+    iec61850_scl_do_type_t *dpc;
+    iec61850_scl_dataset_t *ds;
+    iec61850_scl_goose_cb_t *cb;
+
+    iec61850_scl_doc_init(doc);
+    (void)strncpy(doc->ied_name, "IEDW", sizeof(doc->ied_name) - 1);
+
+    doc->ld_count = 1;
+    (void)memset(&doc->lds[0], 0, sizeof(doc->lds[0]));
+    (void)strncpy(doc->lds[0].inst, "LD0", sizeof(doc->lds[0].inst) - 1);
+    doc->lds[0].ln_count = 1;
+    (void)strncpy(doc->lds[0].lns[0].ln_class, "XCBR",
+                  sizeof(doc->lds[0].lns[0].ln_class) - 1);
+    (void)strncpy(doc->lds[0].lns[0].ln_inst, "1",
+                  sizeof(doc->lds[0].lns[0].ln_inst) - 1);
+    (void)strncpy(doc->lds[0].lns[0].ln_type, "XCBRW",
+                  sizeof(doc->lds[0].lns[0].ln_type) - 1);
+
+    (void)strncpy(doc->lnode_types[0].id, "XCBRW",
+                  sizeof(doc->lnode_types[0].id) - 1);
+    (void)strncpy(doc->lnode_types[0].ln_class, "XCBR",
+                  sizeof(doc->lnode_types[0].ln_class) - 1);
+    doc->lnode_types[0].do_count = 1;
+    (void)strncpy(doc->lnode_types[0].dos[0].name, "Pos",
+                  sizeof(doc->lnode_types[0].dos[0].name) - 1);
+    (void)strncpy(doc->lnode_types[0].dos[0].type, "DPCW",
+                  sizeof(doc->lnode_types[0].dos[0].type) - 1);
+    doc->lnode_type_count = 1;
+
+    dpc = &doc->do_types[0];
+    (void)strncpy(dpc->id, "DPCW", sizeof(dpc->id) - 1);
+    (void)strncpy(dpc->cdc, "DPC", sizeof(dpc->cdc) - 1);
+    (void)strncpy(dpc->das[0].name, "stVal", sizeof(dpc->das[0].name) - 1);
+    (void)strncpy(dpc->das[0].fc, "ST", sizeof(dpc->das[0].fc) - 1);
+    (void)strncpy(dpc->das[0].btype, "Dbpos", sizeof(dpc->das[0].btype) - 1);
+    (void)strncpy(dpc->das[1].name, "q", sizeof(dpc->das[1].name) - 1);
+    (void)strncpy(dpc->das[1].fc, "ST", sizeof(dpc->das[1].fc) - 1);
+    (void)strncpy(dpc->das[1].btype, "Quality", sizeof(dpc->das[1].btype) - 1);
+    (void)strncpy(dpc->das[2].name, "t", sizeof(dpc->das[2].name) - 1);
+    (void)strncpy(dpc->das[2].fc, "ST", sizeof(dpc->das[2].fc) - 1);
+    (void)strncpy(dpc->das[2].btype, "Timestamp", sizeof(dpc->das[2].btype) - 1);
+    (void)strncpy(dpc->das[3].name, "ctlVal", sizeof(dpc->das[3].name) - 1);
+    (void)strncpy(dpc->das[3].fc, "CO", sizeof(dpc->das[3].fc) - 1);
+    (void)strncpy(dpc->das[3].btype, "BOOLEAN", sizeof(dpc->das[3].btype) - 1);
+    dpc->da_count = 4;
+    doc->do_type_count = 1;
+
+    ds = &doc->datasets[0];
+    (void)strncpy(ds->name, "DS_WHOLE", sizeof(ds->name) - 1);
+    ds->member_count = 1;
+    (void)strncpy(ds->members[0].ld_inst, "LD0",
+                  sizeof(ds->members[0].ld_inst) - 1);
+    (void)strncpy(ds->members[0].ln_class, "XCBR",
+                  sizeof(ds->members[0].ln_class) - 1);
+    (void)strncpy(ds->members[0].ln_inst, "1",
+                  sizeof(ds->members[0].ln_inst) - 1);
+    (void)strncpy(ds->members[0].do_name, "Pos",
+                  sizeof(ds->members[0].do_name) - 1);
+    /* da_name left empty: whole-DO reference */
+    (void)strncpy(ds->members[0].fc, "ST", sizeof(ds->members[0].fc) - 1);
+    doc->dataset_count = 1;
+
+    cb = &doc->goose_cbs[0];
+    (void)strncpy(cb->ied_name, "IEDW", sizeof(cb->ied_name) - 1);
+    (void)strncpy(cb->ld_inst, "LD0", sizeof(cb->ld_inst) - 1);
+    (void)strncpy(cb->cb_name, "gcbW", sizeof(cb->cb_name) - 1);
+    (void)strncpy(cb->dataset, "DS_WHOLE", sizeof(cb->dataset) - 1);
+    (void)strncpy(cb->go_id, "GOOSE_W", sizeof(cb->go_id) - 1);
+    (void)snprintf(cb->mac_address, sizeof(cb->mac_address),
+                   "01-0C-CD-01-00-FF");
+    cb->conf_rev = 7;
+    cb->app_id = 0x22;
+    cb->vlan_id = 200;
+    cb->vlan_priority = 5;
+    cb->min_time = 4;
+    cb->max_time = 3000;
+    doc->goose_cb_count = 1;
+}
+
+static void test_configure_publishers_whole_do(void)
+{
+    iec61850_scl_doc_t doc;
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_scl_publisher_result_t res;
+    iec61850_scl_publisher_ops_t ops;
+    iec61850_logical_device_t *ld;
+    iec61850_logical_node_t *xcbr;
+    iec61850_data_attribute_t *stval;
+    const uint8_t dbpos_on[1] = { 0x80 };
+
+    TEST("configure_publishers_whole_do");
+
+    build_whole_do_doc(&doc);
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    (void)memset(&ops, 0, sizeof(ops));
+    ops.create_goose = test_goose_create;
+    g_frames_sent = 0U;
+
+    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 1);
+    ASSERT_EQ((int)res.goose_configured, 1);
+    ASSERT_EQ((int)res.skipped, 0);
+
+    /* Whole DO expanded to the ST leaves in template order */
+    ASSERT_EQ((int)b.publishers[0].ref_count, 3);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].da_name, "stVal") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[1].da_name, "q") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[2].da_name, "t") == 0);
+    ASSERT_EQ((int)b.watch_count, 3);
+
+    /* SCL values override the config defaults */
+    ASSERT_EQ((int)g_last_goose_cfg.app_id, 0x22);
+    ASSERT_EQ((int)g_last_goose_cfg.vlan_id, 200);
+    ASSERT_EQ((int)g_last_goose_cfg.vlan_priority, 5);
+    ASSERT_EQ((int)g_last_goose_cfg.time_allowed_to_live, 3000);
+    ASSERT_EQ((int)g_goose_pub.conf_rev, 7);
+    ASSERT_EQ((int)g_goose_pub.config.dst_mac[5], 0xFF);
+    ASSERT_EQ((int)g_goose_pub.retransmit.config.t0_ms, 4);
+    ASSERT_EQ((int)g_goose_pub.retransmit.config.t_max_ms, 3000);
+    ASSERT_TRUE(g_goose_pub.has_retransmit);
+
+    /* One DA change publishes the expanded dataset */
+    ld = iec61850_ied_model_find_ld(&model, "LD0");
+    ASSERT_TRUE(ld != NULL);
+    xcbr = find_ln_by_class(ld, "XCBR");
+    ASSERT_TRUE(xcbr != NULL);
+    stval = iec61850_do_find_attribute(iec61850_ln_find_do(xcbr, "Pos"),
+                                        "stVal", IEC61850_FC_ST);
+    ASSERT_TRUE(stval != NULL);
+
+    wr_bitstring(stval, dbpos_on, 2U);
+    ASSERT_EQ(iec61850_model_binding_process(&b), 1);
+    ASSERT_EQ(g_frames_sent, 1U);
+    ASSERT_EQ((int)g_goose_pub.data_count, 3);
+    ASSERT_EQ((int)g_goose_pub.data[0].type, (int)GOOSE_DATA_BITSTRING);
+    ASSERT_EQ((int)g_goose_pub.byte_storage[0].data[0], 0x80);
+    ASSERT_EQ((int)g_goose_pub.data[1].type, (int)GOOSE_DATA_BITSTRING);
+    ASSERT_EQ((int)g_goose_pub.data[2].type, (int)GOOSE_DATA_UTCTIME);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* Synthetic document: one SampledValue control block whose dataset
+ * mixes a whole-DO FCDA (Amp — a flat SAV whose MX leaves are
+ * svMag and q; the Timestamp leaf is excluded for SV) and a
+ * leaf-DA FCDA (TotW mag). A second control block references a
+ * whole-SDO dataset (PhV phsA): every leaf under the SDO is a
+ * flattened dotted name the binding cannot watch, so that block
+ * is skipped (documented WP-6f limitation). */
+static void build_sv_doc(iec61850_scl_doc_t *doc)
+{
+    iec61850_scl_do_type_t *mv;
+    iec61850_scl_do_type_t *sav;
+    iec61850_scl_do_type_t *wye;
+    iec61850_scl_do_type_t *cmv;
+    iec61850_scl_da_type_t *vector;
+    iec61850_scl_da_type_t *aval;
+    iec61850_scl_dataset_t *ds;
+    iec61850_scl_sv_cb_t *cb;
+
+    iec61850_scl_doc_init(doc);
+    (void)strncpy(doc->ied_name, "IEDS", sizeof(doc->ied_name) - 1);
+
+    doc->ld_count = 1;
+    (void)memset(&doc->lds[0], 0, sizeof(doc->lds[0]));
+    (void)strncpy(doc->lds[0].inst, "LD0", sizeof(doc->lds[0].inst) - 1);
+    doc->lds[0].ln_count = 1;
+    (void)strncpy(doc->lds[0].lns[0].ln_class, "MMXU",
+                  sizeof(doc->lds[0].lns[0].ln_class) - 1);
+    (void)strncpy(doc->lds[0].lns[0].ln_inst, "1",
+                  sizeof(doc->lds[0].lns[0].ln_inst) - 1);
+    (void)strncpy(doc->lds[0].lns[0].ln_type, "MMXUW",
+                  sizeof(doc->lds[0].lns[0].ln_type) - 1);
+
+    (void)strncpy(doc->lnode_types[0].id, "MMXUW",
+                  sizeof(doc->lnode_types[0].id) - 1);
+    (void)strncpy(doc->lnode_types[0].ln_class, "MMXU",
+                  sizeof(doc->lnode_types[0].ln_class) - 1);
+    doc->lnode_types[0].do_count = 3;
+    (void)strncpy(doc->lnode_types[0].dos[0].name, "TotW",
+                  sizeof(doc->lnode_types[0].dos[0].name) - 1);
+    (void)strncpy(doc->lnode_types[0].dos[0].type, "MVW",
+                  sizeof(doc->lnode_types[0].dos[0].type) - 1);
+    (void)strncpy(doc->lnode_types[0].dos[1].name, "Amp",
+                  sizeof(doc->lnode_types[0].dos[1].name) - 1);
+    (void)strncpy(doc->lnode_types[0].dos[1].type, "SAVW",
+                  sizeof(doc->lnode_types[0].dos[1].type) - 1);
+    (void)strncpy(doc->lnode_types[0].dos[2].name, "PhV",
+                  sizeof(doc->lnode_types[0].dos[2].name) - 1);
+    (void)strncpy(doc->lnode_types[0].dos[2].type, "WYEW",
+                  sizeof(doc->lnode_types[0].dos[2].type) - 1);
+    doc->lnode_type_count = 1;
+
+    mv = &doc->do_types[0];
+    (void)strncpy(mv->id, "MVW", sizeof(mv->id) - 1);
+    (void)strncpy(mv->cdc, "MV", sizeof(mv->cdc) - 1);
+    (void)strncpy(mv->das[0].name, "mag", sizeof(mv->das[0].name) - 1);
+    (void)strncpy(mv->das[0].fc, "MX", sizeof(mv->das[0].fc) - 1);
+    (void)strncpy(mv->das[0].btype, "FLOAT32", sizeof(mv->das[0].btype) - 1);
+    (void)strncpy(mv->das[1].name, "q", sizeof(mv->das[1].name) - 1);
+    (void)strncpy(mv->das[1].fc, "MX", sizeof(mv->das[1].fc) - 1);
+    (void)strncpy(mv->das[1].btype, "Quality", sizeof(mv->das[1].btype) - 1);
+    mv->da_count = 2;
+
+    sav = &doc->do_types[1];
+    (void)strncpy(sav->id, "SAVW", sizeof(sav->id) - 1);
+    (void)strncpy(sav->cdc, "SAV", sizeof(sav->cdc) - 1);
+    (void)strncpy(sav->das[0].name, "svMag", sizeof(sav->das[0].name) - 1);
+    (void)strncpy(sav->das[0].fc, "MX", sizeof(sav->das[0].fc) - 1);
+    (void)strncpy(sav->das[0].btype, "FLOAT32", sizeof(sav->das[0].btype) - 1);
+    (void)strncpy(sav->das[1].name, "q", sizeof(sav->das[1].name) - 1);
+    (void)strncpy(sav->das[1].fc, "MX", sizeof(sav->das[1].fc) - 1);
+    (void)strncpy(sav->das[1].btype, "Quality", sizeof(sav->das[1].btype) - 1);
+    (void)strncpy(sav->das[2].name, "t", sizeof(sav->das[2].name) - 1);
+    (void)strncpy(sav->das[2].fc, "MX", sizeof(sav->das[2].fc) - 1);
+    (void)strncpy(sav->das[2].btype, "Timestamp", sizeof(sav->das[2].btype) - 1);
+    sav->da_count = 3;
+
+    wye = &doc->do_types[2];
+    (void)strncpy(wye->id, "WYEW", sizeof(wye->id) - 1);
+    (void)strncpy(wye->cdc, "WYE", sizeof(wye->cdc) - 1);
+    (void)strncpy(wye->das[0].name, "phsA", sizeof(wye->das[0].name) - 1);
+    (void)strncpy(wye->das[0].type, "CMVW", sizeof(wye->das[0].type) - 1);
+    wye->das[0].is_sdo = true;
+    wye->da_count = 1;
+
+    cmv = &doc->do_types[3];
+    (void)strncpy(cmv->id, "CMVW", sizeof(cmv->id) - 1);
+    (void)strncpy(cmv->cdc, "CMV", sizeof(cmv->cdc) - 1);
+    (void)strncpy(cmv->das[0].name, "cVal", sizeof(cmv->das[0].name) - 1);
+    (void)strncpy(cmv->das[0].fc, "MX", sizeof(cmv->das[0].fc) - 1);
+    (void)strncpy(cmv->das[0].btype, "Struct", sizeof(cmv->das[0].btype) - 1);
+    (void)strncpy(cmv->das[0].type, "VECW", sizeof(cmv->das[0].type) - 1);
+    (void)strncpy(cmv->das[1].name, "q", sizeof(cmv->das[1].name) - 1);
+    (void)strncpy(cmv->das[1].fc, "MX", sizeof(cmv->das[1].fc) - 1);
+    (void)strncpy(cmv->das[1].btype, "Quality", sizeof(cmv->das[1].btype) - 1);
+    (void)strncpy(cmv->das[2].name, "t", sizeof(cmv->das[2].name) - 1);
+    (void)strncpy(cmv->das[2].fc, "MX", sizeof(cmv->das[2].fc) - 1);
+    (void)strncpy(cmv->das[2].btype, "Timestamp", sizeof(cmv->das[2].btype) - 1);
+    cmv->da_count = 3;
+    doc->do_type_count = 4;
+
+    vector = &doc->da_types[0];
+    (void)strncpy(vector->id, "VECW", sizeof(vector->id) - 1);
+    (void)strncpy(vector->bdas[0].name, "mag", sizeof(vector->bdas[0].name) - 1);
+    (void)strncpy(vector->bdas[0].btype, "Struct", sizeof(vector->bdas[0].btype) - 1);
+    (void)strncpy(vector->bdas[0].type, "AVW", sizeof(vector->bdas[0].type) - 1);
+    (void)strncpy(vector->bdas[1].name, "ang", sizeof(vector->bdas[1].name) - 1);
+    (void)strncpy(vector->bdas[1].btype, "Struct", sizeof(vector->bdas[1].btype) - 1);
+    (void)strncpy(vector->bdas[1].type, "AVW", sizeof(vector->bdas[1].type) - 1);
+    vector->bda_count = 2;
+
+    aval = &doc->da_types[1];
+    (void)strncpy(aval->id, "AVW", sizeof(aval->id) - 1);
+    (void)strncpy(aval->bdas[0].name, "f", sizeof(aval->bdas[0].name) - 1);
+    (void)strncpy(aval->bdas[0].btype, "FLOAT32", sizeof(aval->bdas[0].btype) - 1);
+    aval->bda_count = 1;
+    doc->da_type_count = 2;
+
+    /* Bindable dataset: whole-DO (Amp) + leaf-DA (TotW mag) */
+    ds = &doc->datasets[0];
+    (void)strncpy(ds->name, "DS_SVW", sizeof(ds->name) - 1);
+    ds->member_count = 2;
+    /* Whole-DO reference: daName absent */
+    (void)strncpy(ds->members[0].ld_inst, "LD0",
+                  sizeof(ds->members[0].ld_inst) - 1);
+    (void)strncpy(ds->members[0].ln_class, "MMXU",
+                  sizeof(ds->members[0].ln_class) - 1);
+    (void)strncpy(ds->members[0].ln_inst, "1",
+                  sizeof(ds->members[0].ln_inst) - 1);
+    (void)strncpy(ds->members[0].do_name, "Amp",
+                  sizeof(ds->members[0].do_name) - 1);
+    (void)strncpy(ds->members[0].fc, "MX", sizeof(ds->members[0].fc) - 1);
+    /* Leaf-DA reference */
+    (void)strncpy(ds->members[1].ld_inst, "LD0",
+                  sizeof(ds->members[1].ld_inst) - 1);
+    (void)strncpy(ds->members[1].ln_class, "MMXU",
+                  sizeof(ds->members[1].ln_class) - 1);
+    (void)strncpy(ds->members[1].ln_inst, "1",
+                  sizeof(ds->members[1].ln_inst) - 1);
+    (void)strncpy(ds->members[1].do_name, "TotW",
+                  sizeof(ds->members[1].do_name) - 1);
+    (void)strncpy(ds->members[1].da_name, "mag",
+                  sizeof(ds->members[1].da_name) - 1);
+    (void)strncpy(ds->members[1].fc, "MX", sizeof(ds->members[1].fc) - 1);
+
+    /* Whole-SDO dataset: not bindable (flattened dotted leaves) */
+    ds = &doc->datasets[1];
+    (void)strncpy(ds->name, "DS_SDOW", sizeof(ds->name) - 1);
+    ds->member_count = 1;
+    (void)strncpy(ds->members[0].ld_inst, "LD0",
+                  sizeof(ds->members[0].ld_inst) - 1);
+    (void)strncpy(ds->members[0].ln_class, "MMXU",
+                  sizeof(ds->members[0].ln_class) - 1);
+    (void)strncpy(ds->members[0].ln_inst, "1",
+                  sizeof(ds->members[0].ln_inst) - 1);
+    (void)strncpy(ds->members[0].do_name, "PhV",
+                  sizeof(ds->members[0].do_name) - 1);
+    (void)strncpy(ds->members[0].da_name, "phsA",
+                  sizeof(ds->members[0].da_name) - 1);
+    (void)strncpy(ds->members[0].fc, "MX", sizeof(ds->members[0].fc) - 1);
+    doc->dataset_count = 2;
+
+    cb = &doc->sv_cbs[0];
+    (void)strncpy(cb->ied_name, "IEDS", sizeof(cb->ied_name) - 1);
+    (void)strncpy(cb->ld_inst, "LD0", sizeof(cb->ld_inst) - 1);
+    (void)strncpy(cb->cb_name, "MSVCBW", sizeof(cb->cb_name) - 1);
+    (void)strncpy(cb->sv_id, "SV_W", sizeof(cb->sv_id) - 1);
+    (void)strncpy(cb->dataset, "DS_SVW", sizeof(cb->dataset) - 1);
+    (void)snprintf(cb->mac_address, sizeof(cb->mac_address),
+                   "01-0C-CD-04-00-02");
+    cb->conf_rev = 5;
+    cb->app_id = 4000;
+    cb->vlan_id = 100;
+    cb->vlan_priority = 4;
+    cb->smp_rate = 80;
+
+    cb = &doc->sv_cbs[1];
+    (void)strncpy(cb->ied_name, "IEDS", sizeof(cb->ied_name) - 1);
+    (void)strncpy(cb->ld_inst, "LD0", sizeof(cb->ld_inst) - 1);
+    (void)strncpy(cb->cb_name, "MSVCB_SDO", sizeof(cb->cb_name) - 1);
+    (void)strncpy(cb->sv_id, "SV_SDO", sizeof(cb->sv_id) - 1);
+    (void)strncpy(cb->dataset, "DS_SDOW", sizeof(cb->dataset) - 1);
+    (void)snprintf(cb->mac_address, sizeof(cb->mac_address),
+                   "01-0C-CD-04-00-03");
+    cb->conf_rev = 1;
+    cb->app_id = 4001;
+    cb->smp_rate = 80;
+    doc->sv_cb_count = 2;
+}
+
+static void test_configure_publishers_sv_pipeline(void)
+{
+    iec61850_scl_doc_t doc;
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_scl_publisher_result_t res;
+    iec61850_scl_publisher_ops_t ops;
+    iec61850_logical_device_t *ld;
+    iec61850_logical_node_t *mmxu;
+    iec61850_data_object_t *amp;
+    iec61850_data_attribute_t *mag;
+    iec61850_data_attribute_t *qual;
+    const uint8_t quality_bad[2] = { 0xC0, 0x80 };
+
+    TEST("configure_publishers_sv_pipeline");
+
+    build_sv_doc(&doc);
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    (void)memset(&ops, 0, sizeof(ops));
+    ops.create_sv = test_sv_create;
+    g_frames_sent = 0U;
+
+    /* MSVCBW binds; MSVCB_SDO (whole-SDO dataset) is skipped */
+    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 1);
+    ASSERT_EQ((int)res.sv_configured, 1);
+    ASSERT_EQ((int)res.skipped, 1);
+    ASSERT_EQ(g_sv_create_calls, 1);  /* MSVCB_SDO declines pre-create */
+
+    /* SV configuration from the SCL control block */
+    ASSERT_EQ((int)g_last_sv_cfg.app_id, 4000);
+    ASSERT_EQ((int)g_last_sv_cfg.smp_rate, 80);
+    ASSERT_EQ((int)g_last_sv_cfg.conf_rev, 5);
+    ASSERT_EQ((int)g_last_sv_cfg.num_channels, 3);
+    ASSERT_TRUE(strcmp(g_last_sv_cfg.sv_id, "SV_W") == 0);
+    ASSERT_EQ((int)g_sv_pub.config.dst_mac[3], 0x04);
+
+    /* Whole-DO Amp expanded to the SV-mappable leaves (the
+     * Timestamp leaf is excluded), then the leaf-DA member. */
+    ASSERT_EQ((int)b.publishers[0].ref_count, 3);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].do_name, "Amp") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].da_name, "svMag") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[1].da_name, "q") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[2].do_name, "TotW") == 0);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[2].da_name, "mag") == 0);
+    ASSERT_EQ((int)b.watch_count, 3);
+
+    /* Write the sample magnitude and quality through the model */
+    ld = iec61850_ied_model_find_ld(&model, "LD0");
+    ASSERT_TRUE(ld != NULL);
+    mmxu = find_ln_by_class(ld, "MMXU");
+    ASSERT_TRUE(mmxu != NULL);
+    amp = iec61850_ln_find_do(mmxu, "Amp");
+    ASSERT_TRUE(amp != NULL);
+    mag = iec61850_do_find_attribute(amp, "svMag", IEC61850_FC_MX);
+    qual = iec61850_do_find_attribute(amp, "q", IEC61850_FC_MX);
+    ASSERT_TRUE(mag != NULL);
+    ASSERT_TRUE(qual != NULL);
+
+    wr_float(mag, 220.5f);
+    wr_bitstring(qual, quality_bad, 13U);
+    ASSERT_TRUE(b.publishers[0].dirty);
+
+    /* Fan out: one SV frame; channels follow the ref order */
+    ASSERT_EQ(iec61850_model_binding_process(&b), 1);
+    ASSERT_EQ(g_frames_sent, 1U);
+    ASSERT_EQ((int)g_sv_pub.sample_count, 3);
+    ASSERT_EQ(g_sv_pub.samples[0], 220);   /* Amp.svMag */
+    ASSERT_EQ(iec61850_sv_publisher_get_smp_cnt(&g_sv_pub), 1U);
+    ASSERT_EQ((int)g_sv_pub.quality[1].validity, 3);  /* Amp.q */
+    ASSERT_EQ((int)g_sv_pub.quality[1].inconsistent, 1);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* Skip tolerance: IID documents carry no Communication section
+ * (gcbA has no address); a broken datSet reference skips its block;
+ * the counts always sum to the control-block total. */
+static void test_configure_publishers_skip_tolerance(void)
+{
+    iec61850_scl_doc_t doc;
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_scl_publisher_result_t res;
+    iec61850_scl_publisher_ops_t ops;
+
+    TEST("configure_publishers_skip_tolerance");
+
+    /* test.iid: gcbA resolves but has no Communication address */
+    load_iid_doc();
+    ASSERT_TRUE(g_iid_loaded);
+    ASSERT_EQ(iec61850_scl_build_ied_model(&g_iid_doc, &model), 0);
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+    (void)memset(&ops, 0, sizeof(ops));
+    ops.create_goose = test_goose_create;
+    g_goose_create_calls = 0;
+
+    ASSERT_EQ(iec61850_scl_configure_publishers(&g_iid_doc, &b, &ops, &res), 0);
+    ASSERT_EQ((int)res.goose_configured, 0);
+    ASSERT_EQ((int)res.skipped, 1);
+    ASSERT_EQ(g_goose_create_calls, 0);  /* declined before creation */
+    ASSERT_EQ((int)b.publisher_count, 0);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+
+    /* Synthetic doc: GSE block with a datSet that does not exist */
+    build_whole_do_doc(&doc);
+    (void)strncpy(doc.goose_cbs[0].dataset, "NoSuchDS",
+                  sizeof(doc.goose_cbs[0].dataset) - 1);
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 0);
+    ASSERT_EQ((int)res.skipped, 1);
+    ASSERT_EQ((int)b.publisher_count, 0);
+    ASSERT_EQ(iec61850_model_binding_process(&b), 0);  /* nothing dirty */
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+
+    /* Creation callback failure: skipped, nothing bound */
+    build_whole_do_doc(&doc);
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+    ops.create_goose = test_create_fail;
+
+    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 0);
+    ASSERT_EQ((int)res.skipped, 1);
+    ASSERT_EQ((int)b.publisher_count, 0);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* Argument validation and the declined-kind (NULL callback)
+ * accounting. */
+static void test_configure_publishers_null_args(void)
+{
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_scl_publisher_result_t res;
+    iec61850_scl_publisher_ops_t ops;
+
+    TEST("configure_publishers_null_args");
+    load_test_doc();
+
+    ASSERT_EQ(iec61850_scl_build_ied_model(&g_doc, &model), 0);
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    ASSERT_EQ(iec61850_scl_configure_publishers(NULL, &b, &ops, &res), -EINVAL);
+    ASSERT_EQ(iec61850_scl_configure_publishers(&g_doc, NULL, &ops, &res), -EINVAL);
+    ASSERT_EQ(iec61850_scl_configure_publishers(&g_doc, &b, NULL, &res), -EINVAL);
+
+    /* Uninitialized binding */
+    {
+        iec61850_model_binding_t b2;
+        (void)memset(&b2, 0, sizeof(b2));
+        (void)memset(&ops, 0, sizeof(ops));
+        ops.create_goose = test_goose_create;
+        ASSERT_EQ(iec61850_scl_configure_publishers(&g_doc, &b2, &ops, &res),
+                  -EINVAL);
+    }
+
+    /* Both callbacks NULL: every control block is declined (skipped);
+     * the result summary still accounts for all of them. */
+    (void)memset(&ops, 0, sizeof(ops));
+    ASSERT_EQ(iec61850_scl_configure_publishers(&g_doc, &b, &ops, &res), 0);
+    ASSERT_EQ((int)res.goose_configured, 0);
+    ASSERT_EQ((int)res.sv_configured, 0);
+    ASSERT_EQ((int)res.skipped,
+              (int)(g_doc.goose_cb_count + g_doc.sv_cb_count));
+    ASSERT_EQ((int)b.publisher_count, 0);
+
+    /* result == NULL is allowed (return value only) */
+    (void)memset(&ops, 0, sizeof(ops));
+    ops.create_goose = test_goose_create;
+    ASSERT_EQ(iec61850_scl_configure_publishers(&g_doc, &b, &ops, NULL), 1);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* Whole-DO expansion bounds discipline: an expansion exceeding
+ * IEC61850_BINDING_MAX_REFS skips the control block, and a
+ * functional constraint with no leaves under the DO does too. */
+static void test_configure_publishers_expansion_bounds(void)
+{
+    iec61850_scl_doc_t doc;
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_scl_publisher_result_t res;
+    iec61850_scl_publisher_ops_t ops;
+    iec61850_scl_do_type_t *big;
+    iec61850_scl_dataset_t *ds;
+
+    TEST("configure_publishers_expansion_bounds");
+
+    /* Three whole-DO FCDAs over a DOType with 31 ST leaves: the
+     * 65-ref expansion (3 + 31 + 31) exceeds the 64-slot publisher
+     * dataset. */
+    build_whole_do_doc(&doc);
+
+    big = &doc.do_types[1];
+    (void)strncpy(big->id, "BIGW", sizeof(big->id) - 1);
+    (void)strncpy(big->cdc, "INS", sizeof(big->cdc) - 1);
+    big->da_count = 31;
+    for (size_t i = 0; i < 31; i++) {
+        char name[8];
+        (void)snprintf(name, sizeof(name), "l%02zu", i);
+        (void)strncpy(big->das[i].name, name, sizeof(big->das[i].name) - 1);
+        (void)strncpy(big->das[i].fc, "ST", sizeof(big->das[i].fc) - 1);
+        (void)strncpy(big->das[i].btype, "INT32",
+                      sizeof(big->das[i].btype) - 1);
+    }
+    doc.do_type_count = 2;
+
+    doc.lnode_types[0].do_count = 3;
+    (void)strncpy(doc.lnode_types[0].dos[1].name, "D1",
+                  sizeof(doc.lnode_types[0].dos[1].name) - 1);
+    (void)strncpy(doc.lnode_types[0].dos[1].type, "BIGW",
+                  sizeof(doc.lnode_types[0].dos[1].type) - 1);
+    (void)strncpy(doc.lnode_types[0].dos[2].name, "D2",
+                  sizeof(doc.lnode_types[0].dos[2].name) - 1);
+    (void)strncpy(doc.lnode_types[0].dos[2].type, "BIGW",
+                  sizeof(doc.lnode_types[0].dos[2].type) - 1);
+
+    ds = &doc.datasets[0];
+    ds->member_count = 3;
+    for (size_t m = 0; m < 3; m++) {
+        const char *do_name = (m == 0) ? "Pos" : ((m == 1) ? "D1" : "D2");
+        (void)strncpy(ds->members[m].ld_inst, "LD0",
+                      sizeof(ds->members[m].ld_inst) - 1);
+        (void)strncpy(ds->members[m].ln_class, "XCBR",
+                      sizeof(ds->members[m].ln_class) - 1);
+        (void)strncpy(ds->members[m].ln_inst, "1",
+                      sizeof(ds->members[m].ln_inst) - 1);
+        (void)strncpy(ds->members[m].do_name, do_name,
+                      sizeof(ds->members[m].do_name) - 1);
+        (void)strncpy(ds->members[m].fc, "ST", sizeof(ds->members[m].fc) - 1);
+    }
+
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+    (void)memset(&ops, 0, sizeof(ops));
+    ops.create_goose = test_goose_create;
+
+    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 0);
+    ASSERT_EQ((int)res.skipped, 1);
+    ASSERT_EQ((int)b.publisher_count, 0);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+
+    /* Whole-DO FCDA under a functional constraint no leaf has
+     * (DPC has no SG data): nothing expands, block skipped. */
+    build_whole_do_doc(&doc);
+    (void)strncpy(doc.datasets[0].members[0].fc, "SG",
+                  sizeof(doc.datasets[0].members[0].fc) - 1);
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    ASSERT_EQ(iec61850_scl_configure_publishers(&doc, &b, &ops, &res), 0);
+    ASSERT_EQ((int)res.skipped, 1);
+    ASSERT_EQ((int)b.publisher_count, 0);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
 int main(void)
 {
     printf("\n=== SCL IED Builder Tests ===\n");
-
     printf("\n--- Build IED Model ---\n");
     test_build_ied_model();
     test_ld_count();
@@ -725,6 +1567,14 @@ int main(void)
     test_template_mms_naming();
     test_scd_template_flat_mag();
     test_unresolvable_lntype_fallback();
+
+    printf("\n--- SCL Publisher Auto-Configuration (WP-6f) ---\n");
+    test_configure_publishers_pipeline();
+    test_configure_publishers_whole_do();
+    test_configure_publishers_sv_pipeline();
+    test_configure_publishers_skip_tolerance();
+    test_configure_publishers_null_args();
+    test_configure_publishers_expansion_bounds();
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);
