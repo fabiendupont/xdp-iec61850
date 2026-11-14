@@ -8,7 +8,7 @@ Usage:
                      [--decode-as SPEC ...]
 
 Protocols: goose, sv, mms, mms_report, mms_control_ed2,
-           rgoose, rgoose_secure, rsv, rsv_secure
+           mms_setting_groups, rgoose, rgoose_secure, rsv, rsv_secure
 
 Options:
     --decode-as SPEC  Passed to tshark as `-d SPEC` (repeatable). Use it
@@ -184,6 +184,14 @@ DEFAULT_CHECKS = {
         "mms.iec61850.rptid=B1",
         "mms.iec61850.seqnum=1",      # sqNum dissected as an AccessResult
         "mms.failure=2",              # Ed.2 rejection: in-band DataAccessError
+    ],
+    "mms_setting_groups": [
+        "tpkt.version=3",
+        "mms.objectName_domain_specific_itemId=LLN0$SP$SGCB$NumOfSG",  # SGCB read
+        "mms.objectName_domain_specific_itemId=PTOC1$SE$Mod$setVal",   # SE edit write
+        "mms.objectName_domain_specific_itemId=PTOC1$SG$Mod$setVal",   # SG active view
+        "mms.unsigned=2",               # SelectEditSG / SelectActiveSG values
+        "mms.integer=200",              # the SE setting value
     ],
     # WP-2w: the control flow is conformant IEC 61850-8-1 — ordinary
     # Reads/Writes on the CO objects (no house-encoded confirmed

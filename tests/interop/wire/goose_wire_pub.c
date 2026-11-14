@@ -3,6 +3,12 @@
  * GOOSE wire publisher — sends GOOSE frames on a raw socket.
  * Used by wire capture interop tests.
  *
+ * Sends, in order:
+ *   - 5 ordinary frames (no test/simulation bits set)
+ *   - 1 test-mode frame (IEC 61850-8-1 PDU [7] test bit set)
+ *   - 1 simulation frame (Ed.2 frame-level simulation bit, the
+ *     reserved1 LSB, set; PDU test bit clear)
+ *
  * Usage: goose_wire_pub <interface>
  */
 
@@ -52,6 +58,33 @@ int main(int argc, char **argv)
         usleep(100000);
     }
     printf("sent 5 GOOSE frames (%zu bytes each)\n", frame_len);
+
+    /* WP-6x: one test-mode frame — the PDU [7] test bit is set,
+     * the frame-level simulation bit stays clear. */
+    iec61850_goose_publisher_set_test(&pub, true);
+    ret = iec61850_goose_publisher_build_frame(&pub, frame,
+                                               sizeof(frame), &frame_len);
+    if (ret != 0) {
+        fprintf(stderr, "build_frame (test) failed: %d\n", ret);
+        return 1;
+    }
+    packet_io_send(io, frame, (uint32_t)frame_len);
+    printf("sent 1 test-mode GOOSE frame (%zu bytes)\n", frame_len);
+    usleep(100000);
+
+    /* WP-6x: one simulation frame — the Ed.2 frame-level
+     * simulation bit (reserved1 LSB) is set, the PDU test bit is
+     * clear. */
+    iec61850_goose_publisher_set_test(&pub, false);
+    iec61850_goose_publisher_set_simulation(&pub, true);
+    ret = iec61850_goose_publisher_build_frame(&pub, frame,
+                                               sizeof(frame), &frame_len);
+    if (ret != 0) {
+        fprintf(stderr, "build_frame (simulation) failed: %d\n", ret);
+        return 1;
+    }
+    packet_io_send(io, frame, (uint32_t)frame_len);
+    printf("sent 1 simulation GOOSE frame (%zu bytes)\n", frame_len);
 
     iec61850_goose_publisher_destroy(&pub);
     packet_io_close(io);
