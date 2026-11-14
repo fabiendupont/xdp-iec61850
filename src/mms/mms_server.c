@@ -31,11 +31,22 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 /* ISO 9506-2 DataAccessError codes for the in-band Write-Response
  * failure CHOICE live in asn1/mms_ber.h (MMS_DATAACCESS_*, hoisted
  * from locals in WP-C3 — the IEC 61850-8-1 mapping this repo's
  * WP-1c/1f client decodes for rejected RCB/SGCB/control writes). */
+
+/* Monotonic clock for the SGCB ResvTms tick (same base the control
+ * manager uses for its timeouts — WP-C3). */
+static uint64_t srv_now_ms(void)
+{
+    struct timespec ts;
+    (void)clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ((uint64_t)ts.tv_sec * 1000ULL) +
+           ((uint64_t)ts.tv_nsec / 1000000ULL);
+}
 
 void iec61850_mms_server_config_init(iec61850_mms_server_config_t *cfg)
 {
@@ -1792,6 +1803,14 @@ static void *session_thread(void *arg)
             if (session->control_reg_count > 0U) {
                 iec61850_control_process(session->control_manager);
                 cw_flush_pending_ct(session->server);
+            }
+            /* WP-C3: SGCB ResvTms expiry is host-driven only — the
+             * same tick drives it, so an edit reservation expires
+             * server-side with no client action (hosts wiring the
+             * manager without the server still call
+             * iec61850_sg_tick themselves). */
+            if (session->sg_manager != NULL) {
+                iec61850_sg_tick(session->sg_manager, srv_now_ms());
             }
             continue;
         }
