@@ -405,6 +405,30 @@ int main(int argc, char **argv)
         return 77;
     }
 
+    /* NOTE: the XSK is created BEFORE the graph attach — libxdp's
+     * xsk_socket__create wants to attach its own XDP helper program
+     * and returns EBUSY when a non-libxdp program is already
+     * attached. Opening the XSK on the empty veth first lets libxdp
+     * attach its helper; the subsequent graph attach replaces it.
+     * Our nodes redirect via xgl_xsk_map (fd inserted by
+     * packet_io_open), so the replaced helper is harmless. */
+    /* XSK receiving end (registered in the graph's XSKMAP at
+     * queue 0) + raw transmitting end. */
+    ctx.xsk = packet_io_create_xsk_graph(ctx.g);
+    ctx.raw_tx = packet_io_create_raw();
+    if ((ctx.xsk == NULL) || (ctx.raw_tx == NULL)) {
+        printf("FAIL: packet_io create failed\n");
+        xgl_graph_destroy(ctx.g);
+        return 1;
+    }
+    ret = packet_io_open(ctx.xsk, rx_iface, 0);
+    if (ret != 0) {
+        printf("SKIP: XSK open(%s) failed (%d: %s)\n", rx_iface, ret,
+               strerror(-ret));
+        packet_io_destroy(ctx.raw_tx);
+        xgl_graph_destroy(ctx.g);
+        return 77;
+    }
     ret = xgl_graph_attach(ctx.g, rx_iface);
     if (ret != 0) {
         printf("SKIP: XDP attach to %s failed (%d: %s)\n", rx_iface, ret,
@@ -432,23 +456,6 @@ int main(int argc, char **argv)
         }
     }
 
-    /* XSK receiving end (registered in the graph's XSKMAP at
-     * queue 0) + raw transmitting end. */
-    ctx.xsk = packet_io_create_xsk_graph(ctx.g);
-    ctx.raw_tx = packet_io_create_raw();
-    if ((ctx.xsk == NULL) || (ctx.raw_tx == NULL)) {
-        printf("FAIL: packet_io create failed\n");
-        xgl_graph_destroy(ctx.g);
-        return 1;
-    }
-    ret = packet_io_open(ctx.xsk, rx_iface, 0);
-    if (ret != 0) {
-        printf("SKIP: XSK open(%s) failed (%d: %s)\n", rx_iface, ret,
-               strerror(-ret));
-        packet_io_destroy(ctx.raw_tx);
-        xgl_graph_destroy(ctx.g);
-        return 77;
-    }
     ret = packet_io_open(ctx.raw_tx, tx_iface, 0);
     if (ret != 0) {
         printf("SKIP: raw open(%s) failed (%d: %s)\n", tx_iface, ret,
