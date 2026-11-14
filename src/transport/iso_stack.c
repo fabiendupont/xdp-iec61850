@@ -22,6 +22,54 @@ static const uint8_t MMS_APP_CONTEXT_OID[] = {
 };
 
 /* ========================================================================
+ * WP-3b (IEC 62351-4): transport dispatch.
+ *
+ * A connection runs either over plain TCP (conn->tcp) or over TLS
+ * (conn->tls, set via iec61850_iso_connect_tls() or a TLS listener
+ * accept). The dispatch helpers below are the only I/O entry points
+ * the composite stack uses; the plain path is byte-for-byte the
+ * previous behavior when use_tls is false. TLS branches compile
+ * only in security-enabled builds.
+ * ======================================================================== */
+
+static int iso_conn_send(iec61850_iso_conn_t *conn,
+                           const uint8_t *data, size_t len)
+{
+#ifdef IEC61850_SECURITY_ENABLED
+    if (conn->use_tls) {
+        return iec61850_tls_send(&conn->tls, data, len);
+    }
+#endif
+    return iec61850_tcp_send(&conn->tcp, data, len);
+}
+
+static int iso_conn_recv_tpkt(iec61850_iso_conn_t *conn,
+                                uint8_t *buffer, size_t buflen,
+                                int timeout_ms)
+{
+#ifdef IEC61850_SECURITY_ENABLED
+    if (conn->use_tls) {
+        return iec61850_tls_recv_tpkt(&conn->tls, buffer, buflen,
+                                        timeout_ms);
+    }
+#endif
+    return iec61850_tcp_recv_tpkt(&conn->tcp, buffer, buflen,
+                                    timeout_ms);
+}
+
+static void iso_conn_transport_disconnect(iec61850_iso_conn_t *conn)
+{
+#ifdef IEC61850_SECURITY_ENABLED
+    if (conn->use_tls) {
+        (void)iec61850_tls_disconnect(&conn->tls);
+        conn->use_tls = false;
+        return;
+    }
+#endif
+    (void)iec61850_tcp_disconnect(&conn->tcp);
+}
+
+/* ========================================================================
  * BER Length Helpers (used by all layers)
  * ======================================================================== */
 
@@ -91,7 +139,7 @@ static int ber_read_length(const uint8_t *buf, size_t buf_len, size_t *offset,
  * CR TPDU: LI=6, type=0xE0, DST-REF=0x0000, SRC-REF=0x0001, Class=0x00
  * Wrapped in TPKT header.
  */
-static int cotp_negotiate(iec61850_tcp_conn_t *tcp, int timeout_ms)
+static int cotp_negotiate(iec61850_iso_conn_t *conn, int timeout_ms)
 {
     uint8_t cr_buf[22];
     uint8_t cc_buf[64];
@@ -116,11 +164,11 @@ static int cotp_negotiate(iec61850_tcp_conn_t *tcp, int timeout_ms)
     /* Called TSAP: C1 02 00 01 */
     cr_buf[18] = 0xC1; cr_buf[19] = 0x02; cr_buf[20] = 0x00; cr_buf[21] = 0x01;
 
-    ret = iec61850_tcp_send(tcp, cr_buf, sizeof(cr_buf));
+    ret = iso_conn_send(conn, cr_buf, sizeof(cr_buf));
     if (ret < 0) { return ret; }
 
     /* Receive CC */
-    ret = iec61850_tcp_recv_tpkt(tcp, cc_buf, sizeof(cc_buf), timeout_ms);
+    ret = iso_conn_recv_tpkt(conn, cc_buf, sizeof(cc_buf), timeout_ms);
     if (ret < 0) { return ret; }
 
     /* Validate: TPKT header + COTP CC (type 0xD0) */
@@ -134,14 +182,14 @@ static int cotp_negotiate(iec61850_tcp_conn_t *tcp, int timeout_ms)
 /*
  * Receive COTP CR from client and send CC back.
  */
-static int cotp_accept(iec61850_tcp_conn_t *tcp, int timeout_ms)
+static int cotp_accept(iec61850_iso_conn_t *conn, int timeout_ms)
 {
     uint8_t cr_buf[64];
     uint8_t cc_buf[22];
     int ret;
 
     /* Receive CR */
-    ret = iec61850_tcp_recv_tpkt(tcp, cr_buf, sizeof(cr_buf), timeout_ms);
+    ret = iso_conn_recv_tpkt(conn, cr_buf, sizeof(cr_buf), timeout_ms);
     if (ret < 0) { return ret; }
 
     if (ret < 7) { return -EPROTO; }
@@ -173,7 +221,7 @@ static int cotp_accept(iec61850_tcp_conn_t *tcp, int timeout_ms)
     /* Called TSAP: C1 02 00 01 */
     cc_buf[18] = 0xC1; cc_buf[19] = 0x02; cc_buf[20] = 0x00; cc_buf[21] = 0x01;
 
-    ret = iec61850_tcp_send(tcp, cc_buf, sizeof(cc_buf));
+    ret = iso_conn_send(conn, cc_buf, sizeof(cc_buf));
     if (ret < 0) { return ret; }
 
     return 0;
@@ -1386,15 +1434,30 @@ void iec61850_iso_conn_init(iec61850_iso_conn_t *conn)
     if (conn == NULL) { return; }
 
     iec61850_tcp_conn_init(&conn->tcp);
+#ifdef IEC61850_SECURITY_ENABLED
+    iec61850_tls_conn_init(&conn->tls);
+#else
+    /* No TLS implementation is linked; keep the embedded member in
+     * a defined (unconnected) state without referencing it. */
+    (void)memset(&conn->tls, 0, sizeof(conn->tls));
+    conn->tls.tcp.sockfd = -1;
+#endif
+    conn->use_tls = false;
     iec61850_session_params_init(&conn->session_params);
     iec61850_acse_params_init(&conn->acse_params);
     conn->state = IEC61850_ISO_STATE_IDLE;
     conn->max_pdu_size = IEC61850_ISO_MAX_PDU;
 }
 
-int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
-                           uint16_t port, const uint8_t *mms_init,
-                           size_t mms_init_len, int timeout_ms) /* NOLINT(bugprone-easily-swappable-parameters) */
+/*
+ * Client-side ISO negotiation after the transport is established
+ * (plain TCP or TLS): COTP CR/CC, then Session CONNECT +
+ * Presentation CP + ACSE AARQ carrying the MMS InitiateRequest,
+ * and the AARE acceptance check.
+ */
+static int iso_connect_negotiate(iec61850_iso_conn_t *conn,
+                                   const uint8_t *mms_init,
+                                   size_t mms_init_len, int timeout_ms)
 {
     uint8_t acse_buf[4096];
     uint8_t pres_buf[4096];
@@ -1403,19 +1466,8 @@ int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
     uint8_t recv_buf[4096];
     int ret;
 
-    if ((conn == NULL) || (host == NULL)) { return -EINVAL; }
-
-    conn->state = IEC61850_ISO_STATE_CONNECTING;
-
-    /* TCP connect */
-    ret = iec61850_tcp_connect(&conn->tcp, host, port, timeout_ms);
-    if (ret != 0) {
-        conn->state = IEC61850_ISO_STATE_CLOSED;
-        return ret;
-    }
-
     /* COTP CR/CC handshake */
-    ret = cotp_negotiate(&conn->tcp, timeout_ms);
+    ret = cotp_negotiate(conn, timeout_ms);
     if (ret != 0) { goto fail; }
 
     /* Build AARQ with MMS InitiateRequest */
@@ -1445,12 +1497,12 @@ int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
     size_t tpkt_len = (size_t)ret;
 
     /* Send */
-    ret = iec61850_tcp_send(&conn->tcp, tpkt_buf, tpkt_len);
+    ret = iso_conn_send(conn, tpkt_buf, tpkt_len);
     if (ret < 0) { goto fail; }
 
-    /* Receive complete TPKT response (handles fragmented TCP reads) */
-    ret = iec61850_tcp_recv_tpkt(&conn->tcp, recv_buf, sizeof(recv_buf),
-                                   timeout_ms);
+    /* Receive complete TPKT response (handles fragmented reads) */
+    ret = iso_conn_recv_tpkt(conn, recv_buf, sizeof(recv_buf),
+                               timeout_ms);
     if (ret < 0) { goto fail; }
     size_t recv_len = (size_t)ret;
 
@@ -1495,9 +1547,69 @@ int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
     return 0;
 
 fail:
-    iec61850_tcp_disconnect(&conn->tcp);
+    iso_conn_transport_disconnect(conn);
     conn->state = IEC61850_ISO_STATE_CLOSED;
     return -ECONNREFUSED;
+}
+
+int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
+                           uint16_t port, const uint8_t *mms_init,
+                           size_t mms_init_len, int timeout_ms) /* NOLINT(bugprone-easily-swappable-parameters) */
+{
+    int ret;
+
+    if ((conn == NULL) || (host == NULL)) { return -EINVAL; }
+
+    conn->state = IEC61850_ISO_STATE_CONNECTING;
+
+    /* TCP connect */
+    ret = iec61850_tcp_connect(&conn->tcp, host, port, timeout_ms);
+    if (ret != 0) {
+        conn->state = IEC61850_ISO_STATE_CLOSED;
+        return ret;
+    }
+
+    return iso_connect_negotiate(conn, mms_init, mms_init_len,
+                                  timeout_ms);
+}
+
+int iec61850_iso_connect_tls(iec61850_iso_conn_t *conn, const char *host,
+                               uint16_t port, const uint8_t *mms_init,
+                               size_t mms_init_len, int timeout_ms,
+                               const iec61850_cert_provider_t *provider,
+                               iec61850_tls_mode_t mode)
+{
+#ifdef IEC61850_SECURITY_ENABLED
+    int ret;
+
+    if ((conn == NULL) || (host == NULL)) { return -EINVAL; }
+
+    conn->state = IEC61850_ISO_STATE_CONNECTING;
+
+    /* TLS connect + handshake (IEC 62351-4). Credentials are read
+     * here; a later provider refresh() applies to new associations
+     * only. */
+    ret = iec61850_tls_connect(&conn->tls, host, port, timeout_ms,
+                                 provider, mode);
+    if (ret != 0) {
+        conn->state = IEC61850_ISO_STATE_CLOSED;
+        return ret;
+    }
+    conn->use_tls = true;
+
+    return iso_connect_negotiate(conn, mms_init, mms_init_len,
+                                  timeout_ms);
+#else
+    (void)conn;
+    (void)host;
+    (void)port;
+    (void)mms_init;
+    (void)mms_init_len;
+    (void)timeout_ms;
+    (void)provider;
+    (void)mode;
+    return -ENOTSUP;
+#endif
 }
 
 int iec61850_iso_accept(iec61850_iso_conn_t *conn,
@@ -1515,12 +1627,12 @@ int iec61850_iso_accept(iec61850_iso_conn_t *conn,
     if (conn == NULL) { return -EINVAL; }
 
     /* COTP CR/CC handshake (server side) */
-    ret = cotp_accept(&conn->tcp, timeout_ms);
+    ret = cotp_accept(conn, timeout_ms);
     if (ret != 0) { return ret; }
 
     /* Read incoming Session CONNECT (complete TPKT frame) */
-    ret = iec61850_tcp_recv_tpkt(&conn->tcp, recv_buf, sizeof(recv_buf),
-                                   timeout_ms);
+    ret = iso_conn_recv_tpkt(conn, recv_buf, sizeof(recv_buf),
+                               timeout_ms);
     if (ret < 0) { return ret; }
     size_t recv_len = (size_t)ret;
 
@@ -1588,7 +1700,7 @@ int iec61850_iso_accept(iec61850_iso_conn_t *conn,
                                  sess_buf, sess_len);
     if (ret < 0) { return ret; }
 
-    ret = iec61850_tcp_send(&conn->tcp, tpkt_buf, (size_t)ret);
+    ret = iso_conn_send(conn, tpkt_buf, (size_t)ret);
     if (ret < 0) { return ret; }
 
     conn->state = IEC61850_ISO_STATE_CONNECTED;
@@ -1623,7 +1735,7 @@ int iec61850_iso_send(iec61850_iso_conn_t *conn,
                                  sess_buf, sess_len);
     if (ret < 0) { return ret; }
 
-    return iec61850_tcp_send(&conn->tcp, tpkt_buf, (size_t)ret);
+    return iso_conn_send(conn, tpkt_buf, (size_t)ret);
 }
 
 int iec61850_iso_recv(iec61850_iso_conn_t *conn,
@@ -1638,9 +1750,9 @@ int iec61850_iso_recv(iec61850_iso_conn_t *conn,
 
     *recv_len = 0;
 
-    /* Read complete TPKT frame (handles fragmented TCP reads) */
-    ret = iec61850_tcp_recv_tpkt(&conn->tcp, recv_buf, sizeof(recv_buf),
-                                   timeout_ms);
+    /* Read complete TPKT frame (handles fragmented reads) */
+    ret = iso_conn_recv_tpkt(conn, recv_buf, sizeof(recv_buf),
+                               timeout_ms);
     if (ret < 0) { return ret; }
     size_t raw_len = (size_t)ret;
 
@@ -1714,8 +1826,8 @@ int iec61850_iso_disconnect(iec61850_iso_conn_t *conn)
                     ret = iec61850_tpkt_encode(tpkt_buf, sizeof(tpkt_buf),
                                                  sess_buf, sess_len);
                     if (ret > 0) {
-                        (void)iec61850_tcp_send(&conn->tcp, tpkt_buf,
-                                                (size_t)ret);
+                        (void)iso_conn_send(conn, tpkt_buf,
+                                             (size_t)ret);
                     }
                 }
             }
@@ -1724,7 +1836,7 @@ int iec61850_iso_disconnect(iec61850_iso_conn_t *conn)
         conn->state = IEC61850_ISO_STATE_RELEASING;
     }
 
-    iec61850_tcp_disconnect(&conn->tcp);
+    iso_conn_transport_disconnect(conn);
     conn->state = IEC61850_ISO_STATE_CLOSED;
     return 0;
 }

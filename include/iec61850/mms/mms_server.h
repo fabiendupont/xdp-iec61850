@@ -69,6 +69,23 @@ typedef struct {
     int accept_timeout_ms;  /* Accept timeout */
     iec61850_mms_after_response_cb after_response;  /* optional post-response hook */
     void *after_response_user_data;
+    /*
+     * WP-3b (IEC 62351-4): TLS associations. When tls_enabled, the
+     * server binds a TLS listener on tls_port (default 3782) with
+     * the provider's server certificate and accepts secure MMS
+     * associations (handshake + certificate policy per tls_mode).
+     * With tls_only additionally set, the plain TCP listener is
+     * not bound at all (secure associations only); otherwise both
+     * listeners run and plain and TLS sessions are served
+     * concurrently. Requires a security-enabled build
+     * (iec61850_mms_server_start returns -ENOTSUP otherwise).
+     * The provider pointer is borrowed and must outlive the server.
+     */
+    bool tls_enabled;
+    const iec61850_cert_provider_t *tls_provider;  /* not owned */
+    iec61850_tls_mode_t tls_mode;
+    uint16_t tls_port;      /* TLS port (default 3782) */
+    bool tls_only;          /* secure associations only */
 } iec61850_mms_server_config_t;
 
 /* Server result codes */
@@ -170,6 +187,13 @@ typedef struct iec61850_mms_server_s {
     uint32_t control_reg_count;
     pthread_mutex_t control_bridge_mutex;
     iec61850_tcp_listener_t listener;
+    /*
+     * WP-3b (IEC 62351-4): TLS listener. Bound at start() when
+     * config.tls_enabled; inert (and never referenced) otherwise.
+     * The type exists in all builds; the implementation links only
+     * in security-enabled builds.
+     */
+    iec61850_tls_listener_t tls_listener;
     pthread_t accept_thread;
     atomic_bool running;
     atomic_bool stop_requested;

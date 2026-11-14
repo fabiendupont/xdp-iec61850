@@ -14,6 +14,7 @@
 #define IEC61850_ISO_STACK_H
 
 #include "transport/tcp_socket.h"
+#include "transport/tls_socket.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -279,6 +280,17 @@ typedef struct {
     iec61850_acse_params_t acse_params;
     iec61850_iso_state_t state;
     uint32_t max_pdu_size;
+    /*
+     * WP-3b (IEC 62351-4): TLS transport for MMS associations.
+     * When use_tls is set, the association runs over conn->tls
+     * (which carries its own embedded TCP socket — the plain tcp
+     * member is unused on that path). Set only through
+     * iec61850_iso_connect_tls() (client) or by handing a
+     * TLS-accepted connection to the server path; the plain
+     * TCP path is unchanged.
+     */
+    iec61850_tls_conn_t tls;
+    bool use_tls;
 } iec61850_iso_conn_t;
 
 void iec61850_iso_conn_init(iec61850_iso_conn_t *conn);
@@ -300,6 +312,34 @@ void iec61850_iso_conn_init(iec61850_iso_conn_t *conn);
 int iec61850_iso_connect(iec61850_iso_conn_t *conn, const char *host,
                            uint16_t port, const uint8_t *mms_init,
                            size_t mms_init_len, int timeout_ms);
+
+/**
+ * WP-3b (IEC 62351-4): connect to an MMS server over TLS.
+ *
+ * TLS connect + handshake (per the certificate-policy mode), then
+ * the same TPKT/Session/Presentation/ACSE negotiation as
+ * iec61850_iso_connect(), with all I/O routed through the TLS
+ * layer. The provider's credentials are snapshotted at connect
+ * time (provider may be NULL for opportunistic client handshakes).
+ *
+ * Only available in security-enabled builds (returns -ENOTSUP
+ * otherwise).
+ *
+ * @param conn       ISO connection
+ * @param host       Server hostname or IP
+ * @param port       TCP port (default 3782 for TLS MMS)
+ * @param mms_init   MMS InitiateRequest PDU to embed in AARQ
+ * @param mms_init_len Length of MMS PDU
+ * @param timeout_ms Connection timeout in milliseconds
+ * @param provider   Credential source (NULL = opportunistic)
+ * @param mode       Certificate-policy mode
+ * @return 0 on success, negative on error
+ */
+int iec61850_iso_connect_tls(iec61850_iso_conn_t *conn, const char *host,
+                               uint16_t port, const uint8_t *mms_init,
+                               size_t mms_init_len, int timeout_ms,
+                               const iec61850_cert_provider_t *provider,
+                               iec61850_tls_mode_t mode);
 
 /**
  * Accept an incoming ISO connection (server-side).

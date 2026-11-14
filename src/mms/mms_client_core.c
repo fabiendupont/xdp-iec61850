@@ -584,6 +584,9 @@ int iec61850_mms_client_core_fd(const iec61850_mms_client_core_t *core)
 {
     if (core == NULL) { return -EINVAL; }
     if (!core->attached) { return -ENOTCONN; }
+    /* WP-3b: a TLS association carries its socket in the embedded
+     * TLS connection (same fd the handshake ran on). */
+    if (core->iso->use_tls) { return core->iso->tls.tcp.sockfd; }
     return core->iso->tcp.sockfd;
 }
 

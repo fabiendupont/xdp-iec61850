@@ -27,6 +27,7 @@
 #include "mms/mms_server.h"
 #include "mms/mms_file_service.h"
 #include "mms/mms_journal.h"
+#include <poll.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -48,6 +49,12 @@ void iec61850_mms_server_config_init(iec61850_mms_server_config_t *cfg)
     cfg->accept_timeout_ms = 1000;
     cfg->after_response = NULL;
     cfg->after_response_user_data = NULL;
+    /* WP-3b: TLS off by default; port per IEC 62351-4 (3782) */
+    cfg->tls_enabled = false;
+    cfg->tls_provider = NULL;
+    cfg->tls_mode = IEC61850_TLS_MODE_COMPATIBLE;
+    cfg->tls_port = (uint16_t)IEC61850_TLS_MMS_PORT_DEFAULT;
+    cfg->tls_only = false;
 }
 
 void iec61850_mms_server_init(iec61850_mms_server_t *server,
@@ -66,6 +73,14 @@ void iec61850_mms_server_init(iec61850_mms_server_t *server,
 
     server->data_store = data_store;
     iec61850_tcp_listener_init(&server->listener);
+#ifdef IEC61850_SECURITY_ENABLED
+    iec61850_tls_listener_init(&server->tls_listener);
+#else
+    /* No TLS implementation is linked; keep the embedded member in
+     * a defined (unbound) state without referencing it. */
+    (void)memset(&server->tls_listener, 0, sizeof(server->tls_listener));
+    server->tls_listener.tcp.sockfd = -1;
+#endif
     atomic_store(&server->running, false);
     atomic_store(&server->stop_requested, false);
     atomic_store(&server->active_session_count, 0);
@@ -1860,6 +1875,69 @@ done:
     return NULL;
 }
 
+/*
+ * Spawn a session thread for an accepted transport (plain TCP or
+ * TLS-handshaked). pending carries the accepted connection: either
+ * a plain tcp member (use_tls false) or a completed TLS connection
+ * (use_tls true). Consumes pending on success (the session owns the
+ * association); disconnects it when no slot or thread is available.
+ */
+static void accept_spawn_session(iec61850_mms_server_t *server,
+                                   iec61850_iso_conn_t *pending)
+{
+    uint32_t i;
+    bool assigned = false;
+
+    /* Find a free session slot */
+    for (i = 0U; (i < server->config.max_sessions) &&
+         (i < (uint32_t)IEC61850_MMS_MAX_SESSIONS); i++) {
+        if (!atomic_load(&server->sessions[i].active)) {
+            iec61850_mms_session_t *sess = &server->sessions[i];
+            iec61850_iso_conn_init(&sess->iso);
+            if (pending->use_tls) {
+                /* WP-3b: TLS association (IEC 62351-4) — the socket
+                 * and SSL state live in the embedded TLS conn. */
+                sess->iso.tls = pending->tls;
+                sess->iso.use_tls = true;
+            } else {
+                sess->iso.tcp = pending->tcp;
+                sess->iso.tcp.connected = true;
+            }
+            sess->data_store = server->data_store;
+            sess->server = server;   /* WP-2w: bridge context */
+            sess->control_manager = server->control_manager;
+            sess->file_service = server->file_service;
+            sess->journal = server->journal;
+            sess->rcb_regs = server->rcb_regs;   /* WP-2x (fixed before start) */
+            sess->rcb_reg_count = server->rcb_reg_count;
+            sess->sg_manager = server->sg_manager;
+            sess->control_regs = server->control_regs;  /* WP-2w (fixed before start) */
+            sess->control_reg_count = server->control_reg_count;
+            sess->max_pdu_size = server->config.max_pdu_size;
+            sess->invoke_id = 0;
+            sess->session_id = server->next_session_id; server->next_session_id++;
+            sess->after_response = server->config.after_response;
+            sess->after_response_user_data = server->config.after_response_user_data;
+            atomic_store(&sess->active, true);
+            atomic_store(&sess->stop_requested, false);
+            atomic_fetch_add(&server->active_session_count, 1);
+
+            if (pthread_create(&sess->thread, NULL, session_thread, sess) != 0) {
+                atomic_store(&sess->active, false);
+                atomic_fetch_sub(&server->active_session_count, 1);
+                (void)iec61850_iso_disconnect(pending);
+            }
+            /* Thread is joinable — joined during server stop */
+            assigned = true;
+            break;
+        }
+    }
+
+    if (!assigned) {
+        (void)iec61850_iso_disconnect(pending);
+    }
+}
+
 /* Accept thread */
 static void *accept_thread(void *arg)
 {
@@ -1867,60 +1945,87 @@ static void *accept_thread(void *arg)
     iec61850_mms_server_t *server = (iec61850_mms_server_t *)arg;
 
     while (!atomic_load(&server->stop_requested)) {
-        iec61850_tcp_conn_t client;
-        iec61850_tcp_conn_init(&client);
+#ifdef IEC61850_SECURITY_ENABLED
+        /*
+         * WP-3b: TLS-enabled servers poll the plain listener (when
+         * bound) and the TLS listener together; one ready listener
+         * is served per iteration. The single accept thread of the
+         * existing thread model covers both.
+         */
+        if (server->config.tls_enabled) {
+            struct pollfd pfds[2];
+            int n = 0;
+            int plain_idx = -1;
+            int tls_idx = -1;
+            int poll_ret;
 
-        int ret = iec61850_tcp_listener_accept(&server->listener, &client,
-                                                 server->config.accept_timeout_ms);
-        if (ret == IEC61850_TRANSPORT_ERR_TIMEOUT) {
+            if (!server->config.tls_only) {
+                pfds[n].fd = server->listener.sockfd;
+                pfds[n].events = POLLIN;
+                pfds[n].revents = 0;
+                plain_idx = n;
+                n++;
+            }
+            pfds[n].fd = server->tls_listener.tcp.sockfd;
+            pfds[n].events = POLLIN;
+            pfds[n].revents = 0;
+            tls_idx = n;
+            n++;
+
+            poll_ret = poll(pfds, (nfds_t)n, server->config.accept_timeout_ms);
+            if (poll_ret == 0) { continue; }
+            if (poll_ret < 0) { break; }
+
+            if ((tls_idx >= 0) &&
+                ((pfds[tls_idx].revents & POLLIN) != 0)) {
+                iec61850_iso_conn_t pending;
+
+                iec61850_iso_conn_init(&pending);
+                /* TLS accept: TCP accept + server-side handshake
+                 * (bounded like the ISO session accept timeout) */
+                if (iec61850_tls_listener_accept(&server->tls_listener,
+                                                   &pending.tls,
+                                                   30000) == 0) {
+                    pending.use_tls = true;
+                    accept_spawn_session(server, &pending);
+                }
+                continue;
+            }
+
+            if ((plain_idx >= 0) &&
+                ((pfds[plain_idx].revents & POLLIN) != 0)) {
+                iec61850_iso_conn_t pending;
+
+                iec61850_iso_conn_init(&pending);
+                if (iec61850_tcp_listener_accept(&server->listener,
+                                                   &pending.tcp,
+                                                   0) == 0) {
+                    pending.tcp.connected = true;
+                    accept_spawn_session(server, &pending);
+                }
+                continue;
+            }
+
             continue;
         }
-        if (ret != 0) {
-            break;
-        }
+#endif /* IEC61850_SECURITY_ENABLED */
 
-        /* Find a free session slot */
-        bool assigned = false;
-        for (uint32_t i = 0; (i < server->config.max_sessions) &&
-             (i < (uint32_t)IEC61850_MMS_MAX_SESSIONS); i++) {
-            if (!atomic_load(&server->sessions[i].active)) {
-                iec61850_mms_session_t *sess = &server->sessions[i];
-                iec61850_iso_conn_init(&sess->iso);
-                sess->iso.tcp = client;
-                sess->iso.tcp.connected = true;
-                sess->data_store = server->data_store;
-                sess->server = server;   /* WP-2w: bridge context */
-                sess->control_manager = server->control_manager;
-                sess->file_service = server->file_service;
-                sess->journal = server->journal;
-                sess->rcb_regs = server->rcb_regs;   /* WP-2x (fixed before start) */
-                sess->rcb_reg_count = server->rcb_reg_count;
-                sess->sg_manager = server->sg_manager;
-                sess->control_regs = server->control_regs;  /* WP-2w (fixed before start) */
-                sess->control_reg_count = server->control_reg_count;
-                sess->max_pdu_size = server->config.max_pdu_size;
-                sess->invoke_id = 0;
-                sess->session_id = server->next_session_id; server->next_session_id++;
-                sess->after_response = server->config.after_response;
-                sess->after_response_user_data = server->config.after_response_user_data;
-                atomic_store(&sess->active, true);
-                atomic_store(&sess->stop_requested, false);
-                atomic_fetch_add(&server->active_session_count, 1);
+        {
+            iec61850_iso_conn_t pending;
+            int ret;
 
-                ret = pthread_create(&sess->thread, NULL, session_thread, sess);
-                if (ret != 0) {
-                    atomic_store(&sess->active, false);
-                    atomic_fetch_sub(&server->active_session_count, 1);
-                    iec61850_tcp_disconnect(&client);
-                }
-                /* Thread is joinable — joined during server stop */
-                assigned = true;
+            iec61850_iso_conn_init(&pending);
+            ret = iec61850_tcp_listener_accept(&server->listener,
+                                                &pending.tcp,
+                                                server->config.accept_timeout_ms);
+            if (ret == IEC61850_TRANSPORT_ERR_TIMEOUT) {
+                continue;
+            }
+            if (ret != 0) {
                 break;
             }
-        }
-
-        if (!assigned) {
-            iec61850_tcp_disconnect(&client);
+            pending.tcp.connected = true;
+            accept_spawn_session(server, &pending);
         }
     }
 
@@ -2032,11 +2137,44 @@ int iec61850_mms_server_start(iec61850_mms_server_t *server)
     if (server == NULL) { return IEC61850_MMS_SERVER_ERR_ARGS; }
     if (atomic_load(&server->running)) { return IEC61850_MMS_SERVER_ERR_RUNNING; }
 
-    ret = iec61850_tcp_listener_bind(&server->listener, server->config.port);
-    if (ret != 0) { return IEC61850_MMS_SERVER_ERR_BIND; }
+#ifdef IEC61850_SECURITY_ENABLED
+    /* WP-3b (IEC 62351-4): TLS listener. The provider's server
+     * certificate is snapshotted here; a later provider refresh()
+     * applies to newly started servers only. */
+    if (server->config.tls_enabled) {
+        if (server->config.tls_provider == NULL) {
+            return IEC61850_MMS_SERVER_ERR_ARGS;
+        }
+    }
+#else
+    if (server->config.tls_enabled) {
+        /* TLS requires a security-enabled build. */
+        return -ENOTSUP;
+    }
+#endif
 
-    ret = iec61850_tcp_listener_listen(&server->listener, 10);
-    if (ret != 0) { return IEC61850_MMS_SERVER_ERR_LISTEN; }
+    if (!server->config.tls_enabled || !server->config.tls_only) {
+        ret = iec61850_tcp_listener_bind(&server->listener, server->config.port);
+        if (ret != 0) { return IEC61850_MMS_SERVER_ERR_BIND; }
+
+        ret = iec61850_tcp_listener_listen(&server->listener, 10);
+        if (ret != 0) { return IEC61850_MMS_SERVER_ERR_LISTEN; }
+    }
+
+#ifdef IEC61850_SECURITY_ENABLED
+    if (server->config.tls_enabled) {
+        ret = iec61850_tls_listener_bind(&server->tls_listener,
+                                          server->config.tls_port,
+                                          server->config.tls_provider,
+                                          server->config.tls_mode);
+        if (ret != 0) {
+            if (!server->config.tls_only) {
+                (void)iec61850_tcp_listener_close(&server->listener);
+            }
+            return IEC61850_MMS_SERVER_ERR_BIND;
+        }
+    }
+#endif
 
     /* WP-2x: expose every registered RCB manager's component objects
      * in the server's data store. A manager already exposed (server
@@ -2078,6 +2216,11 @@ int iec61850_mms_server_start(iec61850_mms_server_t *server)
     ret = pthread_create(&server->accept_thread, NULL, accept_thread, server);
     if (ret != 0) {
         iec61850_tcp_listener_close(&server->listener);
+#ifdef IEC61850_SECURITY_ENABLED
+        if (server->config.tls_enabled) {
+            (void)iec61850_tls_listener_close(&server->tls_listener);
+        }
+#endif
         atomic_store(&server->running, false);
         return IEC61850_MMS_SERVER_ERR_THREAD;
     }
@@ -2109,6 +2252,11 @@ int iec61850_mms_server_stop(iec61850_mms_server_t *server)
     }
 
     iec61850_tcp_listener_close(&server->listener);
+#ifdef IEC61850_SECURITY_ENABLED
+    if (server->config.tls_enabled) {
+        (void)iec61850_tls_listener_close(&server->tls_listener);
+    }
+#endif
     atomic_store(&server->running, false);
 
     return IEC61850_MMS_SERVER_OK;
