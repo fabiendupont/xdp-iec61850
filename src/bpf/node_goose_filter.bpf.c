@@ -11,6 +11,11 @@
  * floods beyond the configured rate/burst without affecting other
  * APPIDs.
  *
+ * WP-5b: the L2 parse accepts 802.1ad QinQ double-tagged frames
+ * (service-provider outer tag + customer inner tag), in addition to
+ * untagged and single 802.1Q-tagged frames.  The token-bucket cost
+ * stays the full frame length regardless of tag depth.
+ *
  * Input: Packet dispatched from graph root (metadata already allocated)
  * Output: XDP_REDIRECT to AF_XDP or XDP_DROP
  */
@@ -21,6 +26,12 @@
 #include "iec61850_maps.bpf.h"
 
 char LICENSE[] SEC("license") = "BSD-2-Clause";
+
+/* VLAN / QinQ tag header (the TPID was already consumed as eth_type) */
+struct vlan_tag {
+    __u16 tci;
+    __u16 inner_proto;
+} __attribute__((packed));
 
 XGL_NODE(node_goose_filter)
 {
@@ -50,16 +61,50 @@ XGL_NODE(node_goose_filter)
         XGL_DROP();
     }
 
-    /* Check EtherType — handle VLAN-tagged frames */
+    /* Check EtherType — handle VLAN-tagged frames.
+     *
+     * WP-5b accepted tag stacks (bounded to TWO stacked tags total,
+     * matching realistic substation deployments):
+     *   - untagged
+     *   - one 802.1Q tag (0x8100)
+     *   - 802.1ad QinQ (0x88A8): outer service tag followed by
+     *     exactly one customer tag (0x8100 or another 0x88A8)
+     * Anything else (a bare service tag, 0x8100 stacks, three or
+     * more tags) falls through to the EtherType check and drops.
+     *
+     * The payload pointer is re-selected per branch (phi'd) and
+     * bounds-checked before every read — no loops, fixed shape. */
     __u16 eth_type = bpf_ntohs(eth->h_proto);
     void *pdu_start = (void *)(eth + 1);
 
-    if (eth_type == ETH_P_8021Q) {
-        /* Skip 4-byte VLAN tag */
-        struct {
-            __u16 tci;
-            __u16 inner_proto;
-        } __attribute__((packed)) *vlan = pdu_start;
+    if (eth_type == ETH_P_8021AD) {
+        /* QinQ: outer service tag, then the customer tag */
+        struct vlan_tag *outer = pdu_start;
+
+        if ((void *)(outer + 1) > data_end) {
+            XGL_STATS_INC_DROP(egl_node_stats, idx);
+            XGL_DROP();
+        }
+
+        __u16 inner_tpid = bpf_ntohs(outer->inner_proto);
+        if (inner_tpid != ETH_P_8021Q && inner_tpid != ETH_P_8021AD) {
+            /* Not a customer tag — bare service tag or protocol
+             * straight after the service tag: reject. */
+            XGL_STATS_INC_DROP(egl_node_stats, idx);
+            XGL_DROP();
+        }
+
+        struct vlan_tag *inner = (void *)(outer + 1);
+        if ((void *)(inner + 1) > data_end) {
+            XGL_STATS_INC_DROP(egl_node_stats, idx);
+            XGL_DROP();
+        }
+
+        eth_type = bpf_ntohs(inner->inner_proto);
+        pdu_start = (void *)(inner + 1);
+    } else if (eth_type == ETH_P_8021Q) {
+        /* Single 802.1Q tag */
+        struct vlan_tag *vlan = pdu_start;
 
         if ((void *)(vlan + 1) > data_end) {
             XGL_STATS_INC_DROP(egl_node_stats, idx);
