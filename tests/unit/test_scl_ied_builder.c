@@ -55,6 +55,32 @@ static void load_test_doc(void)
     }
 }
 
+/* IID document with struct/SDO-heavy templates (WP-6e) */
+static iec61850_scl_doc_t g_iid_doc;
+static bool g_iid_loaded = false;
+
+static void load_iid_doc(void)
+{
+    if (g_iid_loaded) { return; }
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+    iec61850_scl_doc_init(&g_iid_doc);
+    if (iec61850_scl_parse_file(path, "IEDA", &g_iid_doc) == 0) {
+        g_iid_loaded = true;
+    }
+}
+
+static iec61850_logical_node_t *find_ln_by_class(
+    iec61850_logical_device_t *ld, const char *ln_class)
+{
+    for (size_t i = 0; i < ld->ln_count; i++) {
+        if (strcmp(ld->logical_nodes[i]->ln_class, ln_class) == 0) {
+            return ld->logical_nodes[i];
+        }
+    }
+    return NULL;
+}
+
 /* ========================================================================
  * Build IED Model
  * ======================================================================== */
@@ -485,6 +511,184 @@ static void test_additional_ln_classes(void)
     PASS();
 }
 
+/* ========================================================================
+ * Template-Driven Construction (WP-6e)
+ * ======================================================================== */
+
+static void test_template_driven_construction(void)
+{
+    TEST("template_driven_construction");
+    load_iid_doc();
+    ASSERT_TRUE(g_iid_loaded);
+
+    iec61850_ied_model_t model;
+    ASSERT_EQ(iec61850_scl_build_ied_model(&g_iid_doc, &model), 0);
+
+    iec61850_logical_device_t *ld = iec61850_ied_model_find_ld(&model, "LD0");
+    ASSERT_TRUE(ld != NULL);
+
+    iec61850_logical_node_t *xcbr = find_ln_by_class(ld, "XCBR");
+    ASSERT_TRUE(xcbr != NULL);
+
+    /* Pos built from DPC_1: stVal, q, t, ctlVal,
+     * origin.{orCat,orIdent} (struct expansion), ctlModel = 7 DAs */
+    iec61850_data_object_t *pos = iec61850_ln_find_do(xcbr, "Pos");
+    ASSERT_TRUE(pos != NULL);
+    ASSERT_EQ((int)pos->cdc, (int)IEC61850_CDC_DPC);
+    ASSERT_EQ((int)pos->attr_count, 7);
+
+    iec61850_data_attribute_t *da =
+        iec61850_do_find_attribute(pos, "stVal", IEC61850_FC_ST);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_DBPOS);
+
+    da = iec61850_do_find_attribute(pos, "origin.orCat", IEC61850_FC_CO);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_ENUMERATED);
+
+    da = iec61850_do_find_attribute(pos, "origin.orIdent", IEC61850_FC_CO);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_OCTET_STRING);
+
+    da = iec61850_do_find_attribute(pos, "ctlModel", IEC61850_FC_CF);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_ENUMERATED);
+
+    /* NOTE: deep dotted lookups go through the DO attribute table
+     * (or the MMS '$' names below); iec61850_ln_find_attribute
+     * supports only DO.DA / DO.SubDO.DA shapes. */
+
+    /* MMXU: SDO flattening and nested struct expansion */
+    iec61850_logical_node_t *mmxu = find_ln_by_class(ld, "MMXU");
+    ASSERT_TRUE(mmxu != NULL);
+
+    iec61850_data_object_t *phv = iec61850_ln_find_do(mmxu, "PhV");
+    ASSERT_TRUE(phv != NULL);
+    ASSERT_EQ((int)phv->cdc, (int)IEC61850_CDC_WYE);
+    /* 3 SDOs x (cVal.mag.f, cVal.ang.f, q, t) */
+    ASSERT_EQ((int)phv->attr_count, 12);
+
+    da = iec61850_do_find_attribute(phv, "phsA.cVal.mag.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_FLOAT32);
+
+    da = iec61850_do_find_attribute(phv, "phsC.cVal.ang.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+
+    /* TotW (MV with Struct mag): flattened to mag.f */
+    iec61850_data_object_t *totw = iec61850_ln_find_do(mmxu, "TotW");
+    ASSERT_TRUE(totw != NULL);
+    ASSERT_EQ((int)totw->cdc, (int)IEC61850_CDC_MV);
+    da = iec61850_do_find_attribute(totw, "mag.f", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_FLOAT32);
+
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+static void test_template_mms_naming(void)
+{
+    TEST("template_mms_naming");
+    load_iid_doc();
+    ASSERT_TRUE(g_iid_loaded);
+
+    iec61850_ied_model_t model;
+    ASSERT_EQ(iec61850_scl_build_ied_model(&g_iid_doc, &model), 0);
+
+    iec61850_mms_data_store_t ds;
+    iec61850_mms_ds_init(&ds);
+
+    int count = iec61850_ied_model_register_mms(&model, &ds);
+    printf("(registered %d vars) ", count);
+    ASSERT_TRUE(count > 0);
+
+    /* Domain: IEDName + LDInst */
+    ASSERT_TRUE(iec61850_mms_ds_domain_exists(&ds, "IEDALD0"));
+
+    /* Dotted template paths use the IEC 61850-8-1 '$' separator */
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, "IEDALD0",
+                                                 "XCBR1$ST$Pos$stVal"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, "IEDALD0",
+                                                 "XCBR1$CO$Pos$origin$orCat"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, "IEDALD0",
+                                                 "XCBR1$CO$Pos$origin$orIdent"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, "IEDALD0",
+                                                 "XCBR1$CF$Pos$ctlModel"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, "IEDALD0",
+                                                 "MMXU1$MX$TotW$mag$f"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, "IEDALD0",
+                                                 "MMXU1$MX$PhV$phsA$cVal$mag$f"));
+    ASSERT_TRUE(iec61850_mms_ds_variable_exists(&ds, "IEDALD0",
+                                                 "MMXU1$MX$PhV$phsC$cVal$ang$f"));
+
+    /* Every model DA registers exactly once */
+    size_t da_count = iec61850_ied_model_count_da(&model);
+    ASSERT_EQ(count, (int)da_count);
+
+    iec61850_mms_ds_destroy(&ds);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+static void test_scd_template_flat_mag(void)
+{
+    TEST("scd_template_flat_mag");
+    load_test_doc();
+
+    iec61850_ied_model_t model;
+    ASSERT_EQ(iec61850_scl_build_ied_model(&g_doc, &model), 0);
+
+    iec61850_logical_device_t *ld = iec61850_ied_model_find_ld(&model, "LD0");
+    ASSERT_TRUE(ld != NULL);
+    iec61850_logical_node_t *mmxu = find_ln_by_class(ld, "MMXU");
+    ASSERT_TRUE(mmxu != NULL);
+
+    /* test.scd MV_1 declares mag as a plain FLOAT32 DA */
+    iec61850_data_attribute_t *da =
+        iec61850_do_find_attribute(iec61850_ln_find_do(mmxu, "TotW"),
+                                    "mag", IEC61850_FC_MX);
+    ASSERT_TRUE(da != NULL);
+    ASSERT_EQ((int)da->btype, (int)IEC61850_BTYPE_FLOAT32);
+
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+static void test_unresolvable_lntype_fallback(void)
+{
+    TEST("unresolvable_lntype_fallback");
+
+    /* LN references an LNodeType id that the templates do not
+     * define: the builder must fall back to standard population */
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    (void)strncpy(doc.ied_name, "IED3", sizeof(doc.ied_name) - 1);
+
+    doc.ld_count = 1;
+    iec61850_scl_ld_t *ld = &doc.lds[0];
+    memset(ld, 0, sizeof(*ld));
+    (void)strncpy(ld->inst, "LD0", sizeof(ld->inst) - 1);
+    ld->ln_count = 1;
+    (void)strncpy(ld->lns[0].ln_class, "XCBR", sizeof(ld->lns[0].ln_class) - 1);
+    (void)strncpy(ld->lns[0].ln_inst, "1", sizeof(ld->lns[0].ln_inst) - 1);
+    (void)strncpy(ld->lns[0].ln_type, "MissingType",
+                  sizeof(ld->lns[0].ln_type) - 1);
+
+    iec61850_ied_model_t model;
+    ASSERT_EQ(iec61850_scl_build_ied_model(&doc, &model), 0);
+
+    iec61850_logical_device_t *mld = iec61850_ied_model_find_ld(&model, "LD0");
+    ASSERT_TRUE(mld != NULL);
+    iec61850_logical_node_t *xcbr = find_ln_by_class(mld, "XCBR");
+    ASSERT_TRUE(xcbr != NULL);
+    ASSERT_TRUE(xcbr->do_count >= 2);
+    ASSERT_TRUE(iec61850_ln_find_do(xcbr, "Pos") != NULL);
+
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
 int main(void)
 {
     printf("\n=== SCL IED Builder Tests ===\n");
@@ -515,6 +719,12 @@ int main(void)
 
     printf("\n--- Additional LN Classes ---\n");
     test_additional_ln_classes();
+
+    printf("\n--- Template-Driven Construction (WP-6e) ---\n");
+    test_template_driven_construction();
+    test_template_mms_naming();
+    test_scd_template_flat_mag();
+    test_unresolvable_lntype_fallback();
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);

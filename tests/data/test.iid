@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IID (instance-independent IED description) fixture — WP-6e.
+
+  Distinguishing traits vs SCD/CID:
+    - single IED, IED-centric (no station context)
+    - no Communication section (no configured addresses)
+    - Header carries an engineering History (Ed.2 IID trait)
+  The parser must accept it (Communication optional) and report
+  profile == IID.
+-->
+<SCL xmlns="http://www.iec.ch/61850/2003/SCL" version="2007B2">
+  <Header id="ieda-iid" version="1" revision="0">
+    <History>
+      <Hitem version="1" revision="0" when="2026-01-01T00:00:00"
+             who="VendorTool" what="initial IID export"/>
+    </History>
+  </Header>
+  <IED name="IEDA" manufacturer="Test">
+    <AccessPoint name="AP1">
+      <Server>
+        <LDevice inst="LD0">
+          <LN0 lnClass="LLN0" inst="" lnType="LLN0Type">
+            <!-- leaf-DA reference -->
+            <DataSet name="DS_LEAF">
+              <FCDA ldInst="LD0" lnClass="XCBR" lnInst="1" doName="Pos" daName="stVal" fc="ST"/>
+            </DataSet>
+            <!-- deep reference: SDO -> struct DA -> struct BDA -> leaf BDA -->
+            <DataSet name="DS_DEEP">
+              <FCDA ldInst="LD0" lnClass="MMXU" lnInst="1" doName="PhV" daName="phsA.cVal.mag.f" fc="MX"/>
+            </DataSet>
+            <!-- whole-DO reference (no daName) -->
+            <DataSet name="DS_WHOLE">
+              <FCDA ldInst="LD0" lnClass="XCBR" lnInst="1" doName="Pos" fc="ST"/>
+            </DataSet>
+            <!-- struct-DA leaf reference -->
+            <DataSet name="DS_STRUCT">
+              <FCDA ldInst="LD0" lnClass="XCBR" lnInst="1" doName="Pos" daName="origin" fc="CO"/>
+            </DataSet>
+            <!-- enum-DA leaf reference -->
+            <DataSet name="DS_ENUM">
+              <FCDA ldInst="LD0" lnClass="XCBR" lnInst="1" doName="Pos" daName="ctlModel" fc="CF"/>
+            </DataSet>
+            <!-- control block without any Communication-section address -->
+            <GSEControl name="gcbA" datSet="DS_LEAF" confRev="1" appID="GOOSE_A" goID="GOOSE_A_ID"/>
+            <ReportControl name="URCB_A" rptID="URCB_A" datSet="DS_LEAF" confRev="1" buffered="false">
+              <TrgOps dchg="true" qchg="true" dupd="false" period="true" gi="true"/>
+              <OptFields seqNum="true" timeStamp="true" reasonCode="true"/>
+            </ReportControl>
+          </LN0>
+          <LN lnClass="XCBR" inst="1" lnType="XCBRType"/>
+          <LN lnClass="MMXU" inst="1" lnType="MMXUType"/>
+        </LDevice>
+      </Server>
+    </AccessPoint>
+  </IED>
+  <DataTypeTemplates>
+    <LNodeType id="LLN0Type" lnClass="LLN0">
+      <DO name="Beh" type="INS_1"/>
+      <DO name="Health" type="INS_1"/>
+      <DO name="Mod" type="INC_1"/>
+    </LNodeType>
+    <LNodeType id="XCBRType" lnClass="XCBR">
+      <DO name="Pos" type="DPC_1"/>
+      <DO name="BlkOpn" type="SPS_1"/>
+      <DO name="BlkCls" type="SPS_1"/>
+      <DO name="Beh" type="INS_1"/>
+    </LNodeType>
+    <LNodeType id="MMXUType" lnClass="MMXU">
+      <DO name="TotW" type="MV_1"/>
+      <DO name="PhV" type="WYE_1"/>
+    </LNodeType>
+    <DOType id="SPS_1" cdc="SPS">
+      <DA name="stVal" fc="ST" bType="BOOLEAN"/>
+      <DA name="q" fc="ST" bType="Quality"/>
+      <DA name="t" fc="ST" bType="Timestamp"/>
+    </DOType>
+    <!-- mag kept as a Struct here: exercises template struct expansion -->
+    <DOType id="MV_1" cdc="MV">
+      <DA name="mag" fc="MX" bType="Struct" type="AnalogueValue_1"/>
+      <DA name="q" fc="MX" bType="Quality"/>
+      <DA name="t" fc="MX" bType="Timestamp"/>
+    </DOType>
+    <DOType id="DPC_1" cdc="DPC">
+      <DA name="stVal" fc="ST" bType="Dbpos"/>
+      <DA name="q" fc="ST" bType="Quality"/>
+      <DA name="t" fc="ST" bType="Timestamp"/>
+      <DA name="ctlVal" fc="CO" bType="BOOLEAN"/>
+      <DA name="origin" fc="CO" bType="Struct" type="Originator_1"/>
+      <DA name="ctlModel" fc="CF" bType="Enum" type="CtlModels"/>
+    </DOType>
+    <DOType id="INS_1" cdc="INS">
+      <DA name="stVal" fc="ST" bType="INT32"/>
+      <DA name="q" fc="ST" bType="Quality"/>
+      <DA name="t" fc="ST" bType="Timestamp"/>
+    </DOType>
+    <DOType id="INC_1" cdc="INC">
+      <DA name="stVal" fc="ST" bType="INT32"/>
+      <DA name="q" fc="ST" bType="Quality"/>
+      <DA name="t" fc="ST" bType="Timestamp"/>
+      <DA name="ctlVal" fc="CO" bType="BOOLEAN"/>
+    </DOType>
+    <DOType id="WYE_1" cdc="WYE">
+      <SDO name="phsA" type="CMV_1"/>
+      <SDO name="phsB" type="CMV_1"/>
+      <SDO name="phsC" type="CMV_1"/>
+    </DOType>
+    <DOType id="CMV_1" cdc="CMV">
+      <DA name="cVal" fc="MX" bType="Struct" type="Vector_1"/>
+      <DA name="q" fc="MX" bType="Quality"/>
+      <DA name="t" fc="MX" bType="Timestamp"/>
+    </DOType>
+    <DAType id="AnalogueValue_1">
+      <BDA name="f" bType="FLOAT32"/>
+    </DAType>
+    <DAType id="Vector_1">
+      <BDA name="mag" bType="Struct" type="AnalogueValue_1"/>
+      <BDA name="ang" bType="Struct" type="AnalogueValue_1"/>
+    </DAType>
+    <DAType id="Originator_1">
+      <BDA name="orCat" bType="Enum" type="OrCat"/>
+      <BDA name="orIdent" bType="Octet64"/>
+    </DAType>
+    <EnumType id="CtlModels">
+      <EnumVal ord="0">status-only</EnumVal>
+      <EnumVal ord="1">direct-with-normal-security</EnumVal>
+      <EnumVal ord="2">sbo-with-normal-security</EnumVal>
+      <EnumVal ord="3">direct-with-enhanced-security</EnumVal>
+      <EnumVal ord="4">sbo-with-enhanced-security</EnumVal>
+    </EnumType>
+    <EnumType id="OrCat">
+      <EnumVal ord="0">not-supported</EnumVal>
+      <EnumVal ord="1">bay-control</EnumVal>
+      <EnumVal ord="2">station-control</EnumVal>
+      <EnumVal ord="3">remote-control</EnumVal>
+    </EnumType>
+  </DataTypeTemplates>
+</SCL>

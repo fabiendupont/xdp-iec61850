@@ -104,7 +104,7 @@
       <DA name="ctlVal" fc="CO" bType="BOOLEAN"/>
     </DOType>
     <DOType id="MV_1" cdc="MV">
-      <DA name="mag" fc="MX" bType="Struct" type="AnalogueValue_1"/>
+      <DA name="mag" fc="MX" bType="FLOAT32"/>
       <DA name="q" fc="MX" bType="Quality"/>
       <DA name="t" fc="MX" bType="Timestamp"/>
     </DOType>

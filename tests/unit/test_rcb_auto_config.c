@@ -376,6 +376,40 @@ static void test_get_configs_from_scd(void)
     PASS();
 }
 
+/* WP-6e: RCB auto-configuration works from an IID (no Communication
+ * section) document as well. */
+static void test_parse_iid_and_create_rcbs(void)
+{
+    TEST("parse_iid_and_create_rcbs");
+
+    char path[512];
+    build_path(path, sizeof(path), "test.iid");
+
+    iec61850_scl_doc_t doc;
+    iec61850_scl_doc_init(&doc);
+    int ret = iec61850_scl_parse_file(path, "IEDA", &doc);
+    ASSERT_EQ(ret, 0);
+    ASSERT_EQ((int)doc.profile, (int)IEC61850_SCL_PROFILE_IID);
+
+    iec61850_rcb_manager_t mgr;
+    iec61850_rcb_manager_init(&mgr, "LD0");
+
+    int result = iec61850_scl_auto_create_rcbs(&doc, &mgr, NULL);
+    ASSERT_EQ(result, 1);
+
+    iec61850_rcb_t *urcb = iec61850_rcb_manager_find_rcb(&mgr, "URCB_A");
+    ASSERT_TRUE(urcb != NULL);
+    ASSERT_EQ((int)urcb->type, (int)IEC61850_RCB_UNBUFFERED);
+    ASSERT_TRUE(urcb->attrs.trg_ops.data_change);
+    ASSERT_TRUE(urcb->attrs.trg_ops.quality_change);
+    ASSERT_TRUE(urcb->attrs.trg_ops.integrity);
+    ASSERT_TRUE(urcb->attrs.trg_ops.general_interrogation);
+    ASSERT_TRUE(strcmp(urcb->attrs.dat_set, "DS_LEAF") == 0);
+
+    iec61850_rcb_manager_destroy(&mgr);
+    PASS();
+}
+
 int main(void)
 {
     printf("\n=== SCL RCB Auto-Configuration Tests ===\n");
@@ -389,6 +423,7 @@ int main(void)
     test_duplicate_prevention();
     test_parse_scd_and_create_rcbs();
     test_get_configs_from_scd();
+    test_parse_iid_and_create_rcbs();
 
     printf("\n=== Test Summary ===\n");
     printf("Tests run:    %d\n", tests_run);

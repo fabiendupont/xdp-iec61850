@@ -25,6 +25,37 @@ extern "C" {
 #define IEC61850_SCL_MAX_DS_MEMBERS 64
 #define IEC61850_SCL_MAX_LDS      16
 #define IEC61850_SCL_MAX_LNS      64
+#define IEC61850_SCL_MAX_VERSION  16  /* "2007B2" + nul */
+#define IEC61850_SCL_MAX_DA_PATH  256 /* dotted DO[.SDO]*[.DA[.BDA]*] path */
+
+/*
+ * SCL exchange-file variant (IEC 61850-6). All four share the SCL
+ * schema and are accepted by iec61850_scl_parse_file(); the profile
+ * is sniffed from document structure and reported in the doc:
+ *
+ *   SCD  system configuration description: multiple IEDs plus a
+ *        Communication section (station-engineering exchange file)
+ *   ICD  IED capability description: single IED, no Communication
+ *        section (project-independent device capabilities)
+ *   IID  instance-independent IED description: single IED, no
+ *        Communication section, carries Header history (Ed.2
+ *        device-exchange format with pre-engineered content)
+ *   CID  configured IED description: single IED with a configured
+ *        Communication section (project-configured device)
+ *
+ * Note: an SCD that happens to contain a single IED is content-
+ * indistinguishable from a CID; such documents are reported as CID.
+ */
+typedef enum {
+    IEC61850_SCL_PROFILE_UNKNOWN = 0,
+    IEC61850_SCL_PROFILE_SCD,
+    IEC61850_SCL_PROFILE_ICD,
+    IEC61850_SCL_PROFILE_IID,
+    IEC61850_SCL_PROFILE_CID
+} iec61850_scl_profile_t;
+
+/* Human-readable profile name ("SCD", "ICD", "IID", "CID"). */
+const char *iec61850_scl_profile_name(iec61850_scl_profile_t profile);
 
 /* GOOSE control block extracted from SCD */
 typedef struct {
@@ -126,6 +157,7 @@ typedef struct {
     char btype[IEC61850_SCL_MAX_NAME];     /* BasicType: BOOLEAN, INT32, Struct, Enum, etc. */
     char type[IEC61850_SCL_MAX_NAME];      /* Referenced DAType/EnumType id (if btype=Struct/Enum) */
     uint32_t count;                        /* Array count (0 or 1 = scalar) */
+    bool is_sdo;                           /* true when entry is an SDO (type -> DOType) */
 } iec61850_scl_da_t;
 
 /* DO reference in LNodeType */
@@ -216,6 +248,10 @@ typedef struct {
     size_t enum_type_count;
 
     char ied_name[IEC61850_SCL_MAX_NAME];
+
+    /* Input variant sniffed from the document structure (WP-6e) */
+    iec61850_scl_profile_t profile;
+    char version[IEC61850_SCL_MAX_VERSION];  /* SCL version attribute */
 } iec61850_scl_doc_t;
 
 /**
@@ -224,12 +260,26 @@ typedef struct {
 void iec61850_scl_doc_init(iec61850_scl_doc_t *doc);
 
 /**
- * Parse an SCD file and extract configuration for a given IED.
+ * Parse an SCL exchange file (SCD, ICD, IID or CID — the four
+ * IEC 61850-6 variants of the same schema) and extract the
+ * configuration for a given IED.
  *
- * @param filename Path to SCD file
+ * The root element must be <SCL>; the version attribute, when
+ * present, must be one of 2003/2007/2007B/2007B2. The
+ * Communication section is optional (absent in ICD/IID). The
+ * sniffed variant is reported in doc->profile.
+ *
+ * Bounds discipline: every string extracted from the document must
+ * fit its fixed-size destination; oversized names fail the parse
+ * instead of being silently truncated.
+ *
+ * @param filename Path to SCL file
  * @param ied_name IED name to extract (NULL = first IED)
  * @param doc      Output document
- * @return 0 on success, -1 on error
+ * @return 0 on success, -EINVAL on bad arguments / unreadable XML /
+ *         non-SCL root / unsupported version, -ENOENT when the file
+ *         is not readable or no matching IED exists,
+ *         -ENAMETOOLONG when a name exceeds its fixed buffer
  */
 int iec61850_scl_parse_file(const char *filename, const char *ied_name,
                              iec61850_scl_doc_t *doc);
@@ -281,6 +331,66 @@ const iec61850_scl_da_type_t *iec61850_scl_find_da_type(
  */
 const iec61850_scl_enum_type_t *iec61850_scl_find_enum_type(
     const iec61850_scl_doc_t *doc, const char *id);
+
+/**
+ * Resolve the label of an EnumType ordinal value.
+ *
+ * @param et  EnumType to search
+ * @param ord Ordinal value
+ * @return Label string, or NULL if the ordinal is not defined
+ */
+const char *iec61850_scl_enum_label(const iec61850_scl_enum_type_t *et,
+                                     int32_t ord);
+
+/*
+ * FCDA → DA reference resolution (WP-6e).
+ *
+ * An FCDA names a data point as ldInst / (prefix, lnClass, lnInst) /
+ * doName [ / daName ] / fc. Resolution walks the DataTypeTemplates
+ * (LNodeType → DOType → DAType) to the concrete leaf DA, yielding a
+ * dotted object path and the leaf's type metadata. Both leaf-DA
+ * references (daName present, possibly a dotted path through struct
+ * BDAs) and whole-DO/SDO references (daName absent) resolve.
+ */
+
+/* Result of iec61850_scl_resolve_fcda() */
+typedef struct {
+    char ld_inst[IEC61850_SCL_MAX_NAME];
+    char ln_name[IEC61850_SCL_MAX_NAME * 3];  /* prefix + lnClass + inst */
+    char path[IEC61850_SCL_MAX_DA_PATH];      /* "Pos.stVal", "PhV.phsA.cVal.mag.f" */
+    char fc[8];
+
+    bool whole_do;    /* true: reference to a whole DO or SDO (no daName) */
+    bool leaf_struct; /* true: leaf is a Struct (struct_type set) */
+
+    /* Leaf type metadata (copies from the defining template entry;
+     * empty when whole_do is true). */
+    char btype[IEC61850_SCL_MAX_NAME];
+    char type[IEC61850_SCL_MAX_NAME];
+
+    /* Template back-pointers into doc (NULL when not applicable) */
+    const iec61850_scl_do_type_t *do_type;     /* DO(SDO) type of the reference */
+    const iec61850_scl_da_type_t *struct_type; /* DAType when leaf is Struct */
+    const iec61850_scl_enum_type_t *enum_type; /* EnumType when leaf is Enum */
+} iec61850_scl_da_path_t;
+
+/**
+ * Resolve one FCDA of a dataset through the DataTypeTemplates.
+ *
+ * @param doc     Parsed SCL document (with DataTypeTemplates)
+ * @param dataset Dataset containing the FCDA
+ * @param index   FCDA index within the dataset
+ * @param out     Resolved DA path
+ * @return 0 on success, -EINVAL on bad arguments or index,
+ *         -ENOENT when the reference does not resolve against the
+ *         templates (unknown LD/LN/LNodeType/DO/SDO/DA/BDA, or an
+ *         FCDA functional constraint that does not match the leaf DA),
+ *         -ENAMETOOLONG when the dotted path exceeds out->path
+ */
+int iec61850_scl_resolve_fcda(const iec61850_scl_doc_t *doc,
+                               const iec61850_scl_dataset_t *dataset,
+                               size_t index,
+                               iec61850_scl_da_path_t *out);
 
 #ifdef __cplusplus
 }
