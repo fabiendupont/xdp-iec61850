@@ -1726,6 +1726,91 @@ static void test_get_named_varlist_attrs_request_standard(void)
     PASS();
 }
 
+/* WriteNamedVariableList request — standard wire form (WP-C1, the
+ * last NVL request encoder off the proprietary flat dialect):
+ *   A5 L A1 L A1 L 1A <domainId> 1A <itemId> A0 L <Data>...
+ * (variableAccessSpecification CHOICE variableListName [1] EXPLICIT
+ * ObjectName { domain-specific [1] { 1A, 1A } }, then listOfData [0]
+ * IMPLICIT SEQUENCE OF Data). The name pair and the listOfData [0]
+ * tag are byte-for-byte the reference client's Write forms
+ * (reference/mms_services.pcap, wire-observed; Write has no
+ * specificationWithResult, so the VAS CHOICE sits unwrapped at the
+ * top level — unlike Read's [1]-wrapped VAS). */
+static void test_write_named_varlist_request_standard_wire(void)
+{
+    TEST("write_named_varlist_request_standard_wire");
+    static const uint8_t expected[] = {
+        0xA0, 0x24,                   /* confirmedRequestPDU */
+        0x02, 0x01, 0x0C,             /* invokeID 12 */
+        0xA5, 0x1F,                   /* write [5] */
+        0xA1, 0x15,                   /* variableListName [1] */
+        0xA1, 0x13,                   /* domain-specific [1] */
+        0x1A, 0x07, 'I','E','D','1','L','D','0',
+        0x1A, 0x08, 'T','e','s','t','L','i','s','t',
+        0xA0, 0x06,                   /* listOfData [0] */
+        0x85, 0x01, 0x2A,             /* integer 42 */
+        0x83, 0x01, 0xFF              /* boolean TRUE */
+    };
+    uint8_t buf[256];
+    mms_confirmed_request_t req;
+    memset(&req, 0, sizeof(req));
+    req.invoke_id = 12;
+    req.service = MMS_SERVICE_TYPE_WRITE_NAMED_VARLIST;
+    strncpy(req.params.writenamedvarlist.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+    strncpy(req.params.writenamedvarlist.list_name, "TestList", MMS_MAX_VARIABLE_NAME - 1);
+    req.params.writenamedvarlist.num_values = 2;
+    req.params.writenamedvarlist.values[0].type = MMS_TYPE_INTEGER;
+    req.params.writenamedvarlist.values[0].value.integer = 42;
+    req.params.writenamedvarlist.values[1].type = MMS_TYPE_BOOLEAN;
+    req.params.writenamedvarlist.values[1].value.boolean = true;
+
+    int enc_len = mms_encode_confirmed_request(&req, buf, sizeof(buf));
+    ASSERT_TRUE(enc_len == (int)sizeof(expected));
+    ASSERT_TRUE(memcmp(buf, expected, sizeof(expected)) == 0);
+
+    /* Round-trip: the server-side decoder recovers the names and
+     * every data element. */
+    mms_confirmed_request_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_request(buf, (size_t)enc_len, &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(expected));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_WRITE_NAMED_VARLIST);
+    ASSERT_TRUE(strcmp(decoded.params.writenamedvarlist.domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.writenamedvarlist.list_name, "TestList") == 0);
+    ASSERT_EQ((int)decoded.params.writenamedvarlist.num_values, 2);
+    ASSERT_EQ((int)decoded.params.writenamedvarlist.values[0].type, (int)MMS_TYPE_INTEGER);
+    ASSERT_EQ((int)decoded.params.writenamedvarlist.values[0].value.integer, 42);
+    ASSERT_EQ((int)decoded.params.writenamedvarlist.values[1].type, (int)MMS_TYPE_BOOLEAN);
+    ASSERT_TRUE(decoded.params.writenamedvarlist.values[1].value.boolean);
+    PASS();
+}
+
+/* Pre-WP-C1 flat WriteNamedVariableList dialect (kept decodable,
+ * like the other NVL services): [1] { <domLen> dom <nameLen> name }
+ * + listOfData [0]. */
+static void test_write_named_varlist_request_legacy_flat(void)
+{
+    TEST("write_named_varlist_request_legacy_flat");
+    static const uint8_t wire[] = {
+        0xA0, 0x1D, 0x02, 0x01, 0x0F, 0xA5, 0x18,
+        0xA1, 0x11,
+        0x07, 'I','E','D','1','L','D','0',
+        0x08, 'T','e','s','t','L','i','s','t',
+        0xA0, 0x03,
+        0x85, 0x01, 0x2A              /* integer 42 */
+    };
+    mms_confirmed_request_t decoded;
+    memset(&decoded, 0, sizeof(decoded));
+    int consumed = mms_decode_confirmed_request(wire, sizeof(wire), &decoded);
+    ASSERT_TRUE(consumed == (int)sizeof(wire));
+    ASSERT_EQ((int)decoded.service, (int)MMS_SERVICE_TYPE_WRITE_NAMED_VARLIST);
+    ASSERT_TRUE(strcmp(decoded.params.writenamedvarlist.domain, "IED1LD0") == 0);
+    ASSERT_TRUE(strcmp(decoded.params.writenamedvarlist.list_name, "TestList") == 0);
+    ASSERT_EQ((int)decoded.params.writenamedvarlist.num_values, 1);
+    ASSERT_EQ((int)decoded.params.writenamedvarlist.values[0].value.integer, 42);
+    PASS();
+}
+
 /* WP-2y latent decode bug 1: a 1-member NVL read response carries the
  * specificationWithResult echo and must decode as READ_NAMED_VARLIST
  * — the old num_values == 1 heuristic classified it as a plain Read
@@ -2529,6 +2614,22 @@ static void test_decode_truncated_pdus(void)
     {
         mms_confirmed_request_t in;
         memset(&in, 0, sizeof(in));
+        in.invoke_id = 4;
+        in.service = MMS_SERVICE_TYPE_WRITE_NAMED_VARLIST;
+        strncpy(in.params.writenamedvarlist.domain, "IED1LD0", MMS_MAX_DOMAIN_NAME - 1);
+        strncpy(in.params.writenamedvarlist.list_name, "TestList", MMS_MAX_VARIABLE_NAME - 1);
+        in.params.writenamedvarlist.num_values = 1;
+        in.params.writenamedvarlist.values[0].type = MMS_TYPE_INTEGER;
+        in.params.writenamedvarlist.values[0].value.integer = 42;
+        enc_len = mms_encode_confirmed_request(&in, wire, sizeof(wire));
+        ASSERT_TRUE(enc_len > 0);
+        assert_truncations_rejected("confirmed_request(write_named_varlist)",
+                                    trunc_dec_confirmed_req,
+                                    wire, (size_t)enc_len);
+    }
+    {
+        mms_confirmed_request_t in;
+        memset(&in, 0, sizeof(in));
         in.invoke_id = 3;
         in.service = MMS_SERVICE_TYPE_GET_NAMELIST;
         in.params.getnamelist.object_class = MMS_OBJECT_CLASS_NAMED_VARIABLE;
@@ -2833,6 +2934,8 @@ int main(void)
     test_define_named_varlist_request_legacy_flat();
     test_delete_named_varlist_request_standard();
     test_get_named_varlist_attrs_request_standard();
+    test_write_named_varlist_request_standard_wire();
+    test_write_named_varlist_request_legacy_flat();
     test_readnamedvarlist_response_single_member();
     test_readnamedvarlist_response_empty_list();
     test_readnamedvarlist_response_vas_echo();
