@@ -63,9 +63,6 @@ int ptp_slave_on_announce(ptp_slave_t *s, const ptp_header_t *hdr,
         return 0;   /* other domain: ignore silently */
     }
 
-    s->last_announce_ms = now_ms;
-    s->announce_timeout_armed = true;
-
     if (s->have_master) {
         /* BMCA-lite: only a strictly better dataset takes over. */
         int c = ptp_dataset_compare(
@@ -76,7 +73,15 @@ int ptp_slave_on_announce(ptp_slave_t *s, const ptp_header_t *hdr,
             s->gm_priority1, &s->gm_quality, s->gm_priority2,
             s->gm_identity, s->gm_steps_removed);
         if (c >= 0) {
-            return 0;   /* refresh only */
+            /* Refresh only — and only traffic from the CURRENT
+             * master port may refresh the announce receipt timeout:
+             * a foreign (worse or equal) master's announces must not
+             * keep a dead current master alive. */
+            if (from_master(s, hdr)) {
+                s->last_announce_ms = now_ms;
+                s->announce_timeout_armed = true;
+            }
+            return 0;
         }
     }
 
@@ -90,6 +95,8 @@ int ptp_slave_on_announce(ptp_slave_t *s, const ptp_header_t *hdr,
     s->master_port = hdr->source_port_identity;
     s->master_announce_seq = hdr->sequence_id;
     ptp_slave_set_announce_interval(s, hdr->log_message_interval);
+    s->last_announce_ms = now_ms;
+    s->announce_timeout_armed = true;
 
     /* New master: delay measurement starts over. */
     s->have_delay = false;

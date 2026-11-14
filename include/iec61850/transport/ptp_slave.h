@@ -110,6 +110,12 @@ int ptp_slave_init(ptp_slave_t *s, uint8_t domain_number,
  * Feed an Announce. Returns 1 when the master CHANGED (the I/O
  * shell should reset the delay state), 0 when it merely refreshed
  * the current master, -EINVAL on malformed input.
+ *
+ * Receipt-timeout fidelity: only announces from the CURRENT master
+ * port (or one that just took over) refresh the announce receipt
+ * timeout — same-domain traffic from a foreign, not-better master
+ * is ignored for timeout purposes, so it cannot keep a dead master
+ * alive.
  */
 int ptp_slave_on_announce(ptp_slave_t *s, const ptp_header_t *hdr,
                           const ptp_announce_t *ann, uint64_t now_ms);

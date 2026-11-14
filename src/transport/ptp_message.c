@@ -30,12 +30,27 @@ static uint64_t rd48(const uint8_t *p)
            ((uint64_t)p[4] << 8) | p[5];
 }
 
-static int64_t rd64(const uint8_t *p)
+static uint64_t rd64(const uint8_t *p)
 {
-    uint64_t v = ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) |
-                 ((uint64_t)p[2] << 40) | ((uint64_t)p[3] << 32) |
-                 ((uint64_t)p[4] << 24) | ((uint64_t)p[5] << 16) |
-                 ((uint64_t)p[6] << 8) | p[7];
+    return ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) |
+           ((uint64_t)p[2] << 40) | ((uint64_t)p[3] << 32) |
+           ((uint64_t)p[4] << 24) | ((uint64_t)p[5] << 16) |
+           ((uint64_t)p[6] << 8) | p[7];
+}
+
+/* correctionField (ns scaled by 2^16, possibly negative): shift in
+ * the UNSIGNED domain, then sign-extend bit 47 explicitly — a right
+ * shift of a negative signed value is implementation-defined
+ * (MISRA-C:2012 Rule 10.1 preference), and a plain logical shift
+ * alone would lose the sign. Both operations are well-defined and
+ * the result always fits int64_t (48-bit signed ns count). */
+static int64_t rd_correction_ns(const uint8_t *p)
+{
+    uint64_t v = rd64(p) >> 16U;
+
+    if ((v & 0x800000000000ULL) != 0U) {
+        return (int64_t)(v - 0x1000000000000ULL);
+    }
     return (int64_t)v;
 }
 
@@ -130,7 +145,7 @@ int ptp_parse(const uint8_t *buf, size_t len,
     hdr->domain_number = buf[4];
     hdr->flag_field = rd16(buf + 6);
     /* correctionField: nanoseconds scaled by 2^16. */
-    hdr->correction_ns = rd64(buf + 8) >> 16;
+    hdr->correction_ns = rd_correction_ns(buf + 8);
     rd_port_identity(buf + 16, &hdr->source_port_identity);
     hdr->sequence_id = rd16(buf + 28);
     hdr->log_message_interval = (int8_t)buf[33];
