@@ -33,6 +33,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <unistd.h>
 
 #include <openssl/err.h>
@@ -64,17 +67,6 @@ static char f_weak_key[128], f_weak_cert[128];
 static char f_exp_key[128], f_exp_cert[128];
 static char f_spiffe_key[128], f_spiffe_cert[128];
 static char f_rogue_key[128], f_rogue_cert[128];
-
-/* Distinct ports per test (avoids TIME_WAIT collisions). */
-static uint16_t next_port(void)
-{
-    static uint16_t port = 0;
-    if (port == 0) {
-        port = (uint16_t)(21000U + (uint32_t)(getpid() % 20000));
-    }
-    port++;
-    return port;
-}
 
 /* ------------------------------------------------------------------ */
 /* Certificate generation                                              */
@@ -327,10 +319,16 @@ static void *echo_thread(void *arg)
     return NULL;
 }
 
+/* Distinct ports per test — ephemeral binding (port 0) with the
+ * assigned port retrieved via getsockname; no cross-process
+ * collisions regardless of TIME_WAIT state or PID overlap. */
 static int echo_server_start(echo_server_t *es, const char *cert_path,
                                const char *key_path, const char *trust_path,
                                iec61850_tls_mode_t mode)
 {
+    struct sockaddr_in assigned;
+    socklen_t alen = sizeof(assigned);
+
     iec61850_tls_listener_init(&es->listener);
     es->provider = NULL;
     es->accept_rc = -1;
@@ -342,13 +340,24 @@ static int echo_server_start(echo_server_t *es, const char *cert_path,
                                                           trust_path);
     if (es->provider == NULL) { return -1; }
 
-    es->port = next_port();
+    /* Ephemeral port: bind 0, then read back the kernel assignment. */
+    es->port = 0;
     if (iec61850_tls_listener_bind(&es->listener, es->port,
                                      es->provider, mode) != 0) {
         iec61850_cert_provider_destroy(es->provider);
         es->provider = NULL;
         return -1;
     }
+
+    if ((getsockname(es->listener.tcp.sockfd,
+                     (struct sockaddr *)&assigned, &alen) != 0) ||
+        (assigned.sin_family != AF_INET)) {
+        (void)iec61850_tls_listener_close(&es->listener);
+        iec61850_cert_provider_destroy(es->provider);
+        es->provider = NULL;
+        return -1;
+    }
+    es->port = ntohs(assigned.sin_port);
 
     if (pthread_create(&es->thread, NULL, echo_thread, es) != 0) {
         (void)iec61850_tls_listener_close(&es->listener);
@@ -584,7 +593,7 @@ static void test_listener_requires_provider(void)
     TEST("listener_bind_requires_provider");
 
     iec61850_tls_listener_init(&listener);
-    ASSERT_EQ(iec61850_tls_listener_bind(&listener, next_port(), NULL,
+    ASSERT_EQ(iec61850_tls_listener_bind(&listener, 0, NULL,
                                            IEC61850_TLS_MODE_COMPATIBLE),
                -EINVAL);
     ASSERT_EQ(iec61850_tls_listener_close(&listener),
