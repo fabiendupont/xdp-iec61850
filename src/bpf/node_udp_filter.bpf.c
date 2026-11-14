@@ -195,7 +195,38 @@ XGL_NODE(node_udp_filter)
         XGL_DROP();
     }
 
-    /* Accepted — redirect to AF_XDP */
+    /* Accepted — chain to the profile parse node (SI byte at the
+     * SPDU start: 0xA1 = R-GOOSE, 0xA2 = R-SV) for BPF-side dedup,
+     * which redirects to AF_XDP after its checks. Falls back to a
+     * direct redirect when the parse node is not configured. */
+    {
+        __u32 role;
+        __u8 *si = data + 42U; /* Eth(14) + IPv4(20) + UDP(8) */
+        __u32 *parse_idx;
+
+        if ((void *)(si + 1) > data_end) {
+            XGL_STATS_INC_DROP(egl_node_stats, idx);
+            XGL_DROP();
+        }
+        if (*si == 0xA1U) {
+            role = IEC61850_ROLE_RGOOSE_PARSE;
+        } else if (*si == 0xA2U) {
+            role = IEC61850_ROLE_RSV_PARSE;
+        } else {
+            /* Confident profile mismatch */
+            XGL_STATS_INC_DROP(egl_node_stats, idx);
+            XGL_DROP();
+        }
+
+        parse_idx = bpf_map_lookup_elem(&iec61850_node_config, &role);
+        if (parse_idx && (*parse_idx != 0U)) {
+            XGL_STATS_INC_TX(egl_node_stats, idx, pkt_len);
+            XGL_NEXT_SAFE(ctx, egl_prog_array, *parse_idx,
+                          egl_node_stats, idx);
+        }
+    }
+
+    /* Fallback: no parse node configured — redirect to AF_XDP */
     __u32 queue_id = ctx->rx_queue_index;
     XGL_STATS_INC_TX(egl_node_stats, idx, pkt_len);
 

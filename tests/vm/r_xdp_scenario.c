@@ -273,6 +273,7 @@ static void test_duplicate_spdu(struct rxdp_ctx *ctx)
     }
 
     got = xsk_drain(ctx->xsk, 1500);
+    printf("  (rx3 got=%d)\n", got);
     ASSERT_TRUE(got == 1); /* first delivered, second dropped */
 
     if (egl_stats_read(xgl_graph_get_egl(ctx->g), ctx->indices.rgoose_parse,

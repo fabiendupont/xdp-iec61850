@@ -140,7 +140,20 @@ XGL_NODE(node_sv_filter)
         XGL_DROP();
     }
 
-    /* Accepted — redirect to AF_XDP */
+    /* Accepted — chain to the parse node for BPF-side dedup;
+     * it redirects to AF_XDP after its checks. Falls back to a
+     * direct redirect when the parse node is not configured. */
+    {
+        __u32 prole = IEC61850_ROLE_SV_PARSE;
+        __u32 *parse_idx =
+            bpf_map_lookup_elem(&iec61850_node_config, &prole);
+        if (parse_idx && (*parse_idx != 0U)) {
+            XGL_STATS_INC_TX(egl_node_stats, idx, pkt_len);
+            XGL_NEXT_SAFE(ctx, egl_prog_array, *parse_idx,
+                          egl_node_stats, idx);
+        }
+    }
+
     __u32 queue_id = ctx->rx_queue_index;
     XGL_STATS_INC_TX(egl_node_stats, idx, pkt_len);
 
