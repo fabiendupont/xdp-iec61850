@@ -134,8 +134,8 @@ if ip netns exec "$NS_XDP" "$SCENARIO" "$VETH_RX" "$VETH_TX" \
 else
     RET=$?
     if [ "$RET" -eq 77 ] || grep -q "^SKIP:" "$OUTPUT"; then
-        echo "SKIP (BPF attach/load not permitted on this kernel)"
-        grep "^SKIP:" "$OUTPUT" || true
+        echo "SKIP (scenario skipped — full diagnostics below)"
+        cat "$OUTPUT"
     else
         test_fail "exit code $RET"
         cat "$OUTPUT"
