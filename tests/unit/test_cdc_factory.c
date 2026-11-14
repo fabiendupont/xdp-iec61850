@@ -87,6 +87,138 @@ static void test_cdc_null_name(void)
     TEST("cdc_null_name");
     ASSERT_TRUE(iec61850_cdc_create_sps(NULL) == NULL);
     ASSERT_TRUE(iec61850_cdc_create_dpc(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_apc(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_enc(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_isc(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_curs(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_csd(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_seq(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_hmv(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_hwye(NULL) == NULL);
+    ASSERT_TRUE(iec61850_cdc_create_hdel(NULL) == NULL);
+    PASS();
+}
+
+/* 6a extension factories: APC, ENC, ISC */
+static void test_cdc_apc(void)
+{
+    TEST("cdc_apc");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_apc("AOut1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_APC);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "mxVal", IEC61850_FC_MX) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "ctlVal", IEC61850_FC_CO) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "ctlModel", IEC61850_FC_CF) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+static void test_cdc_enc(void)
+{
+    TEST("cdc_enc");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_enc("EnumCtl1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_ENC);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "stVal", IEC61850_FC_ST) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "ctlVal", IEC61850_FC_CO) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "ctlModel", IEC61850_FC_CF) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+static void test_cdc_isc(void)
+{
+    TEST("cdc_isc");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_isc("IntCtl1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_ISC);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "stVal", IEC61850_FC_ST) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "ctlVal", IEC61850_FC_CO) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "ctlModel", IEC61850_FC_CF) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 6a extension factories: CURS, CSD, SEQ */
+static void test_cdc_curs(void)
+{
+    TEST("cdc_curs");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_curs("Curve1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_CURS);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "crvPts", IEC61850_FC_SG) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+static void test_cdc_csd(void)
+{
+    TEST("cdc_csd");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_csd("Custom1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_CSD);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "setVal", IEC61850_FC_SG) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+static void test_cdc_seq(void)
+{
+    TEST("cdc_seq");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_seq("SeqSt1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_SEQ);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "seqVal", IEC61850_FC_ST) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "q", IEC61850_FC_ST) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+/* 6a extension factories: HMV, HWYE, HDEL */
+static void test_cdc_hmv(void)
+{
+    TEST("cdc_hmv");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_hmv("Hrmc1");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_HMV);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "hVal", IEC61850_FC_MX) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "q", IEC61850_FC_MX) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+static void test_cdc_hwye(void)
+{
+    TEST("cdc_hwye");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_hwye("HrmA");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_HWYE);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "phsA.hVal", IEC61850_FC_MX) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "phsB.hVal", IEC61850_FC_MX) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "phsC.hVal", IEC61850_FC_MX) != NULL);
+    iec61850_do_destroy(dobj);
+    PASS();
+}
+
+static void test_cdc_hdel(void)
+{
+    TEST("cdc_hdel");
+    iec61850_data_object_t *dobj = iec61850_cdc_create_hdel("HrmD");
+    ASSERT_TRUE(dobj != NULL);
+    ASSERT_EQ((int)dobj->cdc, (int)IEC61850_CDC_HDEL);
+    ASSERT_TRUE(dobj->attr_count > 0);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "phsAB.hVal", IEC61850_FC_MX) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "phsBC.hVal", IEC61850_FC_MX) != NULL);
+    ASSERT_TRUE(iec61850_do_find_attribute(dobj, "phsCA.hVal", IEC61850_FC_MX) != NULL);
+    iec61850_do_destroy(dobj);
     PASS();
 }
 
@@ -102,6 +234,15 @@ static void test_cdc_type_strings(void)
     ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_DEL), "DEL") == 0);
     ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_SPG), "SPG") == 0);
     ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_ASG), "ASG") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_APC), "APC") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_ENC), "ENC") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_ISC), "ISC") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_CURS), "CURS") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_CSD), "CSD") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_SEQ), "SEQ") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_HMV), "HMV") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_HWYE), "HWYE") == 0);
+    ASSERT_TRUE(strcmp(iec61850_cdc_to_string(IEC61850_CDC_HDEL), "HDEL") == 0);
     PASS();
 }
 
@@ -128,6 +269,15 @@ int main(void)
     test_cdc_ins();
     test_cdc_mv();
     test_cdc_spc();
+    test_cdc_apc();
+    test_cdc_enc();
+    test_cdc_isc();
+    test_cdc_curs();
+    test_cdc_csd();
+    test_cdc_seq();
+    test_cdc_hmv();
+    test_cdc_hwye();
+    test_cdc_hdel();
     test_cdc_null_name();
     test_cdc_type_strings();
     test_btype_strings();
