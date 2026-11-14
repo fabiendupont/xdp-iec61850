@@ -9,16 +9,19 @@
  * the ordinary data store (the same pre-commit pattern as the RCB
  * bridge in mms_report.c).
  *
- * MMS variable layout (per LD):
+ * MMS variable layout (per LD) — the IEC 61850-8-1 mapping
+ * (wire-verified against the libiec61850 reference server):
  *
- *   LD/LLN0$SG$NumOfSG   (r)   number of setting groups
- *   LD/LLN0$SG$ActSG     (rw)  SelectActiveSG: 1..NumOfSG
- *   LD/LLN0$SG$EditSG    (rw)  SelectEditSG: 0 (release) or 1..NumOfSG
- *   LD/LLN0$SG$ResvTms   (r)   reservation time in seconds (0 = free)
- *   LD/<LN>$SE$<path>    (rw)  setting-group values: writes go to
- *                              the SELECTED EDIT group's copy; reads
- *                              return the edit group when selected,
- *                              otherwise the active group.
+ *   LD/LLN0$SP$SGCB$NumOfSG  (r)   number of setting groups
+ *   LD/LLN0$SP$SGCB$ActSG    (rw)  SelectActiveSG: 1..NumOfSG
+ *   LD/LLN0$SP$SGCB$EditSG   (rw)  SelectEditSG: 0 (release) or 1..NumOfSG
+ *   LD/LLN0$SP$SGCB$ResvTms  (r)   reservation time in seconds (0 = free)
+ *   LD/<LN>$SE$<path>        (rw)  setting-group values: writes go to
+ *                                 the SELECTED EDIT group's copy; reads
+ *                                 serve the edit group while an edit
+ *                                 session is selected and are invisible
+ *                                 otherwise (SE is the edit-session view)
+ *   LD/<LN>$SG$<path>        (r)   read-only view of the ACTIVE group
  *
  * Semantics:
  *   - SelectActiveSG copies the selected group's values into the
