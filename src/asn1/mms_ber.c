@@ -1507,39 +1507,47 @@ static int encode_read_named_varlist_req_body(const mms_confirmed_request_t *req
 
 static int encode_write_named_varlist_req_body(const mms_confirmed_request_t *request,
                        uint8_t *buf, size_t buflen) {
-    uint8_t temp_buf[16];
+    /* Write-Request, variableListName variant (WP-C1, standard MMS —
+     * the last NVL request encoder still on the proprietary flat
+     * dialect; now built like the WP-2y encoders):
+     *   variableAccessSpecification CHOICE
+     *     variableListName [1] EXPLICIT ObjectName (domain-specific
+     *       [1] IMPLICIT SEQUENCE { 1A domainId, 1A itemId })
+     *   listOfData [0] IMPLICIT SEQUENCE OF Data
+     * (Write has no specificationWithResult, so the VAS CHOICE sits
+     * at the top level untagged; the listOfData [0] tag matches both
+     * the plain-Write encoder below and the reference client's wire
+     * form, wire-observed in reference/mms_services.pcap.) */
+    size_t o = 0;
+    size_t vln_res, data_res;
     int ret;
-    (void)temp_buf; (void)ret; (void)buflen;
-    size_t domain_len;
-    size_t list_name_len;
-    /* Write-Request: variableAccessSpecification [1], listOfData [0] */
-    size_t write_varlist_offset = 0;
-    /* variableAccessSpecification [1] IMPLICIT variableListName */
-    buf[write_varlist_offset++] = 0xA1;  /* [1] IMPLICIT */
-    domain_len = strlen(request->params.writenamedvarlist.domain);
-    list_name_len = strlen(request->params.writenamedvarlist.list_name);
-    buf[write_varlist_offset++] = (uint8_t)(1 + domain_len + 1 + list_name_len);
-    buf[write_varlist_offset++] = (uint8_t)domain_len;
-    memcpy(buf + write_varlist_offset, request->params.writenamedvarlist.domain, domain_len);
-    write_varlist_offset += domain_len;
-    buf[write_varlist_offset++] = (uint8_t)list_name_len;
-    memcpy(buf + write_varlist_offset, request->params.writenamedvarlist.list_name, list_name_len);
-    write_varlist_offset += list_name_len;
 
-    /* listOfData [0] IMPLICIT SEQUENCE OF Data */
-    buf[write_varlist_offset++] = 0xA0;  /* [0] IMPLICIT */
-    size_t data_list_start = write_varlist_offset + 1;  /* Reserve for length */
-    size_t data_list_len = 0;
-    for (uint32_t i = 0; i < request->params.writenamedvarlist.num_values; i++) {
+    /* variableListName [1] */
+    ret = begin_reserved_tlv(0xA1, buf, buflen, &o, &vln_res);
+    if (ret < 0) { return ret; }
+    ret = append_domain_specific_name(
+        request->params.writenamedvarlist.domain,
+        request->params.writenamedvarlist.list_name,
+        buf, buflen, &o);
+    if (ret < 0) { return ret; }
+    ret = finish_reserved_tlv(buf, vln_res, o, &o);
+    if (ret < 0) { return ret; }
+
+    /* listOfData [0] */
+    ret = begin_reserved_tlv(0xA0, buf, buflen, &o, &data_res);
+    if (ret < 0) { return ret; }
+    for (uint32_t i = 0;
+         (i < request->params.writenamedvarlist.num_values) &&
+         (i < (uint32_t)MMS_MAX_NAMED_VARIABLES); i++) {
         ret = mms_encode_value(&request->params.writenamedvarlist.values[i],
-                             buf + data_list_start + data_list_len,
-                             buflen - data_list_start - data_list_len);
-        if (ret < 0) return ret;
-        data_list_len += ret;
+                               buf + o, buflen - o);
+        if (ret < 0) { return ret; }
+        o += (size_t)ret;
     }
-    buf[write_varlist_offset] = (uint8_t)data_list_len;
-    write_varlist_offset = data_list_start + data_list_len;
-    return (int)(write_varlist_offset);
+    ret = finish_reserved_tlv(buf, data_res, o, &o);
+    if (ret < 0) { return ret; }
+
+    return (int)o;
 }
 
 static int encode_select_req_body(const mms_confirmed_request_t *request,
@@ -2583,7 +2591,10 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
 
         case MMS_SERVICE_WRITE:
             if (offset < end && buffer[offset] == 0xA1) {
-                /* WriteNamedVariableList: variableListName [1] + listOfData [0] */
+                /* WriteNamedVariableList: variableListName [1] + listOfData [0].
+                 * WP-C1: standard nested ObjectName form (matching the
+                 * encoder); the legacy flat form is still accepted on
+                 * decode via decode_varlist_names. */
                 request->service = MMS_SERVICE_TYPE_WRITE_NAMED_VARLIST;
                 offset++;
                 size_t wnvl_spec_len;
@@ -2594,31 +2605,18 @@ int mms_decode_confirmed_request(const uint8_t* buffer, size_t buflen,
                     return MMS_ERROR_BUFFER_TOO_SMALL;
                 }
 
-                /* domain name */
-                if (offset >= buflen) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
+                /* variableListName content: domain-specific [1] {
+                 * 1A domain, 1A listName } — or the legacy flat
+                 * <domLen> <dom> <nameLen> <name> dialect. */
+                {
+                    size_t wnvl_spec_end = offset + wnvl_spec_len;
+                    ret = decode_varlist_names(
+                        buffer, &offset, wnvl_spec_end,
+                        request->params.writenamedvarlist.domain,
+                        request->params.writenamedvarlist.list_name);
+                    if (ret < 0) return ret;
+                    offset = wnvl_spec_end;
                 }
-                size_t wnvl_dom_len = buffer[offset++];
-                if (wnvl_dom_len >= MMS_MAX_DOMAIN_NAME ||
-                    !length_fits(offset, wnvl_dom_len, end)) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.writenamedvarlist.domain, buffer + offset, wnvl_dom_len);
-                request->params.writenamedvarlist.domain[wnvl_dom_len] = '\0';
-                offset += wnvl_dom_len;
-
-                /* list name */
-                if (offset >= buflen) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                size_t wnvl_name_len = buffer[offset++];
-                if (wnvl_name_len >= MMS_MAX_VARIABLE_NAME ||
-                    !length_fits(offset, wnvl_name_len, end)) {
-                    return MMS_ERROR_BUFFER_TOO_SMALL;
-                }
-                memcpy(request->params.writenamedvarlist.list_name, buffer + offset, wnvl_name_len);
-                request->params.writenamedvarlist.list_name[wnvl_name_len] = '\0';
-                offset += wnvl_name_len;
 
                 /* listOfData [0] IMPLICIT SEQUENCE OF Data */
                 if (offset < end && buffer[offset] == 0xA0) {
@@ -7498,6 +7496,37 @@ int mms_decode_cancel_response(const uint8_t* buffer, size_t buflen,
  * CommandTermination (Unconfirmed)
  * -------------------------------------------------------------------------- */
 
+/* DEPRECATED — do not put on the wire (WP-C1 wire-hygiene decision;
+ * wire-verified: spliced into a session capture, tshark flags the
+ * PDU "[Malformed Packet]" with "BER Error: Wrong field in
+ * SEQUENCE" — the leading 0xA0 makes the neutral dissector parse it
+ * as a confirmedRequestPDU, and the house body then fails).
+ *
+ * mms_encode_command_termination() emits a house-invented
+ * CommandTermination service PDU: a [0] (MMS_SERVICE_COMMAND_
+ * TERMINATION, 0xA0) wrapper around controlObject [0], selectionID
+ * [1], success [2], terminationReason [3]. No such MMS service
+ * exists — IEC 61850-8-1 maps CommandTermination onto an MMS
+ * unconfirmed InformationReport of the operated control object's
+ * "$Oper" variable, echoing the originator's Oper structure
+ * (ctlVal, operTm, origin {orCat, orIdent}, ctlNum, T, Test). The
+ * neutral tshark MMS dissector therefore flags this body with BER
+ * errors ("wrong field in SEQUENCE"), and a conformant peer cannot
+ * decode it.
+ *
+ * The conformant form is built by the WP-2w control-object bridge:
+ * cw_build_command_termination() in src/mms/mms_server.c (unconfirmed
+ * PDU [3] { informationReport [0] { listOfVariable on <obj>$Oper,
+ * listOfAccessResult = Oper echo } }), and parsed on the client side
+ * by the unconfirmed-PDU dispatch in src/mms/mms_client_core.c. Use
+ * that path for anything that goes on the wire.
+ *
+ * This encoder (and its lockstep decoder) is retained only for the
+ * in-memory round-trip unit tests and as a decode target for stored
+ * fuzz corpus seeds. It cannot be reworked to the conformant form:
+ * mms_command_termination_t (frozen public header) carries no Oper
+ * echo fields, and a synthesized partial echo would be a third,
+ * non-conformant dialect. See the WP-C1 report. */
 int mms_encode_command_termination(const mms_command_termination_t* termination,
                                    uint8_t* buffer, size_t buflen) {
     if (termination == NULL || buffer == NULL) {
