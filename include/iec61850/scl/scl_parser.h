@@ -276,8 +276,9 @@ void iec61850_scl_doc_init(iec61850_scl_doc_t *doc);
  * @param filename Path to SCL file
  * @param ied_name IED name to extract (NULL = first IED)
  * @param doc      Output document
- * @return 0 on success, -EINVAL on bad arguments / non-SCL root /
- *         unsupported version, -ENOENT when no matching IED exists,
+ * @return 0 on success, -EINVAL on bad arguments / unreadable XML /
+ *         non-SCL root / unsupported version, -ENOENT when the file
+ *         is not readable or no matching IED exists,
  *         -ENAMETOOLONG when a name exceeds its fixed buffer
  */
 int iec61850_scl_parse_file(const char *filename, const char *ied_name,

@@ -14,6 +14,7 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -736,6 +737,13 @@ int iec61850_scl_parse_file(const char *filename, const char *ied_name, /* NOLIN
     }
 
     iec61850_scl_doc_init(doc);
+
+    /* Distinguish "file not readable" from "file is not valid XML" */
+    FILE *probe = fopen(filename, "r");
+    if (probe == NULL) {
+        return -ENOENT;
+    }
+    (void)fclose(probe);
 
     xml_doc = xmlReadFile(filename, NULL, XML_PARSE_NONET | XML_PARSE_NOERROR);
     if (xml_doc == NULL) {

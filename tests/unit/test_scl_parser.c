@@ -61,7 +61,7 @@ static void test_load_nonexistent(void)
     iec61850_scl_doc_t doc;
     iec61850_scl_doc_init(&doc);
     int ret = iec61850_scl_parse_file("/nonexistent/test.scd", "IED1", &doc);
-    ASSERT_TRUE(ret != 0);
+    ASSERT_EQ(ret, -ENOENT);
     PASS();
 }
 
