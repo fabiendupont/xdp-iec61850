@@ -1,7 +1,7 @@
-option('enable_mms', type: 'boolean', value: false,
-       description: 'Build MMS server/client (requires libxml2)')
-option('enable_security', type: 'boolean', value: false,
-       description: 'Build IEC 62351-6 security (requires OpenSSL)')
+option('enable_mms', type: 'feature', value: 'auto',
+       description: 'Build MMS server/client (requires libxml2; auto-detected)')
+option('enable_security', type: 'feature', value: 'auto',
+       description: 'Build IEC 62351 security (requires OpenSSL; auto-detected)')
 option('enable_hsr_prp', type: 'boolean', value: false,
        description: 'Enable HSR/PRP redundancy via xdp-hsr-prp')
 option('enable_tests', type: 'boolean', value: true,

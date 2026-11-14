@@ -138,15 +138,6 @@ test_ied_types = executable('test_ied_types',
 )
 test('ied_types', test_ied_types, suite: 'unit')
 
-# Unit test — LN class library (WP-S6 scaffold, extended by WP-6b/6c)
-test_ln_library = executable('test_ln_library',
-    'unit/test_ln_library.c',
-    include_directories: [inc_dirs, test_inc],
-    link_with: [iec61850_lib] + mms_lib,
-    dependencies: [thread_dep],
-)
-test('ln_library', test_ln_library, suite: 'unit')
-
 test_goose_retransmission = executable('test_goose_retransmission',
     'unit/test_goose_retransmission.c',
     include_directories: [inc_dirs, test_inc],
@@ -238,7 +229,7 @@ test_subscriber_timeout = executable('test_subscriber_timeout',
 test('subscriber_timeout', test_subscriber_timeout, suite: 'integration')
 
 # MMS-dependent tests (only if MMS is enabled)
-if get_option('enable_mms')
+if mms_enabled
     # Integration test — TCP Listener (requires MMS tcp_socket.c)
     test_transport_listener = executable('test_transport_listener',
         'integration/test_transport_listener.c',
@@ -416,6 +407,23 @@ if get_option('enable_mms')
     )
     test('mms_client_rcb', test_mms_client_rcb, suite: 'unit')
 
+    # MMS-dependent: LN library closed loop + setting groups (SGCB)
+    test_ln_library = executable('test_ln_library',
+        'unit/test_ln_library.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('ln_library', test_ln_library, suite: 'unit')
+
+    test_setting_groups = executable('test_setting_groups',
+        'unit/test_setting_groups.c',
+        include_directories: [inc_dirs, test_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('setting_groups', test_setting_groups, suite: 'unit')
+
     # Integration: MMS Client-Server E2E
     test_mms_e2e = executable('test_mms_e2e',
         'integration/test_mms_e2e.c',
@@ -513,7 +521,7 @@ if get_option('enable_mms')
 endif
 
 # Security-dependent tests (only if security is enabled)
-if get_option('enable_security')
+if security_enabled
     test_security_sign_verify = executable('test_security_sign_verify',
         'unit/test_security_sign_verify.c',
         include_directories: [inc_dirs, test_inc],
@@ -800,7 +808,7 @@ test('fuzz_replay_r_profile', fuzz_r_profile,
 
 # Fuzz targets for the MMS/ISO/SCL surface (gated on enable_mms;
 # scaffolding from WP-S0 — harnesses filled in by WP-0a/0b/0c)
-if get_option('enable_mms')
+if mms_enabled
     fuzz_mms_decoder = executable('fuzz_mms_decoder',
         'fuzz/fuzz_mms_decoder.c',
         include_directories: [inc_dirs],
@@ -856,7 +864,7 @@ bench_ber_codec = executable('bench_ber_codec',
 )
 
 # Benchmark — Performance latency/throughput (GOOSE, SV, MMS)
-if get_option('enable_mms')
+if mms_enabled
     bench_performance = executable('benchmark_performance',
         'benchmark/benchmark_performance.c',
         include_directories: [inc_dirs],
@@ -947,7 +955,7 @@ test('sv_interop_live', test_sv_interop_live,
      suite: 'interop', is_parallel: false)
 
 # MMS interop tests (require MMS enabled)
-if get_option('enable_mms')
+if mms_enabled
     # MMS interop: xdp client → libiec61850 server (9 scenarios)
     test_mms_interop_client = executable('test_mms_interop_client',
         'interop/mms/test_mms_interop_client.c',
@@ -1011,7 +1019,7 @@ rgoose_wire_pub = executable('rgoose_wire_pub',
     link_with: [iec61850_lib] + mms_lib,
     dependencies: [thread_dep],
 )
-if get_option('enable_mms')
+if mms_enabled
     mms_report_wire = executable('mms_report_wire',
         'interop/wire/mms_report_wire.c',
         include_directories: [inc_dirs],
@@ -1058,7 +1066,7 @@ endif
 
 foreach t : wire_test_scripts
     wire_dep = []
-    if get_option('enable_mms')
+    if mms_enabled
         # Keep the prebuilt scenario binaries fresh: meson test does
         # not otherwise rebuild non-test executables the scripts use.
         wire_dep = [mms_report_wire, mms_control_wire,
@@ -1090,7 +1098,7 @@ endforeach
 # Duration configurable via LONGRUN_DURATION_SEC (default: 10).
 # ============================================================
 
-if get_option('enable_mms')
+if mms_enabled
     test_long_duration = executable('test_long_duration',
         'longrun/test_long_duration.c',
         include_directories: [inc_dirs, test_inc],
@@ -1100,16 +1108,6 @@ if get_option('enable_mms')
     test('long_duration', test_long_duration,
          suite: 'longrun', timeout: 600, is_parallel: false)
 endif
-
-# Setting groups (SGCB)
-test_setting_groups = executable('test_setting_groups',
-    'unit/test_setting_groups.c',
-    include_directories: [inc_dirs, test_inc],
-    link_with: [iec61850_lib] + mms_lib,
-    dependencies: [thread_dep],
-)
-
-test('setting_groups', test_setting_groups, suite: 'unit')
 
 # PTP (message codec + slave state machine)
 test_ptp = executable('test_ptp',

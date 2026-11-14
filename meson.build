@@ -30,8 +30,17 @@ add_project_arguments(cc.get_supported_arguments(warning_flags), language: 'c')
 # cert-dcl37-c flags as violations.
 add_project_arguments(['-D_POSIX_C_SOURCE=200809L', '-D_DEFAULT_SOURCE'], language: 'c')
 
+# Optional dependencies — feature options (default-on policy:
+# auto-detected, on when the dependency is found; disable explicitly
+# with -Denable_mms=disabled / -Denable_security=disabled)
+libxml2_dep = dependency('libxml-2.0', required: get_option('enable_mms'))
+openssl_dep = dependency('openssl', required: get_option('enable_security'))
+mms_enabled = libxml2_dep.found()
+security_enabled = openssl_dep.found()
+libyaml_dep = dependency('yaml-0.1', required: false)
+
 # Security compile flag (must be before build targets)
-if get_option('enable_security')
+if security_enabled
     add_project_arguments('-DIEC61850_SECURITY_ENABLED', language: 'c')
 endif
 
@@ -50,8 +59,6 @@ libbpf_dep = dependency('libbpf', version: '>=1.0', required: false)
 libelf_dep = dependency('libelf', required: false)
 
 # Optional dependencies
-libxml2_dep = dependency('libxml-2.0', required: get_option('enable_mms'))
-openssl_dep = dependency('openssl', required: get_option('enable_security'))
 libyaml_dep = dependency('yaml-0.1', required: false)
 
 # Core library sources
@@ -107,6 +114,8 @@ transport_sources = files(
     'src/transport/packet_io_udp.c',
     'src/transport/eth_frame.c',
     'src/transport/ptp_clock.c',
+    'src/transport/ptp_message.c',
+    'src/transport/ptp_slave.c',
 )
 
 if xgl_dep.found()
@@ -127,7 +136,7 @@ endif
 # mms_ber.c has relaxed conversion warnings (large codec, 4900+ lines)
 mms_sources = []
 mms_lib = []
-if get_option('enable_mms')
+if mms_enabled
     mms_ber_lib = static_library('mms_ber',
         'src/asn1/mms_ber.c',
         include_directories: inc_dirs,
@@ -148,8 +157,6 @@ if get_option('enable_mms')
         'src/mms/mms_file_service.c',
         'src/mms/mms_journal.c',
         'src/transport/tcp_socket.c',
-        'src/transport/ptp_message.c',
-        'src/transport/ptp_slave.c',
         'src/transport/iso_stack.c',
         'src/scl/scl_parser.c',
         'src/scl/scl_ied_builder.c',
@@ -160,7 +167,7 @@ if get_option('enable_mms')
 endif
 
 # Optional: Security (requires OpenSSL)
-if get_option('enable_security')
+if security_enabled
     core_sources += files(
         'src/security/key_manager.c',
         'src/security/hmac_verify.c',
@@ -242,7 +249,7 @@ iec61850_dep = declare_dependency(
 
 # Exposed to the parent project (option-forwarding verification):
 # true iff this subproject was configured with -Denable_security=true.
-iec61850_security_enabled = get_option('enable_security')
+iec61850_security_enabled = security_enabled
 
 # Tests
 if get_option('enable_tests')
@@ -266,7 +273,7 @@ if get_option('enable_examples')
     endforeach
 
     # MMS-dependent examples
-    if get_option('enable_mms')
+    if mms_enabled
         executable('example_mms_client_report',
             'examples/mms_client_report.c',
             include_directories: inc_dirs,
@@ -307,7 +314,7 @@ summary({
     'Build Type': get_option('buildtype'),
     'xdp-graph-lib': xgl_dep.found() ? 'found' : 'not found (XSK transport disabled)',
     'libbpf': libbpf_dep.found() ? libbpf_dep.version() : 'not found',
-    'MMS': get_option('enable_mms') ? 'enabled' : 'disabled',
-    'Security': get_option('enable_security') ? 'enabled' : 'disabled',
+    'MMS': mms_enabled ? 'enabled' : 'disabled',
+    'Security': security_enabled ? 'enabled' : 'disabled',
     'HSR/PRP': get_option('enable_hsr_prp') ? 'enabled' : 'disabled',
 }, section: 'Configuration')
