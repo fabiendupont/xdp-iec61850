@@ -233,6 +233,21 @@ typedef enum {
 #define MMS_ACCESS_ERROR_TYPE_INCONSISTENT 5
 
 /**
+ * @brief MMS DataAccessError codes (in-band AccessResult failure)
+ *
+ * Per ISO 9506-2, a Read/Write-Response AccessResult may carry the
+ * failure CHOICE (DataAccessError INTEGER) instead of a value. These
+ * are the codes the IEC 61850-8-1 mapping produces — values as
+ * wire-observed from the reference stack (WP-1f, BUG-R3:
+ * temporarily-unavailable is what a conformant server returns for a
+ * Resv write on a URCB held by another client; type-inconsistent
+ * covers malformed control structures). Hoisted from mms_server.c
+ * locals (WP-C3); the values are unchanged.
+ */
+#define MMS_DATAACCESS_TEMPORARILY_UNAVAILABLE 2
+#define MMS_DATAACCESS_TYPE_INCONSISTENT       7
+
+/**
  * @brief MMS error codes for MMS_ERROR_CLASS_SERVICE
  * Per ISO 9506-2 Table 25 - Service error codes
  */

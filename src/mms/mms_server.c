@@ -32,13 +32,10 @@
 #include <string.h>
 #include <errno.h>
 
-/* ISO 9506-2 DataAccessError codes carried in the Write-Response
- * failure CHOICE — the IEC 61850-8-1 mapping this repo's WP-1c/1f
- * client decodes for rejected RCB component writes. Code 2 is what
- * the reference server was wire-observed to return for a Resv write
- * on a URCB held by another client (WP-1f, BUG-R3). */
-#define MMS_DATAACCESS_TEMPORARILY_UNAVAILABLE 2
-#define MMS_DATAACCESS_TYPE_INCONSISTENT       7
+/* ISO 9506-2 DataAccessError codes for the in-band Write-Response
+ * failure CHOICE live in asn1/mms_ber.h (MMS_DATAACCESS_*, hoisted
+ * from locals in WP-C3 — the IEC 61850-8-1 mapping this repo's
+ * WP-1c/1f client decodes for rejected RCB/SGCB/control writes). */
 
 void iec61850_mms_server_config_init(iec61850_mms_server_config_t *cfg)
 {
