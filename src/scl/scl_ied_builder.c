@@ -731,18 +731,16 @@ static int scl_enum_do_leaves(const iec61850_data_object_t *dobj,
             continue;  /* does not fit a reference: skip leaf */
         }
 
-        /* Bindability: the frozen binding resolves {do_name,
-         * da_name} through iec61850_ln_find_attribute(), which
-         * walks sub-data-object segments of the reference — but
-         * template-flattened attribute names (dotted names inside
-         * one DataObject's table, e.g. "phsA.cVal.mag.f") have no
-         * matching sub-data-objects and cannot be watched. Exclude
-         * them from the expansion; a whole-DO reference whose every
-         * leaf is flattened-dotted (e.g. a whole SDO under a WYE)
-         * leaves nothing bindable and skips the control block. */
-        if (strchr(da->name, '.') != NULL) {
-            continue;
-        }
+        /* Bindability (WP-C2): the binding resolves {do_name,
+         * da_name} through iec61850_ln_find_attribute(), which now
+         * falls back to matching the full dotted reference path
+         * against the DataObject's flat attribute table when the
+         * sub-data-object walk misses — so template-flattened
+         * attribute names (dotted names inside one DataObject's
+         * table, e.g. "phsA.cVal.mag.f") are watchable and are no
+         * longer excluded from the expansion. Whole-SDO references
+         * (e.g. a whole SDO under a WYE) expand to their flattened
+         * leaves like any other whole-DO reference. */
 
         /* Whole-SDO reference: keep only leaves under the prefix. */
         if ((rb->prefix_len > 0U) &&
@@ -1245,7 +1243,9 @@ int iec61850_scl_configure_publishers(
         }
 
         ret = scl_configure_goose_cb(doc, &doc->goose_cbs[i], binding, ops);
-        if (ret == 0) {
+        /* The bind returns the publisher slot (0..MAX-1); every
+         * non-negative result is a configured block. */
+        if (ret >= 0) {
             goose_configured++;
         } else {
             skipped++;
@@ -1261,7 +1261,8 @@ int iec61850_scl_configure_publishers(
         }
 
         ret = scl_configure_sv_cb(doc, &doc->sv_cbs[i], binding, ops);
-        if (ret == 0) {
+        /* Same contract: the bind returns the publisher slot. */
+        if (ret >= 0) {
             sv_configured++;
         } else {
             skipped++;
