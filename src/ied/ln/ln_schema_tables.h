@@ -32,12 +32,14 @@ extern const iec61850_ln_class_def_t ln_group1_classes[LN_GROUP1_CLASS_COUNT];
 #define LN_GROUP2_CLASS_COUNT 2U
 extern const iec61850_ln_class_def_t ln_group2_classes[LN_GROUP2_CLASS_COUNT];
 
-/* Group 3 — measurement / metering (ln_tables_group3.c) */
-#define LN_GROUP3_CLASS_COUNT 2U
+/* Group 3 — measurement / metering / monitoring / supervision
+ * (ln_tables_group3.c) */
+#define LN_GROUP3_CLASS_COUNT 16U
 extern const iec61850_ln_class_def_t ln_group3_classes[LN_GROUP3_CLASS_COUNT];
 
-/* Group 4 — supervision / generic (ln_tables_group4.c) */
-#define LN_GROUP4_CLASS_COUNT 1U
+/* Group 4 — interfacing / archiving / power-related, generic
+ * (ln_tables_group4.c) */
+#define LN_GROUP4_CLASS_COUNT 8U
 extern const iec61850_ln_class_def_t ln_group4_classes[LN_GROUP4_CLASS_COUNT];
 
 #ifdef __cplusplus

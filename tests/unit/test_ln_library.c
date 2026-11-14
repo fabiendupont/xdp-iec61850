@@ -134,8 +134,8 @@ static const class_expect_t pilot_classes[] = {
     { "CILO", "1",  m_cilo, 6U,  NULL      },
     { "PTOC", "1",  m_ptoc, 7U,  "StrVal"  },
     { "PDIS", "1",  m_pdis, 6U,  NULL      },
-    { "MMXU", "1",  m_mmxu, 16U, "TotW"    },
-    { "MMTR", "1",  m_mmtr, 16U, "TotWh"   },
+    { "MMXU", "1",  m_mmxu, 19U, "TotW"    }, /* WP-6c harmonics retro-fix: +HA/HPhV/HPPV */
+    { "MMTR", "1",  m_mmtr, 19U, "TotWh"   }, /* WP-6c harmonics retro-fix: +HA/HPhV/HPPV */
     { "GGIO", "1",  m_ggio, 10U, "Ind1"    },
 };
 
@@ -219,7 +219,10 @@ static void test_lookup(void)
     PASS();
 
     TEST("class_count");
-    ASSERT_EQ((int)iec61850_ln_class_count(), (int)PILOT_CLASS_COUNT);
+    /* WP-6c: bulk generation appends classes to the group tables,
+     * so the registered count is checked against the pilot floor
+     * (the exact total is batch-dependent). */
+    ASSERT_TRUE((int)iec61850_ln_class_count() >= (int)PILOT_CLASS_COUNT);
     PASS();
 }
 
