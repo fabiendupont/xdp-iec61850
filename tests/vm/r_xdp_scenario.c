@@ -494,11 +494,21 @@ int main(int argc, char **argv)
     test_unregistered_dport(&ctx);
     test_duplicate_spdu(&ctx);
 
+    /* Teardown order matters: detach the XDP program FIRST (graph
+     * destroy), then delete the XSK socket. Deleting the XSK first
+     * makes libxdp try to unload/replace the still-attached graph
+     * program ("existing program is not using a dispatcher") and
+     * crashes in the interleaved cleanup. */
+    printf("PHASE teardown\n");
     iec61850_rgoose_publisher_destroy(&ctx.pub);
+    printf("PHASE teardown-pub\n");
     packet_io_close(ctx.raw_tx);
     packet_io_destroy(ctx.raw_tx);
-    packet_io_destroy(ctx.xsk);
+    printf("PHASE teardown-raw\n");
     xgl_graph_destroy(ctx.g); /* detaches XDP */
+    printf("PHASE teardown-graph\n");
+    packet_io_destroy(ctx.xsk);
+    printf("PHASE teardown-xsk\n");
 
     printf("\n%d/%d passed, %d skipped, %d failed\n",
            tests_passed, tests_run, tests_skipped, tests_failed);
