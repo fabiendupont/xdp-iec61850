@@ -23,6 +23,10 @@
 struct packet_io_xsk_priv {
     struct xgl_xsk *xsk;
     struct xgl_graph *graph;  /* if non-NULL, use xgl_graph_create_xsk */
+    bool graph_owned;         /* graph-registered XSK: the GRAPH owns the
+                               * lifetime (xgl_graph_destroy destroys its
+                               * tracked xsks) — close() must not
+                               * double-destroy */
 };
 
 /* MISRA 11.5: io->priv is an opaque dispatch field (void*). All assignments
@@ -38,8 +42,12 @@ static int xsk_open(struct packet_io *io, const char *ifname, int queue_id)
     }
 
     if (priv->graph != NULL) {
-        /* Use graph-aware create: inserts XSK fd into XSKMAP */
+        /* Use graph-aware create: inserts XSK fd into XSKMAP and
+         * registers the XSK in the graph (graph-owned lifetime) */
         priv->xsk = xgl_graph_create_xsk(priv->graph, ifname, queue_id);
+        if (priv->xsk != NULL) {
+            priv->graph_owned = true;
+        }
     } else {
         priv->xsk = xgl_xsk_create(ifname, queue_id, XSK_FRAME_SIZE,
                                      XSK_NUM_FRAMES);
@@ -114,10 +122,13 @@ static void xsk_close(struct packet_io *io)
 {
     struct packet_io_xsk_priv *priv = io->priv;
 
-    if (priv->xsk != NULL) {
+    if ((priv->xsk != NULL) && !priv->graph_owned) {
         xgl_xsk_destroy(priv->xsk);
-        priv->xsk = NULL;
     }
+    /* Graph-registered XSKs are destroyed by xgl_graph_destroy's
+     * tracked-xsk loop; destroying here too would double-free. */
+    priv->xsk = NULL;
+    priv->graph = NULL;
 }
 
 static const struct packet_io_ops xsk_ops = {
