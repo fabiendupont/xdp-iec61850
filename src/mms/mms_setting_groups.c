@@ -189,16 +189,23 @@ static int is_sgcb_attr(const char *item, const char *attr)
 
 /* Translate a "$SG$" read view ("<LN>$SG$<path>", the read-only
  * active-group values per 7-2) into the registered "$SE$" item
- * name. Only the FIRST separator is replaced — it follows the LN
- * name, which cannot contain '$'. */
+ * name. The FC separator is the segment between the FIRST TWO
+ * '$' characters — an "$SG$" deeper in the path (a sub-object
+ * literally named SG) is NOT the FC and must not be translated. */
 static int sg_to_se_item(const char *item, char *out, size_t outsz)
 {
-    const char *sep = strstr(item, "$SG$");
-    if ((sep == NULL) || (sep == item)) {
+    const char *fc = strchr(item, '$');
+    if ((fc == NULL) || (fc == item)) {
         return -1;
     }
-    int n = snprintf(out, outsz, "%.*s$SE$%s", (int)(sep - item), item,
-                     sep + 4U);
+    if (strncmp(fc, "$SG$", 4U) != 0) {
+        return -1;
+    }
+    if (fc[4] == '\0') {
+        return -1;   /* no path after the FC separator */
+    }
+    int n = snprintf(out, outsz, "%.*s$SE$%s", (int)(fc - item), item,
+                     fc + 4U);
     return ((n < 0) || ((size_t)n >= outsz)) ? -1 : 0;
 }
 

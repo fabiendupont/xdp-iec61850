@@ -310,6 +310,51 @@ int main(void)
     }
 
     /* --- bounds discipline ----------------------------------------- */
+    TEST("an SE path containing a sub-object named SG is not mis-translated");
+    {
+        /* LD0/PTOC2.Op.SG.x (FC=SE): "PTOC2$SE$Op$SG$x" must be
+         * served as the SE item itself, while "PTOC2$SG$Op$SG$x"
+         * is its read-only active-group view. */
+        iec61850_ied_model_t *m3 = calloc(1, sizeof(*m3));
+        iec61850_logical_device_t *ld3 = iec61850_ld_create("LD0");
+        iec61850_logical_node_t *ln3 = iec61850_ln_create("PTOC", "2");
+        iec61850_data_object_t *op = iec61850_do_create("Op",
+                                                        IEC61850_CDC_DPC);
+        iec61850_data_object_t *sg = iec61850_do_create("SG",
+                                                        IEC61850_CDC_DPC);
+        (void)iec61850_do_add_attribute(op, "x", IEC61850_FC_SE,
+                                        IEC61850_BTYPE_INT32);
+        (void)iec61850_do_add_sub_object(op, sg);
+        (void)iec61850_do_add_attribute(sg, "x", IEC61850_FC_SE,
+                                        IEC61850_BTYPE_INT32);
+        (void)iec61850_ln_add_data_object(ln3, op);
+        (void)iec61850_ld_add_logical_node(ld3, ln3);
+        (void)iec61850_ied_model_add_ld(m3, ld3);
+
+        iec61850_sg_manager_t *m3mgr = NULL;
+        if (iec61850_sg_manager_init(&m3mgr, m3, 2, 1, 30) != 0) {
+            NO("init failed");
+        } else {
+            /* select an edit group so the SE item is readable */
+            (void)iec61850_sg_bridge_write(m3mgr, "LD0",
+                                           "LLN0$SP$SGCB$EditSG",
+                                           &sel, (void *)0x7);
+            bool se_ok = (iec61850_sg_bridge_read(
+                              m3mgr, "LD0", "PTOC2$SE$Op$SG$x",
+                              &v) == 0);
+            bool sg_ok = (iec61850_sg_bridge_read(
+                              m3mgr, "LD0", "PTOC2$SG$Op$SG$x",
+                              &v) == 0);
+            iec61850_sg_manager_destroy(m3mgr);
+            if (se_ok && sg_ok) {
+                OK();
+            } else {
+                NO("SG-named sub-object confused the $SG$ view");
+            }
+        }
+        /* leak m3 (process exits) */
+    }
+
     TEST("oversized SE path is rejected, not truncated");
     {
         iec61850_ied_model_t *m2 = calloc(1, sizeof(*m2));
