@@ -8,7 +8,8 @@ Usage:
                      [--decode-as SPEC ...]
 
 Protocols: goose, sv, mms, mms_report, mms_control_ed2,
-           mms_setting_groups, rgoose, rgoose_secure, rsv, rsv_secure
+           mms_setting_groups, mms_tls, rgoose, rgoose_secure,
+           rsv, rsv_secure
 
 Options:
     --decode-as SPEC  Passed to tshark as `-d SPEC` (repeatable). Use it
@@ -22,6 +23,8 @@ Examples:
     validate_pcap.py capture.pcap mms_report --decode-as tcp.port==10610,tpkt
     validate_pcap.py capture.pcap mms_control_ed2 \
         --decode-as tcp.port==10611,tpkt
+    validate_pcap.py capture.pcap mms_tls \
+        --decode-as tcp.port==10613,tls --decode-as tcp.port==10612,tpkt
     validate_pcap.py capture.pcap rgoose ip.version=4 udp.dstport=10201
 
 Field names are tshark display-filter fields (tshark -T json nests them
@@ -212,6 +215,24 @@ DEFAULT_CHECKS = {
         "mms.boolean=1",               # Oper structure: ctlVal
         "mms.unsigned=1",              # Oper structure: ctlNum
         "mms.failure=2",               # Ed.2 rejection: in-band DataAccessError
+    ],
+    # WP-3d (IEC 62351-4): MMS-over-TLS wire profile. Presence
+    # checks only (the script's any-packet semantics cannot express
+    # absence) — the SNI/ALPN-absent and plaintext-leak-absent
+    # assertions live in test_wire_mms_tls.sh as count==0 checks.
+    # Handshake types: ClientHello(1)/ServerHello(2) are visible in
+    # every TLS version; Certificate(11) only when TLS 1.2 is
+    # negotiated (post-ServerHello messages are encrypted in 1.3).
+    # Application data: TLS 1.3 encrypted records expose
+    # tls.record.opaque_type==23 (tshark 4.x); with TLS 1.2 the
+    # clear-text tls.record.content_type==23 applies — the shell
+    # test accepts either.
+    "mms_tls": [
+        "tls.record.version=0x0303",
+        "tls.record.opaque_type=23",       # application data (session)
+        "tls.record.content_type=22",      # handshake records
+        "tls.handshake.type=1",            # ClientHello
+        "tls.handshake.type=2",            # ServerHello
     ],
     # 90-5 routable profiles (WP-4e): the wire scenario publishes
     # plain R-GOOSE on UDP 10201 / plain R-SV on 10202 and the

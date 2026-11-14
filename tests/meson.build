@@ -977,6 +977,19 @@ if get_option('enable_mms')
     )
     test('mms_interop_reporting', test_mms_interop_reporting,
          suite: 'interop', is_parallel: false)
+
+    # MMS-over-TLS interop: oracle capability discovery + mode
+    # matrix (WP-3d). Oracle-direction scenarios SKIP when the
+    # oracle build has no TLS example binaries; self baselines
+    # need -Denable_security=true (they SKIP otherwise).
+    test_mms_interop_tls = executable('test_mms_interop_tls',
+        'interop/mms/test_mms_interop_tls.c',
+        include_directories: [inc_dirs, test_inc, interop_inc],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
+    test('mms_interop_tls', test_mms_interop_tls,
+         suite: 'interop', is_parallel: false)
 endif
 
 # Wire publisher programs (used by wire capture tests)
@@ -1017,6 +1030,12 @@ if get_option('enable_mms')
         link_with: [iec61850_lib] + mms_lib,
         dependencies: core_deps,
     )
+    mms_tls_wire = executable('mms_tls_wire',
+        'interop/wire/mms_tls_wire.c',
+        include_directories: [inc_dirs],
+        link_with: [iec61850_lib] + mms_lib,
+        dependencies: core_deps,
+    )
 endif
 
 # Wire capture tests (shell scripts, require root + tshark)
@@ -1027,6 +1046,7 @@ wire_test_scripts = [
     ['wire_mms_report', 'interop/wire/test_wire_mms_report.sh'],
     ['wire_mms_control_ed2', 'interop/wire/test_wire_mms_control_ed2.sh'],
     ['wire_mms_sgcb', 'interop/wire/test_wire_mms_sgcb.sh'],
+    ['wire_mms_tls', 'interop/wire/test_wire_mms_tls.sh'],
     ['wire_rgoose', 'interop/wire/test_wire_rgoose.sh'],
 ]
 wire_test_env = environment()
@@ -1042,7 +1062,7 @@ foreach t : wire_test_scripts
         # Keep the prebuilt scenario binaries fresh: meson test does
         # not otherwise rebuild non-test executables the scripts use.
         wire_dep = [mms_report_wire, mms_control_wire,
-                    mms_setting_groups_wire]
+                    mms_setting_groups_wire, mms_tls_wire]
     endif
     test(t[0], find_program('sh'), args: [files(t[1])],
          suite: 'interop', is_parallel: false,
