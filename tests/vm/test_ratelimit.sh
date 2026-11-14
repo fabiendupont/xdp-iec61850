@@ -124,6 +124,18 @@ echo "Scenario: $SCENARIO"
 ip netns del "$NS_RL" 2>/dev/null || true
 ip netns add "$NS_RL"
 ip netns exec "$NS_RL" ip link set lo up
+# The egl/xgl graph library pins shared maps under /sys/fs/bpf/egl.
+# Inside `ip netns exec` the fresh sysfs mount loses the host's
+# bpffs — mount a private instance (standard XDP-test practice).
+ip netns exec "$NS_RL" mkdir -p /sys/fs/bpf 2>/dev/null || true
+if ! ip netns exec "$NS_RL" mount -t bpf bpf /sys/fs/bpf 2>/dev/null; then
+    # tolerate an existing mount (EBUSY) but not a hard failure
+    if ! ip netns exec "$NS_RL" grep -qs bpf /proc/mounts; then
+        echo "SKIP: cannot mount bpffs inside the test netns"
+        ip netns del "$NS_RL" 2>/dev/null || true
+        exit 0
+    fi
+fi
 ip netns exec "$NS_RL" ip link add "$VETH_RX" type veth peer name "$VETH_TX"
 ip netns exec "$NS_RL" ip link set "$VETH_RX" up
 ip netns exec "$NS_RL" ip link set "$VETH_TX" up
