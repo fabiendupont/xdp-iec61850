@@ -574,6 +574,112 @@ static void test_sv_binding(void)
 }
 
 /* ========================================================================
+ * Dotted-leaf binding (WP-C2: deep-path/whole-SDO watch gap)
+ *
+ * Template-flattened deep leaves (dotted DA names inside one
+ * DataObject's table, e.g. a WYE's "phsA.cVal.mag.f") resolve
+ * through iec61850_ln_find_attribute()'s flat-name fallback and
+ * are watchable by the binding; a deep miss on any component
+ * still yields -ENOENT with nothing bound.
+ * ======================================================================== */
+
+static void test_dotted_leaf_binding(void)
+{
+    iec61850_ied_model_t model;
+    iec61850_model_binding_t b;
+    iec61850_logical_device_t *ld;
+    iec61850_logical_node_t *mmxu;
+    iec61850_data_attribute_t *mag;
+    iec61850_data_attribute_t *qual;
+    iec61850_sv_publisher_t pub;
+
+    /* Deep flattened leaf + the DO-level quality of the same WYE
+     * (slot-for-slot into SV channels: mag.f -> sample, q ->
+     * quality). */
+    const iec61850_da_ref_t refs[2] = {
+        { .ld = "LD0", .ln = "MMXU1", .do_name = "PhV",
+          .da_name = "phsA.cVal.mag.f", .fc = IEC61850_FC_MX },
+        { .ld = "LD0", .ln = "MMXU1", .do_name = "PhV",
+          .da_name = "q", .fc = IEC61850_FC_MX },
+    };
+    /* Any bad deep component — leaf, phase, FC — is -ENOENT */
+    const iec61850_da_ref_t bad_leaf[1] = {
+        { .ld = "LD0", .ln = "MMXU1", .do_name = "PhV",
+          .da_name = "phsA.cVal.mag.x", .fc = IEC61850_FC_MX },
+    };
+    const iec61850_da_ref_t bad_phase[1] = {
+        { .ld = "LD0", .ln = "MMXU1", .do_name = "PhV",
+          .da_name = "phsD.cVal.mag.f", .fc = IEC61850_FC_MX },
+    };
+    const iec61850_da_ref_t bad_fc[1] = {
+        { .ld = "LD0", .ln = "MMXU1", .do_name = "PhV",
+          .da_name = "phsA.cVal.mag.f", .fc = IEC61850_FC_ST },
+    };
+    const uint8_t quality_bad[2] = { 0xC0, 0x80 };
+
+    TEST("dotted_leaf_binding");
+
+    iec61850_ied_model_init(&model, "IED1");
+    ld = iec61850_ld_create("LD0");
+    ASSERT_TRUE(ld != NULL);
+    ASSERT_EQ(iec61850_ied_model_add_ld(&model, ld), 0);
+    mmxu = iec61850_ln_create("MMXU", "1");
+    ASSERT_TRUE(mmxu != NULL);
+    ASSERT_EQ(iec61850_ld_add_logical_node(ld, mmxu), 0);
+    ASSERT_EQ(iec61850_ln_add_data_object(mmxu, iec61850_cdc_create_wye("PhV")), 0);
+
+    /* Direct DA pointers for model writes (deep flattened leaves) */
+    mag = iec61850_ln_find_attribute(mmxu, "PhV.phsA.cVal.mag.f",
+                                      IEC61850_FC_MX);
+    qual = iec61850_ln_find_attribute(mmxu, "PhV.q", IEC61850_FC_MX);
+    ASSERT_TRUE(mag != NULL);
+    ASSERT_TRUE(qual != NULL);
+    ASSERT_TRUE(strcmp(mag->name, "phsA.cVal.mag.f") == 0);
+
+    iec61850_sv_publisher_init(&pub, NULL); /* num_channels = 4 */
+    iec61850_sv_publisher_set_io(&pub, &mock_io);
+    g_frames_sent = 0U;
+
+    (void)memset(&b, 0, sizeof(b));
+    ASSERT_EQ(iec61850_model_binding_init(&b, &model), 0);
+
+    /* Deep flattened refs bind (slot 0) */
+    ASSERT_EQ(iec61850_model_binding_add_sv(&b, &pub, refs, 2U), 0);
+    ASSERT_EQ((int)b.publisher_count, 1);
+    ASSERT_EQ((int)b.watch_count, 2);
+    ASSERT_TRUE(b.publishers[0].resolved[0] != NULL);
+    ASSERT_TRUE(b.publishers[0].resolved[1] != NULL);
+    ASSERT_TRUE(strcmp(b.publishers[0].refs[0].da_name,
+                       "phsA.cVal.mag.f") == 0);
+
+    /* Deep misses: -ENOENT with NOTHING additional bound */
+    ASSERT_EQ(iec61850_model_binding_add_sv(&b, &pub, bad_leaf, 1U), -ENOENT);
+    ASSERT_EQ(iec61850_model_binding_add_sv(&b, &pub, bad_phase, 1U), -ENOENT);
+    ASSERT_EQ(iec61850_model_binding_add_sv(&b, &pub, bad_fc, 1U), -ENOENT);
+    ASSERT_EQ((int)b.publisher_count, 1);
+    ASSERT_EQ((int)b.watch_count, 2);
+    ASSERT_EQ(iec61850_model_binding_process(&b), 0);  /* nothing dirty */
+
+    /* Write the deep leaf through the model: fan-out into the
+     * mapped SV channels. */
+    wr_float(mag, 6350.75f);
+    wr_bitstring(qual, quality_bad, 13U);
+    ASSERT_TRUE(b.publishers[0].dirty);
+
+    ASSERT_EQ(iec61850_model_binding_process(&b), 1);
+    ASSERT_TRUE(!b.publishers[0].dirty);
+    ASSERT_EQ(g_frames_sent, 1U);
+    ASSERT_EQ(pub.samples[0], 6350);  /* float truncated to counts */
+    ASSERT_EQ((int)pub.quality[1].validity, 3);
+    ASSERT_EQ((int)pub.quality[1].inconsistent, 1);
+    ASSERT_EQ(iec61850_sv_publisher_get_smp_cnt(&pub), 1U);
+
+    iec61850_model_binding_destroy(&b);
+    iec61850_ied_model_destroy(&model);
+    PASS();
+}
+
+/* ========================================================================
  * Coexistence with a pre-registered listener + MMS write path
  * ======================================================================== */
 
@@ -727,6 +833,9 @@ int main(void)
 
     printf("\n--- SV Binding ---\n");
     test_sv_binding();
+
+    printf("\n--- Dotted-Leaf Binding (WP-C2) ---\n");
+    test_dotted_leaf_binding();
 
     printf("\n--- Coexistence (MMS listener) ---\n");
     test_coexistence();

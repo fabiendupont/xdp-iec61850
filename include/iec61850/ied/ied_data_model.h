@@ -128,6 +128,14 @@ iec61850_data_object_t *iec61850_ln_find_do(
 
 /**
  * Find attribute by dotted path (e.g., "Pos.stVal").
+ *
+ * Resolution order per path segment after the leading DO name:
+ * sub-data-objects first ("Pos.subDA.leaf"), then the truncated
+ * segment as a plain attribute name, then — as a fallback when
+ * both miss — the full remaining dotted path matched against the
+ * DataObject's attribute table (template-flattened leaf names
+ * such as "PhV.phsA.cVal.mag.f", where no sub-data-objects
+ * exist). Bounded, no allocation on the lookup path.
  */
 iec61850_data_attribute_t *iec61850_ln_find_attribute(
     const iec61850_logical_node_t *ln, const char *path, iec61850_fc_t fc);

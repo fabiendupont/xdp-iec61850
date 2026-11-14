@@ -259,8 +259,24 @@ iec61850_data_attribute_t *iec61850_ln_find_attribute(
         *dot = '\0';
         iec61850_data_object_t *sub = iec61850_do_find_sub_object(dobj, rest);
         if (sub == NULL) {
-            /* Try as attribute name */
-            break;
+            /* Try as attribute name (truncated segment) */
+            iec61850_data_attribute_t *da =
+                iec61850_do_find_attribute(dobj, rest, fc);
+            if (da != NULL) {
+                return da;
+            }
+
+            /* Flat-dotted leaf fallback (WP-C2): template-flattened
+             * builders (scl_ied_builder, the CDC factories) store
+             * deep leaves as dotted names inside one DataObject's
+             * attribute table (e.g. "phsA.cVal.mag.f"), with no
+             * matching sub-data-objects. Restore the separator
+             * consumed above and match the full remaining dotted
+             * path against this object's table. Bounded, no
+             * allocation; only reachable when the sub-object walk
+             * already missed (previously a NULL return). */
+            *dot = '.';
+            return iec61850_do_find_attribute(dobj, rest, fc);
         }
         dobj = sub;
         rest = &dot[1];
