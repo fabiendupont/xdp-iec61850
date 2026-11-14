@@ -1836,6 +1836,15 @@ done:
             iec61850_rcb_bridge_clear_association(mgr);
         }
     }
+    /* WP-6x follow-up: session teardown releases the SGCB edit
+     * reservation when this session holds it (8-1 association-loss
+     * semantics — the same contract the RCB and control bridges
+     * implement above; ResvTms expiry is the fallback for hosts
+     * wiring the manager without the server). */
+    if (session->sg_manager != NULL) {
+        iec61850_sg_release_owner(session->sg_manager, (void *)session);
+    }
+
     /* WP-2w: session teardown releases control-object selections (and
      * aborts time-activated operates) this session owns — the 8-1
      * association-loss semantics; sboTimeout is the fallback for

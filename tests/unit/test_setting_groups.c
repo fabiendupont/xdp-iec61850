@@ -13,8 +13,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "mms/mms_setting_groups.h"
+#include "mms/mms_server.h"
+#include "mms/mms_data_store.h"
+#include "mms/mms_client.h"
+#include "ied/ied_data_model.h"
 #include "asn1/mms_ber.h"
 
 static int tests_run, tests_passed, tests_failed;
@@ -395,6 +400,91 @@ int main(void)
     /* Model cleanup is the test harness's job in production; here
      * leak it — the process exits immediately. */
     (void)model;
+
+    /* --- WP-6x follow-up: server releases the SGCB edit
+     * reservation on association loss (closed loop). --- */
+    tests_run++;
+    {
+        iec61850_ied_model_t *lmodel = calloc(1, sizeof(*lmodel));
+        iec61850_logical_device_t *lld =
+            iec61850_ld_create("LD0");
+        iec61850_logical_node_t *lln =
+            iec61850_ln_create("LLN0", "");
+        iec61850_data_object_t *ldo =
+            iec61850_do_create("Mod", IEC61850_CDC_DPC);
+        (void)iec61850_do_add_attribute(ldo, "setVal",
+                                        IEC61850_FC_SE,
+                                        IEC61850_BTYPE_INT32);
+        (void)iec61850_do_add_attribute(ldo, "stVal",
+                                        IEC61850_FC_MX,
+                                        IEC61850_BTYPE_INT32);
+        (void)iec61850_ln_add_data_object(lln, ldo);
+        (void)iec61850_ld_add_logical_node(lld, lln);
+        (void)iec61850_ied_model_add_ld(lmodel, lld);
+
+        iec61850_mms_data_store_t ds;
+        iec61850_mms_ds_init(&ds);
+        iec61850_sg_manager_t *smgr = NULL;
+        if (iec61850_sg_manager_init(&smgr, lmodel, 2, 1, 30) != 0) {
+            NO("loop: sg manager init");
+        } else {
+            iec61850_mms_server_config_t scfg;
+            iec61850_mms_server_config_init(&scfg);
+            scfg.port = 48321;
+            iec61850_mms_server_t srv;
+            iec61850_mms_server_init(&srv, &scfg, &ds);
+            if (iec61850_mms_server_set_sg_manager(&srv, smgr) != 0) {
+                NO("loop: set_sg_manager");
+            } else if (iec61850_mms_server_start(&srv) != 0) {
+                NO("loop: server start");
+            } else {
+                usleep(200000);
+
+                mms_value_t sel_val;
+                (void)memset(&sel_val, 0, sizeof(sel_val));
+                sel_val.type = MMS_TYPE_UNSIGNED;
+                sel_val.value.unsigned_val = 1;
+
+                /* Client A: connect, take the edit reservation. */
+                iec61850_mms_client_t a;
+                iec61850_mms_client_init(&a);
+                int ret = iec61850_mms_client_connect(&a, "127.0.0.1",
+                                                        48321, 5000);
+                if (ret != IEC61850_MMS_CLIENT_OK) {
+                    NO("loop: client A connect");
+                } else if (iec61850_mms_client_write(&a, "LD0",
+                     "LLN0$SP$SGCB$EditSG", &sel_val) !=
+                     IEC61850_MMS_CLIENT_OK) {
+                    NO("loop: client A select failed");
+                } else {
+                    (void)iec61850_mms_client_disconnect(&a);
+
+                    /* Client B: must be able to take over after A's
+                     * association loss released the reservation. */
+                    usleep(300000);
+                    iec61850_mms_client_t b;
+                    iec61850_mms_client_init(&b);
+                    ret = iec61850_mms_client_connect(&b, "127.0.0.1",
+                                                        48321, 5000);
+                    if (ret != IEC61850_MMS_CLIENT_OK) {
+                        NO("loop: client B connect");
+                    } else if (iec61850_mms_client_write(&b, "LD0",
+                         "LLN0$SP$SGCB$EditSG", &sel_val) !=
+                         IEC61850_MMS_CLIENT_OK) {
+                        NO("loop: B select failed - reservation NOT "
+                           "released on disconnect");
+                    } else {
+                        OK();
+                    }
+                    (void)iec61850_mms_client_disconnect(&b);
+                }
+                (void)iec61850_mms_server_stop(&srv);
+            }
+            iec61850_sg_manager_destroy(smgr);
+        }
+        iec61850_mms_ds_destroy(&ds);
+        /* lmodel leaked: process exits */
+    }
 
     printf("---\n%d run, %d passed, %d failed\n",
            tests_run, tests_passed, tests_failed);
