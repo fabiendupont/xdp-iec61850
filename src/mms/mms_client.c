@@ -48,10 +48,26 @@ int iec61850_mms_client_connect(iec61850_mms_client_t *client,
     ret = mms_encode_initiate_request(&req, mms_init, sizeof(mms_init));
     if (ret <= 0) { return IEC61850_MMS_CLIENT_ERR_ENCODE; }
 
-    ret = iec61850_iso_connect(&client->iso, host, port,
-                                 mms_init, (size_t)ret, timeout_ms);
-    if (ret != 0) {
-        return IEC61850_MMS_CLIENT_ERR_CONNECT;
+#ifdef IEC61850_SECURITY_ENABLED
+    if (client->tls_enabled) {
+        /* WP-3b: TLS association (IEC 62351-4) — handshake per the
+         * configured certificate-policy mode, then the ISO
+         * negotiation over the TLS layer. */
+        ret = iec61850_iso_connect_tls(&client->iso, host, port,
+                                         mms_init, (size_t)ret, timeout_ms,
+                                         client->tls_provider,
+                                         client->tls_mode);
+        if (ret != 0) {
+            return IEC61850_MMS_CLIENT_ERR_CONNECT;
+        }
+    } else
+#endif
+    {
+        ret = iec61850_iso_connect(&client->iso, host, port,
+                                     mms_init, (size_t)ret, timeout_ms);
+        if (ret != 0) {
+            return IEC61850_MMS_CLIENT_ERR_CONNECT;
+        }
     }
 
     ret = iec61850_mms_client_core_attach(&client->core, &client->iso);
@@ -62,6 +78,31 @@ int iec61850_mms_client_connect(iec61850_mms_client_t *client,
 
     client->connected = true;
     return IEC61850_MMS_CLIENT_OK;
+}
+
+int iec61850_mms_client_set_tls(iec61850_mms_client_t *client,
+                                  const iec61850_cert_provider_t *provider,
+                                  iec61850_tls_mode_t mode)
+{
+#ifdef IEC61850_SECURITY_ENABLED
+    if (client == NULL) { return -EINVAL; }
+    if (client->connected) { return -EINVAL; }
+    if ((mode != IEC61850_TLS_MODE_COMPATIBLE) &&
+        (mode != IEC61850_TLS_MODE_STRICT_62351) &&
+        (mode != IEC61850_TLS_MODE_SPIFFE)) {
+        return -EINVAL;
+    }
+
+    client->tls_provider = provider;
+    client->tls_mode = mode;
+    client->tls_enabled = true;
+    return 0;
+#else
+    (void)client;
+    (void)provider;
+    (void)mode;
+    return -ENOTSUP;
+#endif
 }
 
 int iec61850_mms_client_disconnect(iec61850_mms_client_t *client)

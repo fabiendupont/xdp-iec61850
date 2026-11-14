@@ -101,6 +101,18 @@ typedef struct {
     /* WP-2w: unsolicited CommandTermination handler */
     iec61850_mms_client_command_termination_cb_t command_termination_cb;
     void *command_termination_user_data;
+    /*
+     * WP-3b (IEC 62351-4): TLS association configuration. Inert
+     * until iec61850_mms_client_set_tls() arms it; connect() then
+     * runs the association over TLS (iec61850_iso_connect_tls).
+     * The provider pointer is borrowed and must outlive the client.
+     * Only present in security-enabled builds.
+     */
+#ifdef IEC61850_SECURITY_ENABLED
+    const iec61850_cert_provider_t *tls_provider;
+    iec61850_tls_mode_t tls_mode;
+    bool tls_enabled;
+#endif
 } iec61850_mms_client_t;
 
 /**
@@ -114,6 +126,28 @@ void iec61850_mms_client_init(iec61850_mms_client_t *client);
 int iec61850_mms_client_connect(iec61850_mms_client_t *client,
                                   const char *host, uint16_t port,
                                   int timeout_ms);
+
+/**
+ * WP-3b (IEC 62351-4): arm TLS for subsequent connections.
+ *
+ * After this call succeeds, iec61850_mms_client_connect() performs
+ * the TLS handshake (per the certificate-policy mode) before the
+ * ISO negotiation, and every association I/O runs over TLS. The
+ * provider's credentials are snapshotted at each connect; a
+ * provider refresh() applies to new associations only. Passing a
+ * NULL provider yields an opportunistic client handshake (no
+ * client certificate) — pair it with a trust-store-carrying
+ * provider for authenticated associations.
+ *
+ * @param client   Client (must not be connected)
+ * @param provider Credential source (borrowed; NULL = opportunistic)
+ * @param mode     Certificate-policy mode
+ * @return 0 on success, -EINVAL on bad arguments or while
+ *         connected, -ENOTSUP in security-disabled builds.
+ */
+int iec61850_mms_client_set_tls(iec61850_mms_client_t *client,
+                                  const iec61850_cert_provider_t *provider,
+                                  iec61850_tls_mode_t mode);
 
 /**
  * Disconnect from MMS server.
