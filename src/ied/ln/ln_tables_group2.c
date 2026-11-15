@@ -31,6 +31,40 @@
  *    R-family extension RPSB joins them in the WP-6d1 batch. The
  *    orchestrator's PVOF/PVUF (over/underfrequency) map to the
  *    7-4 classes PTOF/PTUF implemented above.
+ *
+ * WP-6e full-breadth audit — complete the 7-4 P/R families: a
+ * clean-room sweep of the 7-4 Ed.2 first-letter P and R families
+ * finds the registry already covering every class recallable
+ * with confidence. P family (18 confident classes): PDIF, PDIR,
+ * PDIS, PDOP, PDUP, PHAR, PIOC, PMRI, PMSS, PSCH, PTEF, PTOC,
+ * PTOF, PTOV, PTRC, PTTR, PTUF, PTUV — all registered by
+ * WP-6b/6c/6d1, plus the five TR-flagged WP-6d1 entries PNPH,
+ * PPBR, PVOC, PVPH, PVMV. R family (7 classes, complete): RBRF,
+ * RDIR, RDRE, RFLO, RPSB, RREC, RSYN — all registered. No 7-4
+ * Ed.2 P/R class remains that clean-room recall can confirm, so
+ * the WP-6e batch adds ZERO classes and the group count stays
+ * 32; the binding policy (register only confidently-recalled
+ * names, never invent) forbids padding the table with
+ * unconfirmable candidates.
+ *
+ * WP-6e declined / TR-review — candidate names considered and
+ * NOT registered (not recallable as 7-4 Ed.2 classes):
+ *  - PVRC (voltage-restrained/controlled overcurrent): the
+ *    function exists in protection practice but no 7-4 class of
+ *    this name is recallable from clean-room knowledge; profiles
+ *    realize the function as PTOC/PDIF variants. TR to check the
+ *    7-4 Ed.2 class index.
+ *  - PHIZ (high-impedance differential): same shape — the
+ *    function is known but the class name is not recallable in
+ *    7-4; the function is covered by PDIF. TR as above.
+ *  - PSDE (directional earth-fault, S-letter variant): not
+ *    recallable as a 7-4 class; the directional earth-fault
+ *    function is covered by RDIR/PDIR/PTEF. TR as above.
+ *
+ * WP-6e reiterated TR flags: the 7-4 provenance of the WP-6d1
+ * entries PNPH, PPBR, PVOC, PVPH, PVMV stays open; if the TR
+ * confirms any of them as non-7-4 names they should be dropped
+ * or re-annotated, not replaced by guesses.
  */
 
 #include "ln_schema_tables.h"
