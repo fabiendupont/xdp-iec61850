@@ -42,14 +42,35 @@
  * has no Q first-letter family (the 7-4 first-letter families are
  * A, C, G, I, K, L, M, P, R, S, T, X, Y, Z), so QFPC/TFPC-style
  * classes are not confirmable as 7-4 classes and are not
- * registered; the 7-4 K family (mechanical / non-electrical
- * primary equipment) has no home in this repo's group taxonomy
- * (group 1 is common / substation, the L/X/C/Y/Z families) and
- * its class names/DO sets are not recallable with confidence —
- * left unregistered, flagged for the owner.
+ * registered. WP-6e PARTIALLY SUPERSEDES the K half of this
+ * judgment: the owner directed the K family (mechanical /
+ * non-electrical primary equipment) be registered as flagged
+ * shells in group 4 — see ln_tables_group4.c for the outcome
+ * (placement moved to group 4; registration still declined
+ * there under the binding no-invention rule). The Q half stands.
  * GGIO stays registered in group 4 (pilot placement) although
  * 7-4 groups it with the generic/common classes — left as-is per
  * the WP-6c brief; noted for TR.
+ *
+ * WP-6e (full-breadth campaign for the L/X/C/Y/Z families, same
+ * relaxed policy as WP-6d1): appends LGOS and LSVS (L-family
+ * communication supervision — GOOSE / sampled-value subscription
+ * supervision). Review of the families for anything else not yet
+ * registered found no further class name recallable with
+ * confidence (see the declined list below). Declined /
+ * TR-review names (existence as 7-4 Ed.2 classes not recallable
+ * with confidence clean-room — not registered, per the binding
+ * policy):
+ *  - YMOT (motor supervision): the name surfaces dimly (possibly
+ *    a 7-4 class, possibly a 7-410/7-420 artifact); below the
+ *    confidence bar. TR to confirm.
+ *  - XGND / earthing-switch classes: earthing switches stay
+ *    modeled by XSWI (with a SwTyp setting) per 7-4 practice; no
+ *    separate X class recalled.
+ *  - The X, C, Y and Z families are otherwise judged COMPLETE
+ *    per clean-room recall: XCBR/XSWI, CALH/CILO/CSWI,
+ *    YLTC/YPTR, ZAXN/ZBAT/ZCAB/ZCON are all the Ed.2 names this
+ *    campaign can stand behind.
  */
 
 #include "ln_schema_tables.h"
@@ -381,14 +402,70 @@ static const iec61850_ln_do_def_t zaxn_dos[] = {
     { "NamPlt", IEC61850_CDC_LPL, true  },
 };
 
+/* ------------------------------------------------------------------
+ * WP-6e — full-breadth L/X/C/Y/Z additions under the relaxed
+ * policy (see the file header).
+ * ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------
+ * LGOS — GOOSE supervision (WP-6e, L family)
+ *
+ * Judgment calls (all flagged for TR):
+ *  - Existence as an IEC 61850 Ed.2-era L-family communication-
+ *    supervision LN is recalled with confidence (GOOSE-subscription
+ *    supervision), but the exact defining document (7-4:2010
+ *    itself vs its Ed.2.1 amendment vs a companion part) could
+ *    not be pinned clean-room. TR to confirm provenance before
+ *    treating LGOS as a base-7-4 class.
+ *  - St (subscription status, best recall ENS) is the signature
+ *    DO; listed O (mandatory=false) since neither its exact name
+ *    form nor its M/O status is confirmable clean-room — it can
+ *    never break instantiation.
+ *  - GoCBRef (the supervised control-block reference, best recall
+ *    CDC ORS) is OMITTED: ORS is not an implemented CDC (same
+ *    precedent as the LLN0 GrRef omission). TR to revisit if an
+ *    ORS factory is ever added.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t lgos_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "St",     IEC61850_CDC_ENS, false },
+};
+
+/* ------------------------------------------------------------------
+ * LSVS — Sampled-value (SV) supervision (WP-6e, L family)
+ *
+ * Judgment calls (all flagged for TR):
+ *  - As LGOS: SV-subscription supervision LN of the IEC 61850
+ *    Ed.2-era communication-supervision additions; existence is
+ *    recalled with slightly LOWER confidence than LGOS (SV
+ *    subscription supervision may have arrived with a later
+ *    amendment than the GOOSE twin). TR to confirm provenance —
+ *    drop this class if it turns out not to be 7-4 Ed.2.
+ *  - St (subscription status, best recall ENS) listed O, as for
+ *    LGOS. SvCBRef (best recall CDC ORS) is OMITTED — ORS is not
+ *    an implemented CDC (LLN0 GrRef precedent).
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t lsvs_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "St",     IEC61850_CDC_ENS, false },
+};
+
 const iec61850_ln_class_def_t ln_group1_classes[LN_GROUP1_CLASS_COUNT] = {
     { "BATV", batv_dos, 4U },
     { "CALH", calh_dos, 4U },
     { "CBRK", cbrk_dos, 5U },
     { "CILO", cilo_dos, 6U },
     { "CSWI", cswi_dos, 5U },
+    { "LGOS", lgos_dos, 5U },
     { "LLN0", lln0_dos, 4U },
     { "LPHD", lphd_dos, 7U },
+    { "LSVS", lsvs_dos, 5U },
     { "SARC", sarc_dos, 4U },
     { "SWTC", swtc_dos, 5U },
     { "XCBR", xcbr_dos, 8U },
