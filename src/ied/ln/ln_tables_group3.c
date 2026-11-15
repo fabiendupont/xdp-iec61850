@@ -19,6 +19,13 @@
  * class comment) rather than invented; classes whose specific DOs
  * are entirely deferred carry only the LN-common subset. Every
  * such judgment call is flagged for TR review.
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): appends the deferred group-3 classes MHAS and
+ * MRDR. MFUL from the WP-6c deferral list is NOT registered: its
+ * existence as a 7-4 class could not be verified from clean-room
+ * knowledge — flagged in the WP-6d1 report. MFLK and MSTA were
+ * already registered by WP-6c and are not re-added.
  */
 
 #include "ln_schema_tables.h"
@@ -69,6 +76,32 @@ static const iec61850_ln_do_def_t mflk_dos[] = {
  * names. Flagged.
  * ------------------------------------------------------------------ */
 static const iec61850_ln_do_def_t mhai_dos[] = {
+    { "Beh",    IEC61850_CDC_INS,  true  },
+    { "HA",     IEC61850_CDC_HMV,  false },
+    { "Health", IEC61850_CDC_INS,  true  },
+    { "HPhV",   IEC61850_CDC_HWYE, false },
+    { "HPPV",   IEC61850_CDC_HDEL, false },
+    { "Mod",    IEC61850_CDC_INC,  true  },
+    { "NamPlt", IEC61850_CDC_LPL,  true  },
+};
+
+/* ------------------------------------------------------------------
+ * MHAS — Harmonics analysis (7-4 group 3, M family)
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): MHAS was on the WP-6c deferral list (parked at
+ * the 7-420 boundary), but it is a 7-4 harmonics class and the
+ * owner directed its inclusion. Best-recall DO set: the same
+ * harmonic measurement family as MHAI — HA (HMV, harmonic
+ * currents), HPhV (HWYE, harmonic phase voltages), HPPV (HDEL,
+ * harmonic phase-to-phase voltages) — all O. TR flags:
+ *  - whether the exact 7-4 MHAS DO set differs from MHAI's
+ *    (interharmonics / THD family) is not confirmable
+ *    clean-room; the THD-family DOs stay deferred;
+ *  - the MHAS/MHAI split (and any 7-420 overlap in scope) is
+ *    edition-dependent — TR to confirm.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t mhas_dos[] = {
     { "Beh",    IEC61850_CDC_INS,  true  },
     { "HA",     IEC61850_CDC_HMV,  false },
     { "Health", IEC61850_CDC_INS,  true  },
@@ -169,6 +202,26 @@ static const iec61850_ln_do_def_t mmxu_dos[] = {
     { "VA",      IEC61850_CDC_WYE,  false },
     { "VAr",     IEC61850_CDC_WYE,  false },
     { "W",       IEC61850_CDC_WYE,  false },
+};
+
+/* ------------------------------------------------------------------
+ * MRDR — Disturbance recording measurement (7-4 group 3, M family)
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): MRDR was on the WP-6c deferral list (DO set not
+ * reconstructible). Best recall places it as the M-family
+ * disturbance-recording measurement companion of RDRE (group 2).
+ * The class-specific DO family could not be recalled with
+ * confidence even under the relaxed policy (RDRE's RcdMade
+ * belongs to RDRE, not MRDR), so the table carries the LN-common
+ * subset only — the acceptable minimum per the WP-6d1 policy. TR
+ * to verify existence, name and DO set. Flagged.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t mrdr_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
 };
 
 /* ------------------------------------------------------------------
@@ -336,9 +389,11 @@ const iec61850_ln_class_def_t ln_group3_classes[LN_GROUP3_CLASS_COUNT] = {
     { "MDIF", mdif_dos, 4U  },
     { "MFLK", mflk_dos, 6U  },
     { "MHAI", mhai_dos, 7U  },
+    { "MHAS", mhas_dos, 7U  },
     { "MMTR", mmtr_dos, 19U },
     { "MMXN", mmxn_dos, 11U },
     { "MMXU", mmxu_dos, 19U },
+    { "MRDR", mrdr_dos, 4U  },
     { "MSQI", msqi_dos, 8U  },
     { "MSTA", msta_dos, 4U  },
     { "SCBR", scbr_dos, 4U  },
