@@ -22,6 +22,12 @@
  * class comment) rather than invented; classes whose specific DOs
  * are entirely deferred carry only the LN-common subset. Every
  * such judgment call is flagged for TR review.
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): appends the deferred group-4 classes GCSW, GHAB,
+ * GSHE and SWRI. SGCP from the WP-6c deferral list is NOT
+ * registered: its existence as a 7-4 class could not be verified
+ * from clean-room knowledge — flagged in the WP-6d1 report.
  */
 
 #include "ln_schema_tables.h"
@@ -80,6 +86,24 @@ static const iec61850_ln_do_def_t gapc_dos[] = {
 };
 
 /* ------------------------------------------------------------------
+ * GCSW — Generic switching control (7-4 group 4, G family)
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): GCSW was on the WP-6c deferral list. Best recall
+ * reads the name as a generic G-family switching-control class,
+ * but neither its exact 7-4 scope nor its DO set could be
+ * recalled with confidence, so the table carries the LN-common
+ * subset only — the acceptable minimum per the WP-6d1 policy. TR
+ * to verify existence, name, scope and DO set. Flagged.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t gcsw_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+};
+
+/* ------------------------------------------------------------------
  * GGIO — Generic process I/O (7-4 group 4)
  *
  * The generic status/control DOs are O in 7-4 (the deployed count
@@ -102,6 +126,44 @@ static const iec61850_ln_do_def_t ggio_dos[] = {
 };
 
 /* ------------------------------------------------------------------
+ * GHAB — Generic alarm block (7-4 group 4, G family)
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): GHAB was on the WP-6c deferral list. Best recall
+ * reads it as a G-family generic alarm/handling block, but
+ * neither its exact 7-4 scope nor its DO set could be recalled
+ * with confidence, so the table carries the LN-common subset
+ * only — the acceptable minimum per the WP-6d1 policy. TR to
+ * verify existence, name, scope and DO set. Flagged.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t ghab_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+};
+
+/* ------------------------------------------------------------------
+ * GSHE — Generic human interface (7-4 group 4)
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): the WP-6c brief named GSHE for the human
+ * interface; WP-6c registered IHMI instead, and the owner
+ * directed GSHE be added too. Both are now registered —
+ * I-family overlap flagged: whether GSHE and IHMI are distinct
+ * 7-4 classes, editions of the same concept, or a naming
+ * confusion is not confirmable clean-room; TR to resolve (a
+ * future batch may collapse them). The HMI-specific DOs are
+ * deferred pending TR verification of the 7-4 names. Flagged.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t gshe_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+};
+
+/* ------------------------------------------------------------------
  * IHMI — Human machine interface (7-4 group 4, I family)
  *
  * Judgment call (flagged for the orchestrator): the WP-6c brief
@@ -118,12 +180,39 @@ static const iec61850_ln_do_def_t ihmi_dos[] = {
     { "NamPlt", IEC61850_CDC_LPL, true  },
 };
 
+/* ------------------------------------------------------------------
+ * SWRI — Waveform recording (7-4)
+ *
+ * WP-6d1 (owner-directed relaxed policy — best-recall DO sets
+ * with flags): SWRI was on the WP-6c deferral list (waveform
+ * recording). Judgment calls (flagged):
+ *  - placement: the WP-6d1 brief assigns SWRI to group 4, and
+ *    this table follows it, but the S first letter would
+ *    normally park it in group 3 (the S family per this repo's
+ *    grouping); TR to confirm placement;
+ *  - the class-specific DO set could not be recalled with
+ *    confidence (RDRE's RcdMade belongs to RDRE), so the table
+ *    carries the LN-common subset only — the acceptable minimum
+ *    per the WP-6d1 policy. TR to verify existence, name and DO
+ *    set.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t swri_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+};
+
 
 
 const iec61850_ln_class_def_t ln_group4_classes[LN_GROUP4_CLASS_COUNT] = {
     { "ACDR", acdr_dos, 4U  },
     { "ATCC", atcc_dos, 5U  },
     { "GAPC", gapc_dos, 5U  },
+    { "GCSW", gcsw_dos, 4U  },
     { "GGIO", ggio_dos, 10U },
+    { "GHAB", ghab_dos, 4U  },
+    { "GSHE", gshe_dos, 4U  },
     { "IHMI", ihmi_dos, 4U  },
+    { "SWRI", swri_dos, 4U  },
 };
