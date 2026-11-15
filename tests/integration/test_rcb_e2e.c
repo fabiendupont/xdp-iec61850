@@ -28,6 +28,8 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -724,7 +726,6 @@ static void test_bridge_write_prevalidation(void)
  * own WP-1c client, bridged through the RCB component objects)
  * ======================================================================== */
 
-#define LOOP_PORT   11821
 #define LOOP_LD     "LD"      /* RCB component objects  */
 #define LOOP_URCB_REF "LLN0$RP$u1"   /* exposed URCB reference */
 #define LOOP_BRCB_REF "LLN0$BR$b1"   /* exposed BRCB reference */
@@ -732,6 +733,26 @@ static void test_bridge_write_prevalidation(void)
 #define LOOP_STVAL  "XCBR1$ST$Pos$stVal"
 #define LOOP_HZ     "MMXU1$MX$Hz$mag$f"
 #define LOOP_Q      "XCBR1$ST$Pos$q"
+
+/* Ephemeral port: bind 0, read back the kernel assignment (same
+ * remedy as test_tls_socket, c2edd29) — no fixed-port collisions
+ * across parallel worktree builddirs / TIME_WAIT. */
+static uint16_t g_loop_port;
+
+static uint16_t server_bound_port(const iec61850_mms_server_t *srv)
+{
+    struct sockaddr_in assigned;
+    socklen_t alen = sizeof(assigned);
+
+    if ((srv->listener.sockfd < 0) ||
+        (getsockname(srv->listener.sockfd,
+                     (struct sockaddr *)&assigned, &alen) != 0) ||
+        (assigned.sin_family != AF_INET)) {
+        return 0U;
+    }
+    return ntohs(assigned.sin_port);
+}
+
 
 static iec61850_mms_data_store_t g_loop_ds;
 static iec61850_rcb_manager_t g_loop_mgr;
@@ -796,13 +817,14 @@ static void loop_setup(void)
      * syncs the bridge on the session loop's recv-timeout tick and
      * releases the association at session teardown. */
     iec61850_mms_server_config_init(&cfg);
-    cfg.port = LOOP_PORT;
+    cfg.port = 0;   /* ephemeral — assigned port read back below */
     iec61850_mms_server_init(&g_loop_srv, &cfg, &g_loop_ds);
     ASSERT_EQ(iec61850_mms_server_set_rcb_manager(&g_loop_srv, &g_loop_mgr),
               0);
     ASSERT_EQ(iec61850_mms_server_set_rcb_manager(&g_loop_srv, &g_loop_mgr),
               -EEXIST);
     ASSERT_EQ(iec61850_mms_server_start(&g_loop_srv), 0);
+    g_loop_port = server_bound_port(&g_loop_srv);
     ASSERT_EQ(iec61850_mms_server_set_rcb_manager(&g_loop_srv, &g_loop_mgr),
               -EBUSY);   /* registration closed while running */
     g_loop_srv_up = true;
@@ -840,7 +862,7 @@ static void loop_connect_port(iec61850_mms_client_t *client, uint16_t port)
 
 static void loop_connect(iec61850_mms_client_t *client)
 {
-    loop_connect_port(client, LOOP_PORT);
+    loop_connect_port(client, g_loop_port);
 }
 
 /*
@@ -1548,8 +1570,6 @@ static void test_loop_teardown_takeover(void)
  * RCB component objects with no manual store provisioning.
  * ======================================================================== */
 
-#define SCL_PORT   (LOOP_PORT + 1)
-
 static void test_scl_server_auto_config(void)
 {
     iec61850_scl_doc_t doc;
@@ -1597,13 +1617,14 @@ static void test_scl_server_auto_config(void)
         &ds, "LD0", "LLN0$RP$URCB01$RptEna"));
 
     iec61850_mms_server_config_init(&cfg);
-    cfg.port = SCL_PORT;
+    cfg.port = 0;   /* ephemeral — assigned port read back below */
     iec61850_mms_server_init(&srv, &cfg, &ds);
 
     /* Explicit-domain variant (per-LD registration). */
     ASSERT_EQ(iec61850_mms_server_set_rcb_manager_domain(&srv, &mgr, "LD0"),
               0);
     ASSERT_EQ(iec61850_mms_server_start(&srv), 0);
+    const uint16_t scl_port = server_bound_port(&srv);
     usleep(200000);
 
     /* Component objects provisioned by the wired startup. */
@@ -1612,7 +1633,7 @@ static void test_scl_server_auto_config(void)
     ASSERT_TRUE(iec61850_mms_ds_variable_exists(
         &ds, "LD0", "LLN0$BR$BRCB01$EntryID"));
 
-    loop_connect_port(&client, SCL_PORT);
+    loop_connect_port(&client, scl_port);
     ASSERT_EQ(iec61850_mms_client_rcb_list(&client, "LD0", names,
                                             &count, 8U),
               IEC61850_MMS_CLIENT_OK);

@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #include "mms/mms_setting_groups.h"
 #include "mms/mms_server.h"
@@ -29,6 +31,23 @@ static int tests_run, tests_passed, tests_failed;
 #define NO(msg) do { tests_failed++; printf("FAIL: %s\n", msg); } while (0)
 
 /* --- helpers ------------------------------------------------------- */
+
+/* Ephemeral port: bind 0, read back the kernel assignment (same
+ * remedy as test_tls_socket, c2edd29) — no fixed-port collisions
+ * across parallel worktree builddirs / TIME_WAIT. */
+static uint16_t server_bound_port(const iec61850_mms_server_t *srv)
+{
+    struct sockaddr_in assigned;
+    socklen_t alen = sizeof(assigned);
+
+    if ((srv->listener.sockfd < 0) ||
+        (getsockname(srv->listener.sockfd,
+                     (struct sockaddr *)&assigned, &alen) != 0) ||
+        (assigned.sin_family != AF_INET)) {
+        return 0U;
+    }
+    return ntohs(assigned.sin_port);
+}
 
 static iec61850_ied_model_t *build_model(void)
 {
@@ -430,7 +449,7 @@ int main(void)
         } else {
             iec61850_mms_server_config_t scfg;
             iec61850_mms_server_config_init(&scfg);
-            scfg.port = 48321;
+            scfg.port = 0;   /* ephemeral — read back below */
             iec61850_mms_server_t srv;
             iec61850_mms_server_init(&srv, &scfg, &ds);
             if (iec61850_mms_server_set_sg_manager(&srv, smgr) != 0) {
@@ -438,6 +457,7 @@ int main(void)
             } else if (iec61850_mms_server_start(&srv) != 0) {
                 NO("loop: server start");
             } else {
+                const uint16_t port = server_bound_port(&srv);
                 usleep(200000);
 
                 mms_value_t sel_val;
@@ -449,7 +469,7 @@ int main(void)
                 iec61850_mms_client_t a;
                 iec61850_mms_client_init(&a);
                 int ret = iec61850_mms_client_connect(&a, "127.0.0.1",
-                                                        48321, 5000);
+                                                        port, 5000);
                 if (ret != IEC61850_MMS_CLIENT_OK) {
                     NO("loop: client A connect");
                 } else if (iec61850_mms_client_write(&a, "LD0",
@@ -465,7 +485,7 @@ int main(void)
                     iec61850_mms_client_t b;
                     iec61850_mms_client_init(&b);
                     ret = iec61850_mms_client_connect(&b, "127.0.0.1",
-                                                        48321, 5000);
+                                                        port, 5000);
                     if (ret != IEC61850_MMS_CLIENT_OK) {
                         NO("loop: client B connect");
                     } else if (iec61850_mms_client_write(&b, "LD0",
@@ -520,7 +540,7 @@ int main(void)
         } else {
             iec61850_mms_server_config_t scfg;
             iec61850_mms_server_config_init(&scfg);
-            scfg.port = 48323;
+            scfg.port = 0;   /* ephemeral — read back below */
             iec61850_mms_server_t srv;
             iec61850_mms_server_init(&srv, &scfg, &ds);
             if (iec61850_mms_server_set_sg_manager(&srv, smgr) != 0) {
@@ -528,6 +548,7 @@ int main(void)
             } else if (iec61850_mms_server_start(&srv) != 0) {
                 NO("tick loop: server start");
             } else {
+                const uint16_t port = server_bound_port(&srv);
                 usleep(200000);
 
                 mms_value_t sel_val;
@@ -538,7 +559,7 @@ int main(void)
                 iec61850_mms_client_t a;
                 iec61850_mms_client_init(&a);
                 int ret = iec61850_mms_client_connect(&a, "127.0.0.1",
-                                                        48323, 5000);
+                                                        port, 5000);
                 if (ret != IEC61850_MMS_CLIENT_OK) {
                     NO("tick loop: client connect");
                 } else if (iec61850_mms_client_write(&a, "LD0",

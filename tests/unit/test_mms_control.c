@@ -19,6 +19,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -1184,7 +1186,6 @@ static void test_ed2_api_edges(void)
  * and the CommandTermination received as an unsolicited PDU.
  * ======================================================================== */
 
-#define CWB_PORT 10941
 #define CWB_LD   "LDW"
 #define CWB_STRICT  "XCBR1$CO$Pos"   /* strict: select -> operate */
 #define CWB_STRICT2 "CSWI1$CO$Pos"   /* strict: rejection/cancel target */
@@ -1194,6 +1195,26 @@ static iec61850_mms_data_store_t cwb_ds;
 static iec61850_control_manager_t cwb_mgr;
 static iec61850_mms_server_t cwb_srv;
 static bool cwb_up = false;
+
+/* Ephemeral port: bind 0, read back the kernel assignment (same
+ * remedy as test_tls_socket, c2edd29) — no fixed-port collisions
+ * across parallel worktree builddirs / TIME_WAIT. */
+static uint16_t cwb_port;
+
+static uint16_t server_bound_port(const iec61850_mms_server_t *srv)
+{
+    struct sockaddr_in assigned;
+    socklen_t alen = sizeof(assigned);
+
+    if ((srv->listener.sockfd < 0) ||
+        (getsockname(srv->listener.sockfd,
+                     (struct sockaddr *)&assigned, &alen) != 0) ||
+        (assigned.sin_family != AF_INET)) {
+        return 0U;
+    }
+    return ntohs(assigned.sin_port);
+}
+
 
 static int cwb_action_count;
 static int cwb_app_term_count;
@@ -1277,12 +1298,13 @@ static void cwb_setup(void)
                                                           NULL), 0);
 
     iec61850_mms_server_config_init(&cfg);
-    cfg.port = CWB_PORT;
+    cfg.port = 0;   /* ephemeral — assigned port read back below */
     iec61850_mms_server_init(&cwb_srv, &cfg, &cwb_ds);
     ASSERT_EQ(iec61850_mms_server_set_control_manager(&cwb_srv, &cwb_mgr),
               0);
     ASSERT_EQ(iec61850_mms_server_start(&cwb_srv),
               (int)IEC61850_MMS_SERVER_OK);
+    cwb_port = server_bound_port(&cwb_srv);
     cwb_up = true;
     usleep(200000);
 }
@@ -1306,7 +1328,7 @@ static void test_bridge_ctl_model_attributes(void)
     mms_variable_access_attrs_t attrs;
 
     iec61850_mms_client_init(&client);
-    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", cwb_port,
                                            5000),
               (int)IEC61850_MMS_CLIENT_OK);
 
@@ -1349,7 +1371,7 @@ static void test_bridge_select_operate_ct(void)
     cwb_ct_count = 0;
 
     iec61850_mms_client_init(&client);
-    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", cwb_port,
                                            5000),
               (int)IEC61850_MMS_CLIENT_OK);
     iec61850_mms_client_set_command_termination_handler(&client, cwb_on_ct,
@@ -1399,7 +1421,7 @@ static void test_bridge_strict_rejection(void)
 
     cwb_action_count = 0;
     iec61850_mms_client_init(&client);
-    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", cwb_port,
                                            5000),
               (int)IEC61850_MMS_CLIENT_OK);
 
@@ -1429,7 +1451,7 @@ static void test_bridge_select_cancel(void)
 
     cwb_action_count = 0;
     iec61850_mms_client_init(&client);
-    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", cwb_port,
                                            5000),
               (int)IEC61850_MMS_CLIENT_OK);
 
@@ -1463,7 +1485,7 @@ static void test_bridge_oper_tm_flow(void)
     cwb_action_count = 0;
     cwb_ct_count = 0;
     iec61850_mms_client_init(&client);
-    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", cwb_port,
                                            5000),
               (int)IEC61850_MMS_CLIENT_OK);
     iec61850_mms_client_set_command_termination_handler(&client, cwb_on_ct,
@@ -1513,7 +1535,7 @@ static void test_bridge_sbo_write_forms(void)
 
     cwb_action_count = 0;
     iec61850_mms_client_init(&client);
-    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", CWB_PORT,
+    ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1", cwb_port,
                                            5000),
               (int)IEC61850_MMS_CLIENT_OK);
 

@@ -41,6 +41,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 /* ========================================================================
  * Minimal test framework (repo style)
@@ -84,11 +86,16 @@ static int tests_failed = 0;
 #define DATA_POS_STVAL "XCBR1$ST$Pos$stVal"
 #define DATA_POS_Q     "XCBR1$ST$Pos$q"
 #define DATA_DECOY     "MMXU1$MX$PhV$phsA"
-#define TEST_PORT    11811
 
 static iec61850_mms_data_store_t g_ds;
 static iec61850_mms_server_t g_server;
 static bool g_server_up = false;
+
+/* Ephemeral port: the server binds port 0 and the kernel assignment
+ * is read back via getsockname — collision-free across parallel
+ * worktree builddirs regardless of TIME_WAIT (same remedy as
+ * test_tls_socket, c2edd29). */
+static uint16_t g_test_port;
 
 /* Repo's own RCB engines, driven by client writes through the
  * after_response hook (server side of the reporting loop). */
@@ -425,6 +432,20 @@ static void test_after_response(iec61850_mms_session_t *session,
     /* DOMAIN_OWN (ownership-conflict RCBs): no engine to mirror. */
 }
 
+static uint16_t server_bound_port(const iec61850_mms_server_t *srv)
+{
+    struct sockaddr_in assigned;
+    socklen_t alen = sizeof(assigned);
+
+    if ((srv->listener.sockfd < 0) ||
+        (getsockname(srv->listener.sockfd,
+                     (struct sockaddr *)&assigned, &alen) != 0) ||
+        (assigned.sin_family != AF_INET)) {
+        return 0U;
+    }
+    return ntohs(assigned.sin_port);
+}
+
 static void setup_server(void)
 {
     iec61850_mms_server_config_t cfg;
@@ -474,11 +495,12 @@ static void setup_server(void)
     g_write_log_count = 0u;
 
     iec61850_mms_server_config_init(&cfg);
-    cfg.port = TEST_PORT;
+    cfg.port = 0;   /* ephemeral — assigned port read back below */
     cfg.after_response = test_after_response;
 
     iec61850_mms_server_init(&g_server, &cfg, &g_ds);
     (void)iec61850_mms_server_start(&g_server);
+    g_test_port = server_bound_port(&g_server);
     g_server_up = true;
 
     /* Give the accept thread time to bind. */
@@ -637,7 +659,7 @@ static void test_rcb_list_discovery(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     ret = iec61850_mms_client_rcb_list(&client, DOMAIN_URCB, names,
@@ -693,7 +715,7 @@ static void test_rcb_get_values(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     /* URCB */
@@ -768,7 +790,7 @@ static void test_enrollment_order_and_roundtrip(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     (void)memset(&values, 0, sizeof(values));
@@ -854,7 +876,7 @@ static void test_enable_disable_wrappers(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     ret = iec61850_mms_client_rcb_enable(&client, DOMAIN_URCB, URCB_NAME);
@@ -892,7 +914,7 @@ static void test_purge_and_entry_id(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     /* PurgeBuf = TRUE. */
@@ -930,7 +952,7 @@ static void test_ownership_conflict(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     (void)memset(&values, 0, sizeof(values));
@@ -977,7 +999,7 @@ static void test_urcb_report_reception(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     ASSERT_EQ(iec61850_mms_client_set_report_handler(&client,
@@ -1053,7 +1075,7 @@ static void test_brcb_report_entry_id(void)
 
     iec61850_mms_client_init(&client);
     ASSERT_EQ(iec61850_mms_client_connect(&client, "127.0.0.1",
-                                           TEST_PORT, 5000),
+                                           g_test_port, 5000),
               IEC61850_MMS_CLIENT_OK);
 
     ASSERT_EQ(iec61850_mms_client_set_report_handler(&client,
