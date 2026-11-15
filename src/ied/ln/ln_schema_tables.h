@@ -29,7 +29,7 @@ extern "C" {
 extern const iec61850_ln_class_def_t ln_group1_classes[LN_GROUP1_CLASS_COUNT];
 
 /* Group 2 — protection (ln_tables_group2.c) */
-#define LN_GROUP2_CLASS_COUNT 23U
+#define LN_GROUP2_CLASS_COUNT 32U
 extern const iec61850_ln_class_def_t ln_group2_classes[LN_GROUP2_CLASS_COUNT];
 
 /* Group 3 — measurement / metering / monitoring / supervision
