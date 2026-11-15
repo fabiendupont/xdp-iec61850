@@ -3,14 +3,20 @@
  * XDP Sampled Values Parse Node (Optional)
  *
  * Extracts smpCnt from SV APDU for gap detection at XDP level.
- * Uses byte-scan for the smpCnt tag (0x82) to stay within the
- * BPF verifier's 1M instruction limit.
+ * Uses a bounded byte-scan for the smpCnt tag (0x82) — see the
+ * verifier-discipline note in node_goose_parse.bpf.c (WP-5c).
  */
 
 #include <linux/if_ether.h>
 #include <bpf/bpf_endian.h>
 
 #include "iec61850_maps.bpf.h"
+
+/* Pin a variable to a single SSA definition: without this, the
+ * compiler rematerializes "base + i" into a fresh register for every
+ * load in the scan loop, and PREVAIL's difference-constraint domain
+ * can no longer relate the bounds check to the loads (WP-5c). */
+#define IEC61850_BARRIER_VAR(var) asm volatile("" : "+r"(var))
 
 char LICENSE[] SEC("license") = "BSD-2-Clause";
 
@@ -84,35 +90,39 @@ XGL_NODE(node_sv_parse)
     /* Scan for smpCnt tag (0x82) in the SV APDU.
      * SV structure: savPdu → noASDU → seqASDU → ASDU SEQUENCE → smpCnt.
      * The smpCnt tag appears after svID [0x80] and datSet [0x81].
-     * Scan byte-by-byte in a bounded window. */
+     * Byte-scan in a bounded window — merged scan pointer with the
+     * barrier pin, constant offsets only (WP-5c, see
+     * node_goose_parse.bpf.c). */
 
     __u16 smp_cnt = 0;
     int found = 0;
 
     int scan_limit = apdu_len < 128 ? apdu_len : 128;
 
-    #pragma unroll
     for (int i = 2; i < 100; i++) {
         if (i >= scan_limit)
             break;
 
-        if ((void *)(apdu_data + i + 4) > data_end)
+        __u8 *p = apdu_data + i;
+        IEC61850_BARRIER_VAR(p);
+        if ((__u8 *)(p + 4) > (__u8 *)data_end)
             break;
+        IEC61850_BARRIER_VAR(p);
 
-        if (apdu_data[i] == SV_BPF_TAG_SMPCNT) {
-            __u8 slen = apdu_data[i + 1];
-            if (slen >= 1 && slen <= 2 &&
-                (void *)(apdu_data + i + 2 + slen) <= data_end) {
-                if (slen == 1) {
-                    smp_cnt = apdu_data[i + 2];
-                } else {
-                    smp_cnt = ((__u16)apdu_data[i + 2] << 8) |
-                              apdu_data[i + 3];
-                }
-                found = 1;
-                break;
-            }
+        if (p[0] != SV_BPF_TAG_SMPCNT)
+            continue;
+
+        __u8 slen = p[1];
+        if (slen < 1 || slen > 2)
+            continue;
+
+        if (slen == 1) {
+            smp_cnt = p[2];
+        } else {
+            smp_cnt = ((__u16)p[2] << 8) | p[3];
         }
+        found = 1;
+        break;
     }
 
     if (!found)

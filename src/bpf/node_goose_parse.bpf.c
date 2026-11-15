@@ -5,9 +5,18 @@
  * After GOOSE filter accepts a packet, this node extracts stNum and
  * sqNum for XDP-level dedup before passing to userspace via AF_XDP.
  *
- * Uses a byte-scan approach instead of a TLV walker loop to stay
- * within the BPF verifier's 1M instruction limit. Scans for tag 0x85
- * (stNum) followed by tag 0x86 (sqNum) in a bounded window.
+ * Uses a bounded byte-scan for tag 0x85 (stNum) followed by tag 0x86
+ * (sqNum) instead of a TLV walker loop: the rolled loop keeps the
+ * program small for the kernel verifier and the load pattern below
+ * keeps every packet access provable for PREVAIL (WP-5c).
+ *
+ * Verifier discipline (WP-5c, mirroring node_rgoose_parse): every
+ * load reads through a single merged pointer that was bounds-checked
+ * immediately before, at constant offsets only.  Writing the checks
+ * and the loads on different pointer expressions of the same address
+ * lets the compiler split them across registers, and PREVAIL's
+ * analysis then cannot relate the variable-offset check to the load
+ * (the pre-WP-5c form — see prevail-expected-failures.txt history).
  */
 
 #include <linux/if_ether.h>
@@ -15,6 +24,12 @@
 
 #include "iec61850_maps.bpf.h"
 #include "ber_shallow.bpf.h"
+
+/* Pin a variable to a single SSA definition: without this, the
+ * compiler rematerializes "base + i" into a fresh register for every
+ * load in the scan loop, and PREVAIL's difference-constraint domain
+ * can no longer relate the bounds check to the loads (WP-5c). */
+#define IEC61850_BARRIER_VAR(var) asm volatile("" : "+r"(var))
 
 char LICENSE[] SEC("license") = "BSD-2-Clause";
 
@@ -79,8 +94,7 @@ XGL_NODE(node_goose_parse)
 
     /* Scan for stNum tag (0x85) in the APDU.
      * GOOSE APDU tags are in order: 0x80..0x8B. stNum is 0x85.
-     * Instead of a TLV walker loop (which explodes verifier state),
-     * scan byte-by-byte in a bounded window for the tag pattern:
+     * Byte-scan in a bounded window for the tag pattern:
      *   0x85 <len> <value bytes...> 0x86 <len> <value bytes...>
      * stNum/sqNum are INTEGER, typically 1-4 bytes each. */
 
@@ -92,43 +106,57 @@ XGL_NODE(node_goose_parse)
      * search up to 256 bytes in (covers all mandatory fields). */
     int scan_limit = apdu_len < 256 ? apdu_len : 256;
 
-    #pragma unroll
     for (int i = 2; i < 200; i++) {
         if (i >= scan_limit)
             break;
 
-        if ((void *)(apdu_data + i + 6) > data_end)
+        /* Merged scan pointer: bounds check and loads both go
+         * through p, at constant offsets only (WP-5c).  The +8
+         * window covers tag, length, up to 4 value bytes and the
+         * head of the following sqNum TLV.  The barriers pin p to
+         * one SSA value so the check and the loads stay related. */
+        __u8 *p = apdu_data + i;
+        IEC61850_BARRIER_VAR(p);
+        if ((__u8 *)(p + 8) > (__u8 *)data_end)
             break;
+        IEC61850_BARRIER_VAR(p);
 
-        if (apdu_data[i] == GOOSE_BPF_TAG_STNUM) {
-            __u8 slen = apdu_data[i + 1];
-            if (slen >= 1 && slen <= 4 &&
-                (void *)(apdu_data + i + 2 + slen) <= data_end) {
-                /* Extract stNum (big-endian, 1-4 bytes) */
-                st_num = 0;
-                if (slen >= 1) st_num = apdu_data[i + 2];
-                if (slen >= 2) st_num = (st_num << 8) | apdu_data[i + 3];
-                if (slen >= 3) st_num = (st_num << 8) | apdu_data[i + 4];
-                if (slen >= 4) st_num = (st_num << 8) | apdu_data[i + 5];
+        if (p[0] != GOOSE_BPF_TAG_STNUM)
+            continue;
 
-                /* sqNum should follow immediately */
-                int sq_off = i + 2 + slen;
-                if ((void *)(apdu_data + sq_off + 6) <= data_end &&
-                    apdu_data[sq_off] == GOOSE_BPF_TAG_SQNUM) {
-                    __u8 qlen = apdu_data[sq_off + 1];
-                    if (qlen >= 1 && qlen <= 4 &&
-                        (void *)(apdu_data + sq_off + 2 + qlen) <= data_end) {
-                        sq_num = 0;
-                        if (qlen >= 1) sq_num = apdu_data[sq_off + 2];
-                        if (qlen >= 2) sq_num = (sq_num << 8) | apdu_data[sq_off + 3];
-                        if (qlen >= 3) sq_num = (sq_num << 8) | apdu_data[sq_off + 4];
-                        if (qlen >= 4) sq_num = (sq_num << 8) | apdu_data[sq_off + 5];
-                    }
-                }
-                found = 1;
-                break;
+        __u8 slen = p[1];
+        if (slen < 1 || slen > 4)
+            continue;
+
+        /* Extract stNum (big-endian, 1-4 bytes) through p */
+        __u32 v = 0;
+        if (slen >= 1) v = p[2];
+        if (slen >= 2) v = (v << 8) | p[3];
+        if (slen >= 3) v = (v << 8) | p[4];
+        if (slen >= 4) v = (v << 8) | p[5];
+        st_num = v;
+
+        /* sqNum should follow immediately: its own merged pointer
+         * with its own bounds check (constant offsets from q). */
+        __u8 *q = p + 2 + slen;
+        IEC61850_BARRIER_VAR(q);
+        if ((__u8 *)(q + 8) > (__u8 *)data_end)
+            break;
+        IEC61850_BARRIER_VAR(q);
+
+        if (q[0] == GOOSE_BPF_TAG_SQNUM) {
+            __u8 qlen = q[1];
+            if (qlen >= 1 && qlen <= 4) {
+                __u32 w = 0;
+                if (qlen >= 1) w = q[2];
+                if (qlen >= 2) w = (w << 8) | q[3];
+                if (qlen >= 3) w = (w << 8) | q[4];
+                if (qlen >= 4) w = (w << 8) | q[5];
+                sq_num = w;
             }
         }
+        found = 1;
+        break;
     }
 
     if (!found)
