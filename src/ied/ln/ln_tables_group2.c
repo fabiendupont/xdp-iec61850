@@ -22,11 +22,15 @@
  *  - Function-specific setting groups (ING/ENG stage counts,
  *    time/curve characteristics, ASG bias/restraint slopes) are
  *    configuration-specific and omitted — flagged per class.
- *  - Deferred candidates whose names could not be confirmed
- *    against 7-4 from clean-room knowledge: PSCH, PNPH, PPBR,
- *    PVOC, PVPH, PVMV, RDIR, PMRI — see the report. The
+ *  - WP-6c deferred the classes whose names/DO sets could not be
+ *    confirmed against 7-4 from clean-room knowledge: PSCH, PNPH,
+ *    PPBR, PVOC, PVPH, PVMV, RDIR, PMRI. WP-6d1 adds them under
+ *    the owner-directed relaxed policy — best-recall DO sets with
+ *    the uncertain DOs listed OPTIONAL (instantiation never
+ *    depends on the recall) and TR-flagged per class below. The
+ *    R-family extension RPSB joins them in the WP-6d1 batch. The
  *    orchestrator's PVOF/PVUF (over/underfrequency) map to the
- *    7-4 classes PTOF/PTUF implemented below.
+ *    7-4 classes PTOF/PTUF implemented above.
  */
 
 #include "ln_schema_tables.h"
@@ -284,8 +288,9 @@ static const iec61850_ln_do_def_t ptrc_dos[] = {
  *
  * Judgment calls: start counter (BCR-family) and start-time curve
  * settings (ASG/ING) are omitted — flagged; conservative Str/Op
- * subset. Included on profile evidence; deferred candidates
- * (PMRI and kin) are listed in the file header.
+ * subset. Included on profile evidence; the WP-6c deferred
+ * candidates (PMRI and kin) were added by the WP-6d1 batch at the
+ * bottom of this file.
  * ------------------------------------------------------------------ */
 static const iec61850_ln_do_def_t pmss_dos[] = {
     { "Beh",    IEC61850_CDC_INS, true  },
@@ -410,6 +415,199 @@ static const iec61850_ln_do_def_t tvtr_dos[] = {
     { "Vol",    IEC61850_CDC_MV,  true },
 };
 
+/* ------------------------------------------------------------------
+ * WP-6d1 batch — owner-directed relaxed policy (best-recall DO
+ * sets, uncertain DOs OPTIONAL + TR-flagged per class; common-only
+ * shells with flagged optionals are the accepted minimum).
+ * ------------------------------------------------------------------
+ * PMRI — Motor restart inhibition (7-4 Ed.2 group 2)
+ *
+ * Blocks motor restart after a supply interruption until the
+ * voltage has recovered. Judgment calls (TR): the
+ * restart-inhibition operation is best-recalled as Op (ACT)
+ * listed M with Str (ACD) O, mirroring RREC's operation-issued
+ * shape; the supervision settings (ASG voltage-recovery
+ * thresholds, restart delay times) and counting statuses are
+ * omitted — flagged.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t pmri_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, true  },
+    { "Str",    IEC61850_CDC_ACD, false },
+};
+
+/* ------------------------------------------------------------------
+ * PNPH — Negative-phase protection (WP-6c deferral, WP-6d1 add)
+ *
+ * TR (class-level): the class name could not be confirmed against
+ * 7-4 from clean-room knowledge — it may be a profile-specific
+ * name for negative-sequence (unbalance) protection, commonly
+ * realized in profiles as a PTOC variant measuring the
+ * negative-sequence current. Added per the owner's directive
+ * under the relaxed policy: LN-common M DOs plus Str/Op listed O
+ * (TR) so instantiation never depends on the recall.
+ * Negative-sequence pickup/bias settings (ASG) omitted — TR.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t pnph_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, false },
+    { "Str",    IEC61850_CDC_ACD, false },
+};
+
+/* ------------------------------------------------------------------
+ * PPBR — Phase balance/reversal protection (WP-6c deferral,
+ * WP-6d1 add)
+ *
+ * TR (class-level): the class name could not be confirmed against
+ * 7-4 from clean-room knowledge — the best recall places it in
+ * the motor-protection family (phase-balance / phase-reversal,
+ * alongside PMSS/PMRI). Added per the owner's directive under the
+ * relaxed policy: LN-common M DOs plus Str/Op listed O (TR) so
+ * instantiation never depends on the recall. Phase-balance
+ * settings (ASG) omitted — TR.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t ppbr_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, false },
+    { "Str",    IEC61850_CDC_ACD, false },
+};
+
+/* ------------------------------------------------------------------
+ * PSCH — Protection scheme coordination (7-4 Ed.2 group 2)
+ *
+ * Coordinates teleprotection schemes (blocking / permissive /
+ * intertrip signal exchange between line ends). Judgment calls
+ * (TR): the class is Ed.2; the per-scheme signal statuses
+ * (per-input blocking/transfer-trip) could not be recalled from
+ * clean-room knowledge and are omitted. Op (ACT, coordinated
+ * scheme trip output) is listed M and Str (ACD, scheme element
+ * started) O, mirroring RREC's operation-issued shape. Scheme
+ * coordination settings (scheme type, receive/transmit
+ * configuration) omitted — TR.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t psch_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, true  },
+    { "Str",    IEC61850_CDC_ACD, false },
+};
+
+/* ------------------------------------------------------------------
+ * PVOC — Overcurrent protection variant (WP-6c deferral, WP-6d1
+ * add)
+ *
+ * TR (class-level): the class name could not be confirmed against
+ * 7-4 from clean-room knowledge — 7-4's overcurrent classes are
+ * PTOC/PIOC (both already in the registry); this name may be a
+ * profile-specific variant. Added per the owner's directive under
+ * the relaxed policy: LN-common M DOs plus Str/Op/StrVal listed O
+ * (TR) so instantiation never depends on the recall. Distinct
+ * class name — not a registry duplicate of PTOC/PIOC.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t pvoc_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, false },
+    { "Str",    IEC61850_CDC_ACD, false },
+    { "StrVal", IEC61850_CDC_ASG, false },
+};
+
+/* ------------------------------------------------------------------
+ * PVPH — Phase-voltage protection variant (WP-6c deferral,
+ * WP-6d1 add)
+ *
+ * TR (class-level): the class name could not be confirmed against
+ * 7-4 from clean-room knowledge — 7-4's voltage classes are
+ * PTOV/PTUV (both already in the registry); this name may be a
+ * profile-specific phase-voltage variant. Added per the owner's
+ * directive under the relaxed policy: LN-common M DOs plus
+ * Str/Op/StrVal listed O (TR) so instantiation never depends on
+ * the recall. Distinct class name — not a registry duplicate of
+ * PTOV/PTUV.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t pvph_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, false },
+    { "Str",    IEC61850_CDC_ACD, false },
+    { "StrVal", IEC61850_CDC_ASG, false },
+};
+
+/* ------------------------------------------------------------------
+ * PVMV — Motor-voltage protection variant (WP-6c deferral,
+ * WP-6d1 add)
+ *
+ * TR (class-level): the class name could not be confirmed against
+ * 7-4 from clean-room knowledge — the best recall places it in
+ * the motor-protection family (supply-voltage supervision,
+ * alongside PMRI). Added per the owner's directive under the
+ * relaxed policy: LN-common M DOs plus Str/Op/StrVal listed O
+ * (TR) so instantiation never depends on the recall. Distinct
+ * class name — not a registry duplicate of PTUV/PMRI.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t pvmv_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, false },
+    { "Str",    IEC61850_CDC_ACD, false },
+    { "StrVal", IEC61850_CDC_ASG, false },
+};
+
+/* ------------------------------------------------------------------
+ * RDIR — Directional earth-fault protection (7-4
+ * protection-related; WP-6c deferral, WP-6d1 add)
+ *
+ * Judgment calls (TR): Str (ACD — the directional start carries
+ * dirGeneral/dirNeut, exactly the ACD purpose) and Op (ACT) are
+ * listed M, mirroring the PTEF/PDIR family shape; the exact 7-4
+ * DO set could not be confirmed from clean-room knowledge.
+ * Directional/characteristic settings (ASG, e.g. sensitive
+ * directional pickup) omitted — flagged.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t rdir_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true  },
+    { "Health", IEC61850_CDC_INS, true  },
+    { "Mod",    IEC61850_CDC_INC, true  },
+    { "NamPlt", IEC61850_CDC_LPL, true  },
+    { "Op",     IEC61850_CDC_ACT, true  },
+    { "Str",    IEC61850_CDC_ACD, true  },
+};
+
+/* ------------------------------------------------------------------
+ * RPSB — Protection supervision (7-4 protection-related)
+ *
+ * WP-6d1 R-family extension (the only remaining R class placeable
+ * with confidence: Ed.1 protection-equipment supervision, e.g.
+ * trip-circuit supervision; RBRF/RDRE/RSYN/RREC/RDIR cover the
+ * rest). Judgment call (TR): the signature supervision statuses
+ * could not be recalled from clean-room knowledge — common-only
+ * shell (same shape as RFLO), omitted statuses flagged for a
+ * follow-up batch.
+ * ------------------------------------------------------------------ */
+static const iec61850_ln_do_def_t rpsb_dos[] = {
+    { "Beh",    IEC61850_CDC_INS, true },
+    { "Health", IEC61850_CDC_INS, true },
+    { "Mod",    IEC61850_CDC_INC, true },
+    { "NamPlt", IEC61850_CDC_LPL, true },
+};
+
 const iec61850_ln_class_def_t ln_group2_classes[LN_GROUP2_CLASS_COUNT] = {
     /* pilots (WP-6b, byte-identical; the frozen test asserts
      * their DO counts) */
@@ -440,4 +638,16 @@ const iec61850_ln_class_def_t ln_group2_classes[LN_GROUP2_CLASS_COUNT] = {
     /* instrument transformers */
     { "TCTR", tctr_dos, 6U },
     { "TVTR", tvtr_dos, 6U },
+    /* WP-6d1 relaxed-policy deferred batch (owner-directed):
+     * uncertain DOs are O + TR-flagged per class above; the
+     * registry total moves 54 -> 63 */
+    { "PMRI", pmri_dos, 6U },
+    { "PNPH", pnph_dos, 6U },
+    { "PPBR", ppbr_dos, 6U },
+    { "PSCH", psch_dos, 6U },
+    { "PVOC", pvoc_dos, 7U },
+    { "PVPH", pvph_dos, 7U },
+    { "PVMV", pvmv_dos, 7U },
+    { "RDIR", rdir_dos, 6U },
+    { "RPSB", rpsb_dos, 4U },
 };
