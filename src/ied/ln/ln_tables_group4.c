@@ -28,6 +28,41 @@
  * GSHE and SWRI. SGCP from the WP-6c deferral list is NOT
  * registered: its existence as a 7-4 class could not be verified
  * from clean-room knowledge — flagged in the WP-6d1 report.
+ *
+ * WP-6e (full-breadth campaign for the G/A/I families and the
+ * power-related T entries; same relaxed policy). Outcome of the
+ * review — no new classes registered in this file:
+ *  - G family judged COMPLETE per clean-room recall: GAPC, GCSW,
+ *    GGIO, GHAB, GSHE are all the Ed.2 names this campaign can
+ *    stand behind (GHAB/GSHE themselves carry WP-6d1 existence
+ *    flags).
+ *  - A family: ACDR (WP-6c, already flagged) is the only
+ *    recallable entry; no further A-class name is recallable with
+ *    confidence.
+ *  - I family: IHMI is registered; the dimly-recalled candidates
+ *    IARC, ITCI and ITMG are DECLINED — their existence as 7-4
+ *    Ed.2 classes cannot be confirmed clean-room (the names may
+ *    be 7-4 classes, later-amendment classes, or confabulations).
+ *    TR to verify against the 7-4:2010 class index; add in a
+ *    follow-up batch if confirmed.
+ *  - Power-related T entries: TCTR and TVTR are registered (in
+ *    ln_tables_group2.c per the WP-6c scope) and are all the
+ *    recallable T-family classes; nothing to add here.
+ *
+ * WP-6e K-family placement (owner decision): the K family —
+ * mechanical / non-electrical primary equipment — is assigned to
+ * group 4 by the WP-6e owner decision (the 4-group taxonomy has
+ * no natural home for it; the old WP-6d1 "no home" judgment in
+ * ln_tables_group1.c is superseded on placement). HOWEVER, the
+ * binding relaxed-policy rule (never register a class name whose
+ * existence is not recalled with confidence; never invent a name)
+ * still governs: this campaign cannot recall a single K-class
+ * name from clean-room 7-4 knowledge, so NO K class is
+ * registered — the owner decision is honored on placement, not on
+ * content. TR/owner action: supply the 7-4:2010 K-class name list
+ * (or confirm the K classes are defined in IEC 61850-7-410 /
+ * companion parts rather than 7-4 Ed.2) and a follow-up batch
+ * will register them as flagged shells.
  */
 
 #include "ln_schema_tables.h"
