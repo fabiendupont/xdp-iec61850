@@ -8,8 +8,10 @@
  * registered by the WP-6c group-3 batch, which owns the 7-4 M
  * family).
  * WP-6d1 appends the deferred group-1 classes under the relaxed
- * owner-directed policy (below): BATV, CALH, CBRK, MHAS, MRDR,
- * SARC, SWTC, YPTR, ZAXN.
+ * owner-directed policy (below): BATV, CALH, CBRK, SARC, SWTC,
+ * YPTR, ZAXN. (WP-6e correction: MHAS/MRDR were named by the
+ * WP-6d1 group-1 brief but registered by the group-3 batch, which
+ * owns the 7-4 M family — group 3 carries them.)
  *
  * DO lists are the conservative common subset across 7-4 editions
  * (M = mandatory in the chosen subset, O = optional, listed for
