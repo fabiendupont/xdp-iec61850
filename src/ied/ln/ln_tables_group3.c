@@ -26,6 +26,47 @@
  * existence as a 7-4 class could not be verified from clean-room
  * knowledge — flagged in the WP-6d1 report. MFLK and MSTA were
  * already registered by WP-6c and are not re-added.
+ *
+ * WP-6e (full-breadth M/S campaign): this file owns the 7-4
+ * first-letter M and S families. A complete clean-room sweep of
+ * the 7-4 Ed.2 class list against the registry found every
+ * confidently-recallable M/S class already registered:
+ *  - M family (10): MDIF, MFLK, MHAI, MHAS, MMTR, MMXN, MMXU,
+ *    MRDR, MSQI, MSTA — all here (MHAS/MRDR via WP-6d1);
+ *  - S family (10): SCBR, SIML, SIMS, SPDC, SPTR, SQVL, SSIL,
+ *    STMP here, plus SARC and SWTC in group 1 (pilot placement,
+ *    recorded in the group-1 header; the 7-4 S family is complete
+ *    across the two files).
+ * No further 7-4 Ed.2 M/S class name is recallable with
+ * confidence from clean-room knowledge, so the WP-6e batch adds
+ * ZERO classes and LN_GROUP3_CLASS_COUNT stays 18. The relaxed
+ * policy relaxes DO-set confidence, never name confidence, so
+ * the names below stay unregistered.
+ *
+ * WP-6e declined / TR-review names (existence as 7-4 Ed.2
+ * classes not confirmable clean-room):
+ *  - MFUL (fuel monitoring): cannot be placed in the 7-4 LN
+ *    list; reads like a hydro (7-410) / DER (7-420) /
+ *    energy-storage (90-9) profile class. Stays declined as in
+ *    WP-6d1.
+ *  - SVBR (vibration supervision): the name surfaces in
+ *    condition-monitoring discussions but cannot be placed in
+ *    the 7-4 Ed.2 class list with confidence — possibly a class
+ *    of another part/edition. TR to confirm before any
+ *    registration.
+ *  - SDIS (disconnector supervision): not recallable; DIS itself
+ *    is the Ed.1 disconnector class, modeled by XSWI per the
+ *    group-1 header note.
+ * M/S-sounding classes from other IEC 61850 parts (e.g. MFLO or
+ * SCWT-style hydro monitoring in 7-410) are out of scope: this
+ * table is 7-4 Ed.2 only.
+ *
+ * WP-6e cross-file observations for the owner (no code changed
+ * outside this file): the group-1 header comment still credits
+ * WP-6d1 with "appending" MHAS/MRDR, but those classes live in
+ * this file's array — the group-1 comment is stale; and SWRI
+ * (group 4) starts with S but its family placement was accepted
+ * by the group-4 owner.
  */
 
 #include "ln_schema_tables.h"
