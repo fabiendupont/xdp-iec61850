@@ -298,48 +298,7 @@ static const iec61850_ln_do_def_t cbrk_dos[] = {
     { "Pos",    IEC61850_CDC_DPC, false },
 };
 
-/* ------------------------------------------------------------------
- * MHAS — Harmonic and interharmonic measurement, power family
- *        (WP-6d1)
- *
- * 7-4 M family: the harmonic/interharmonic measurement class
- * alongside MHAI (harmonics of currents/voltages, registered in
- * group 3). Judgment calls (all flagged for TR):
- *  - Group boundary: the M family is owned by the group-3 table
- *    (MHAI lives there), but MHAS was on the WP-6c group-1
- *    deferral list and the WP-6d1 scope keeps it here; TR may
- *    prefer to relocate it to group 3.
- *  - The class-specific DO set (harmonic power quantities) is
- *    not recallable with confidence, so none is guessed —
- *    common-only shell, the relaxed-policy minimum.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t mhas_dos[] = {
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-};
 
-/* ------------------------------------------------------------------
- * MRDR — Disturbance-recording measurement (WP-6d1)
- *
- * 7-4 M family: the measurement companion of the disturbance
- * recorder RDRE (registered in group 2). Judgment calls (as
- * MHAS, flagged for TR):
- *  - Group boundary: the M family is owned by the group-3 table;
- *    MRDR is registered here because it sat on the WP-6c group-1
- *    deferral list and the WP-6d1 scope keeps it there. TR may
- *    prefer to relocate it to group 3.
- *  - The class-specific DO set (recorded-value family) is not
- *    recallable with confidence, so none is guessed —
- *    common-only shell, the relaxed-policy minimum.
- * ------------------------------------------------------------------ */
-static const iec61850_ln_do_def_t mrdr_dos[] = {
-    { "Beh",    IEC61850_CDC_INS, true  },
-    { "Health", IEC61850_CDC_INS, true  },
-    { "Mod",    IEC61850_CDC_INC, true  },
-    { "NamPlt", IEC61850_CDC_LPL, true  },
-};
 
 /* ------------------------------------------------------------------
  * SARC — Supervision of arc (WP-6d1)
@@ -430,8 +389,6 @@ const iec61850_ln_class_def_t ln_group1_classes[LN_GROUP1_CLASS_COUNT] = {
     { "CSWI", cswi_dos, 5U },
     { "LLN0", lln0_dos, 4U },
     { "LPHD", lphd_dos, 7U },
-    { "MHAS", mhas_dos, 4U },
-    { "MRDR", mrdr_dos, 4U },
     { "SARC", sarc_dos, 4U },
     { "SWTC", swtc_dos, 5U },
     { "XCBR", xcbr_dos, 8U },

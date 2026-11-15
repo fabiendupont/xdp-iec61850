@@ -25,7 +25,7 @@ extern "C" {
 #endif
 
 /* Group 1 — common / substation (ln_tables_group1.c) */
-#define LN_GROUP1_CLASS_COUNT 19U
+#define LN_GROUP1_CLASS_COUNT 17U
 extern const iec61850_ln_class_def_t ln_group1_classes[LN_GROUP1_CLASS_COUNT];
 
 /* Group 2 — protection (ln_tables_group2.c) */
