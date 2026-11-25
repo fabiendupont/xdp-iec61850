@@ -260,18 +260,11 @@ static void test_graph_register_nodes(void)
     struct xgl_graph *g = xgl_graph_create("iec61850-test", 0);
     ASSERT_TRUE(g != NULL);
 
-    /* Load dispatch node first (creates PROG_ARRAY) */
-    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
-    if (ret != 0) {
-        printf("SKIP: dispatch add_node failed (%d: %s)\n", ret, strerror(-ret));
-        tests_skipped++;
-        xgl_graph_destroy(g);
-        return;
-    }
-
-    /* Register IEC 61850 nodes with dynamic index allocation */
+    /* iec61850_graph_register installs its own root dispatcher
+     * (node_dispatch) at PROG_ARRAY index 0 — do NOT pre-load
+     * xgl_dispatch there, the slot collision fails with -EEXIST. */
     struct iec61850_graph_indices indices;
-    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
+    int ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
     ASSERT_EQ(ret, 0);
 
     /* Indices must be valid (>= 0) and distinct */
@@ -329,14 +322,8 @@ static void test_graph_register_bad_dir(void)
     struct xgl_graph *g = xgl_graph_create("iec61850-baddir", 0);
     ASSERT_TRUE(g != NULL);
 
-    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
-    if (ret != 0) {
-        tests_skipped++;
-        printf("SKIP: dispatch failed\n");
-        xgl_graph_destroy(g);
-        return;
-    }
-
+    /* register() installs node_dispatch at index 0 itself. */
+    int ret = 0;
     /* Register with nonexistent directory should fail */
     ret = iec61850_graph_register(g, "/nonexistent/path/to/bpf", NULL);
     ASSERT_TRUE(ret != 0);
@@ -355,14 +342,8 @@ static void test_setup_dispatch_map(void)
     struct xgl_graph *g = xgl_graph_create("iec61850-dispatch", 0);
     ASSERT_TRUE(g != NULL);
 
-    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
-    if (ret != 0) {
-        tests_skipped++;
-        printf("SKIP: dispatch failed\n");
-        xgl_graph_destroy(g);
-        return;
-    }
-
+    /* register() installs node_dispatch at index 0 itself. */
+    int ret = 0;
     /* Register IEC 61850 nodes to get dynamic indices */
     struct iec61850_graph_indices indices;
     ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
@@ -408,14 +389,8 @@ static void test_get_filter_map_fd(void)
     struct xgl_graph *g = xgl_graph_create("iec61850-filter", 0);
     ASSERT_TRUE(g != NULL);
 
-    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
-    if (ret != 0) {
-        tests_skipped++;
-        printf("SKIP: dispatch failed\n");
-        xgl_graph_destroy(g);
-        return;
-    }
-
+    /* register() installs node_dispatch at index 0 itself. */
+    int ret = 0;
     struct iec61850_graph_indices indices;
     ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
     ASSERT_EQ(ret, 0);
@@ -556,16 +531,9 @@ static void test_ratelimit_map_roundtrip(void)
     struct xgl_graph *g = xgl_graph_create("iec61850-rl", 0);
     ASSERT_TRUE(g != NULL);
 
-    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
-    if (ret != 0) {
-        printf("SKIP: dispatch add_node failed (%d: %s)\n", ret, strerror(-ret));
-        tests_skipped++;
-        xgl_graph_destroy(g);
-        return;
-    }
-
+    /* register() installs node_dispatch at index 0 itself. */
     struct iec61850_graph_indices indices;
-    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
+    int ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
     ASSERT_EQ(ret, 0);
 
     /* All four rate-limit maps must be retrievable via the generic
@@ -647,18 +615,9 @@ static void test_full_pipeline(void)
     struct xgl_graph *g = xgl_graph_create("iec61850-full", 0);
     ASSERT_TRUE(g != NULL);
 
-    /* Load dispatch */
-    int ret = xgl_graph_add_node(g, 0, dispatch_path, "xgl_dispatch");
-    if (ret != 0) {
-        tests_skipped++;
-        printf("SKIP: dispatch failed (%d)\n", ret);
-        xgl_graph_destroy(g);
-        return;
-    }
-
-    /* Register all IEC 61850 nodes */
+    /* register() installs node_dispatch at index 0 itself. */
     struct iec61850_graph_indices indices;
-    ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
+    int ret = iec61850_graph_register(g, iec_bpf_dir, &indices);
     ASSERT_EQ(ret, 0);
 
     /* Get dispatch map and set up EtherType routing */
