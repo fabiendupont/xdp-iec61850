@@ -58,7 +58,7 @@ static int compute_key_id(EVP_PKEY *pkey, uint8_t *key_id)
 }
 
 /* Extract DN string from X509_NAME */
-static void extract_dn(X509_NAME *name, char *buf, size_t buf_size)
+static void extract_dn(const X509_NAME *name, char *buf, size_t buf_size)
 {
     if (name == NULL) {
         buf[0] = '\0';

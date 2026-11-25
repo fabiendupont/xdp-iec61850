@@ -76,9 +76,10 @@ static int generate_test_key_and_cert(const char *key_path, const char *cert_pat
     X509_gmtime_adj(X509_get_notBefore(cert), 0);
     X509_gmtime_adj(X509_get_notAfter(cert), 365L * 24 * 3600);
     X509_set_pubkey(cert, key);
-    X509_NAME *name = X509_get_subject_name(cert);
+    X509_NAME *name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
                                (const unsigned char *)"TestSecPub", -1, -1, 0);
+    X509_set_subject_name(cert, name);
     X509_set_issuer_name(cert, name);
     X509_sign(cert, key, EVP_sha256());
 
@@ -116,9 +117,10 @@ static int generate_ec_key_and_cert(const char *key_path, const char *cert_path)
     X509_gmtime_adj(X509_get_notBefore(cert), 0);
     X509_gmtime_adj(X509_get_notAfter(cert), 365L * 24 * 3600);
     X509_set_pubkey(cert, key);
-    X509_NAME *name = X509_get_subject_name(cert);
+    X509_NAME *name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
                                (const unsigned char *)"TestEC", -1, -1, 0);
+    X509_set_subject_name(cert, name);
     X509_set_issuer_name(cert, name);
     X509_sign(cert, key, EVP_sha256());
 

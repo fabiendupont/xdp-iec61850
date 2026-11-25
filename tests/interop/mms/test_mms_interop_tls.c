@@ -172,9 +172,10 @@ static X509 *mtl_gen_cert(EVP_PKEY *subj_key, const X509 *issuer_cert,
     X509_gmtime_adj(X509_get_notAfter(cert), 365L * 24 * 3600);
     X509_set_pubkey(cert, subj_key);
 
-    name = X509_get_subject_name(cert);
+    name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
                                 (const unsigned char *)cn, -1, -1, 0);
+    X509_set_subject_name(cert, name);
 
     if (issuer_cert != NULL) {
         X509_set_issuer_name(cert, X509_get_subject_name(

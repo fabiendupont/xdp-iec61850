@@ -398,12 +398,23 @@ static int cert_check_62351_profile(const X509 *cert)
             return -EACCES;
     }
 
-    /* Validity window: notBefore <= now <= notAfter */
+    /* Validity window: notBefore <= now <= notAfter.
+     * The X509_cmp_*time* family is deprecated in OpenSSL 4;
+     * ASN1_TIME_to_tm() is the stable API across 3.x and 4.x. */
     not_before = X509_get0_notBefore(cert);
     not_after = X509_get0_notAfter(cert);
     if ((not_before == NULL) || (not_after == NULL)) { return -EACCES; }
-    if (X509_cmp_current_time(not_before) > 0) { return -EACCES; }
-    if (X509_cmp_current_time(not_after) < 0) { return -EACCES; }
+    {
+        struct tm nb_tm;
+        struct tm na_tm;
+        time_t now = time(NULL);
+        if ((ASN1_TIME_to_tm(not_before, &nb_tm) != 1) ||
+            (ASN1_TIME_to_tm(not_after, &na_tm) != 1)) {
+            return -EACCES;
+        }
+        if (timegm(&nb_tm) > now) { return -EACCES; }
+        if (timegm(&na_tm) < now) { return -EACCES; }
+    }
 
     return 0;
 }
@@ -431,10 +442,16 @@ static int cert_check_spiffe_uri(const X509 *cert)
         if ((gen == NULL) || (gen->type != GEN_URI)) { continue; }
         uri = gen->d.uniformResourceIdentifier;
         if (uri == NULL) { continue; }
-        if (((size_t)uri->length >= prefix_len) &&
-            (memcmp(uri->data, prefix, prefix_len) == 0)) {
-            ret = 0;
-            break;
+        /* OpenSSL 4 makes ASN1 string types opaque — use the
+         * accessors, valid on 3.x too. */
+        {
+            const ASN1_STRING *as = (const ASN1_STRING *)uri;
+            if (((size_t)ASN1_STRING_length(as) >= prefix_len) &&
+                (memcmp(ASN1_STRING_get0_data(as), prefix,
+                        prefix_len) == 0)) {
+                ret = 0;
+                break;
+            }
         }
     }
 

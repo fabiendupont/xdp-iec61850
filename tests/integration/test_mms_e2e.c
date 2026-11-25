@@ -89,9 +89,10 @@ static int tls_gen_fixtures(void)
     X509_gmtime_adj(X509_get_notBefore(ca), 0);
     X509_gmtime_adj(X509_get_notAfter(ca), 365L * 24 * 3600);
     X509_set_pubkey(ca, ca_k.key);
-    name = X509_get_subject_name(ca);
+    name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
                                 (const unsigned char *)"TlsE2eCA", -1, -1, 0);
+    X509_set_subject_name(ca, name);
     X509_set_issuer_name(ca, name);
     if ((bc == NULL) || (X509_add_ext(ca, bc, -1) != 1)) { goto done; }
     if (X509_sign(ca, ca_k.key, EVP_sha256()) <= 0) { goto done; }
@@ -102,9 +103,10 @@ static int tls_gen_fixtures(void)
     X509_gmtime_adj(X509_get_notBefore(srv), 0);
     X509_gmtime_adj(X509_get_notAfter(srv), 365L * 24 * 3600);
     X509_set_pubkey(srv, srv_k.key);
-    name = X509_get_subject_name(srv);
+    name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
                                 (const unsigned char *)"TlsE2eServer", -1, -1, 0);
+    X509_set_subject_name(srv, name);
     X509_set_issuer_name(srv, X509_get_subject_name(ca));
     if (X509_sign(srv, ca_k.key, EVP_sha256()) <= 0) { goto done; }
 
